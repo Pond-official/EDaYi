@@ -1,0 +1,71 @@
+{
+  "module": {
+    "name": "Pond",
+    "type": "entry",
+    "description": "$string:module_desc",
+    "mainElement": "PondAbility",
+    "deviceTypes": [
+      "phone",
+      "tablet",
+      "2in1"
+    ],
+    "deliveryWithInstall": true,
+    "installationFree": false,
+    "pages": "$profile:main_pages",
+    "requestPermissions": [
+      {
+        "name": "ohos.permission.INTERNET"
+      }
+    ],
+    "abilities": [
+      {
+        "name": "PondAbility",
+        "srcEntry": "./ets/pondability/PondAbility.ets",
+        "description": "$string:ability_desc",
+        "icon": "$media:layered_image",
+        "label": "$string:ability_label",
+        "startWindowIcon": "$media:startIcon",
+        "startWindowBackground": "$color:start_window_background",
+        "exported": true,
+        "skills": [
+          {
+            "entities": [
+              "entity.system.home"
+            ],
+            "actions": [
+              "ohos.want.action.home"
+            ]
+          }
+        ]
+      }
+    ],
+    "extensionAbilities": [
+      {
+        "name": "PondBackupAbility",
+        "srcEntry": "./ets/pondbackupability/PondBackupAbility.ets",
+        "type": "backup",
+        "exported": false,
+        "metadata": [
+          {
+            "name": "ohos.extension.backup",
+            "resource": "$profile:backup_config"
+          }
+        ],
+      },
+      {
+        "name": "ScheduleFormAbility",
+        "srcEntry": "./ets/scheduleformability/ScheduleFormAbility.ets",
+        "label": "$string:form_schedule_label",
+        "description": "$string:form_schedule_desc",
+        "type": "form",
+        "exported": false,
+        "metadata": [
+          {
+            "name": "ohos.extension.form",
+            "resource": "$profile:schedule_card_config"
+          }
+        ]
+      }
+    ]
+  }
+}
