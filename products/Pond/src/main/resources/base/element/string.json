@@ -1,0 +1,64 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "module description"
+    },
+    {
+      "name": "ability_desc",
+      "value": "description"
+    },
+    {
+      "name": "ability_label",
+      "value": "e大医"
+    },
+    {
+      "name": "form_schedule_label",
+      "value": "今日课程"
+    },
+    {
+      "name": "form_schedule_desc",
+      "value": "展示今日课程安排"
+    },
+    {
+      "name": "form_schedule_large_desc",
+      "value": "展示今日完整课程安排"
+    },
+    {
+      "name": "form_exam_label",
+      "value": "期末倒计时"
+    },
+    {
+      "name": "form_exam_desc",
+      "value": "按考试时间从近到远展示期末考试倒计时"
+    },
+    {
+      "name": "calendar_permission_reason",
+      "value": "用于将本周与下周课程写入系统日历并在上课前提醒您"
+    },
+    {
+      "name": "grid_title_label",
+      "value": "title"
+    },
+    {
+      "name": "adaptive_layout",
+      "value": "adaptive layout"
+    },
+    {
+      "name": "system_cap",
+      "value": "system capabilities"
+    },
+    {
+      "name": "responsive_layout",
+      "value": "responsive layout"
+    },
+    {
+      "name": "location_cap_invalid",
+      "value": "This device does not have the system capability of location service"
+    },
+    {
+      "name": "location_cap_valid",
+      "value": "This device has the system capability of location service"
+    }
+  ]
+}
