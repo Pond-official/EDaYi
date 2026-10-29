@@ -106,4 +106,10 @@ eDaiYi_Next/
 
 ## 许可
 
-本仓库未声明开源许可证。如需转载或二次分发，请联系作者。
+本项目基于 [MIT License](LICENSE) 开源，Copyright (c) 2026 Pond-official。
+
+你可以自由使用、修改、分发本项目的代码，包括商业用途，只需保留版权声明与许可证文本。
+
+欢迎提交 Issue 与 Pull Request。
+
+> 说明：`common` 模块的包描述文件标注的许可证为 Apache-2.0（继承自工程模板），本仓库整体以 MIT 发布。
