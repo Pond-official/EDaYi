@@ -1,0 +1,44 @@
+{
+  "forms": [
+    {
+      "name": "ScheduleCard",
+      "description": "$string:form_schedule_desc",
+      "src": "./ets/widget/pages/ScheduleCard.ets",
+      "uiSyntax": "arkts",
+      "isDefault": true,
+      "window": {
+        "designWidth": 720,
+        "autoDesignWidth": true
+      },
+      "colorMode": "auto",
+      "isDynamic": true,
+      "supportDimensions": [
+        "2*4"
+      ],
+      "defaultDimension": "2*4",
+      "updateEnabled": true,
+      "updateDuration": 2,
+      "scheduledUpdateTime": "10:30"
+    },
+    {
+      "name": "ScheduleCardLarge",
+      "description": "$string:form_schedule_large_desc",
+      "src": "./ets/widget/pages/ScheduleCardLarge.ets",
+      "uiSyntax": "arkts",
+      "isDefault": false,
+      "window": {
+        "designWidth": 720,
+        "autoDesignWidth": true
+      },
+      "colorMode": "auto",
+      "isDynamic": true,
+      "supportDimensions": [
+        "4*4"
+      ],
+      "defaultDimension": "4*4",
+      "updateEnabled": true,
+      "updateDuration": 2,
+      "scheduledUpdateTime": "10:30"
+    }
+  ]
+}

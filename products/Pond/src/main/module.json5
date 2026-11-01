@@ -1,0 +1,118 @@
+{
+  "module": {
+    "name": "Pond",
+    "type": "entry",
+    "description": "$string:module_desc",
+    "mainElement": "PondAbility",
+    "deviceTypes": [
+      "phone",
+      "tablet",
+      "2in1"
+    ],
+    "deliveryWithInstall": true,
+    "installationFree": false,
+    "pages": "$profile:main_pages",
+    "easyGo": "$profile:easy_go",
+    "requestPermissions": [
+      {
+        "name": "ohos.permission.INTERNET"
+      },
+      {
+        "name": "ohos.permission.PUBLISH_AGENT_REMINDER"
+      },
+      {
+        "name": "ohos.permission.HDR_BRIGHTNESS"
+      },
+      {
+        "name": "ohos.permission.READ_CALENDAR",
+        "reason": "$string:calendar_permission_reason",
+        "usedScene": {
+          "abilities": [
+            "PondAbility"
+          ],
+          "when": "inuse"
+        }
+      },
+      {
+        "name": "ohos.permission.WRITE_CALENDAR",
+        "reason": "$string:calendar_permission_reason",
+        "usedScene": {
+          "abilities": [
+            "PondAbility"
+          ],
+          "when": "inuse"
+        }
+      }
+    ],
+    "abilities": [
+      {
+        "name": "PondAbility",
+        "srcEntry": "./ets/pondability/PondAbility.ets",
+        "description": "$string:ability_desc",
+        "icon": "$media:layered_image",
+        "label": "$string:ability_label",
+        "startWindowIcon": "$media:startIcon",
+        "startWindowBackground": "$color:start_window_background",
+        "exported": true,
+        "orientation": "auto_rotation_restricted",
+        "supportWindowMode": [
+          "fullscreen",
+          "split",
+          "floating"
+        ],
+        "skills": [
+          {
+            "entities": [
+              "entity.system.home"
+            ],
+            "actions": [
+              "ohos.want.action.home"
+            ]
+          }
+        ]
+      }
+    ],
+    "extensionAbilities": [
+      {
+        "name": "PondBackupAbility",
+        "srcEntry": "./ets/pondbackupability/PondBackupAbility.ets",
+        "type": "backup",
+        "exported": false,
+        "metadata": [
+          {
+            "name": "ohos.extension.backup",
+            "resource": "$profile:backup_config"
+          }
+        ],
+      },
+      {
+        "name": "ScheduleFormAbility",
+        "srcEntry": "./ets/scheduleformability/ScheduleFormAbility.ets",
+        "label": "$string:form_schedule_label",
+        "description": "$string:form_schedule_desc",
+        "type": "form",
+        "exported": false,
+        "metadata": [
+          {
+            "name": "ohos.extension.form",
+            "resource": "$profile:schedule_card_config"
+          }
+        ]
+      },
+      {
+        "name": "ExamFormAbility",
+        "srcEntry": "./ets/examformability/ExamFormAbility.ets",
+        "label": "$string:form_exam_label",
+        "description": "$string:form_exam_desc",
+        "type": "form",
+        "exported": false,
+        "metadata": [
+          {
+            "name": "ohos.extension.form",
+            "resource": "$profile:exam_card_config"
+          }
+        ]
+      }
+    ]
+  }
+}
