@@ -8,6 +8,7 @@ import { ReminderScheduler } from './ReminderScheduler';
 import { CacheManager } from './CacheManager';
 import { FinalExamEntry, GradeCategory, GradeEntry, ScheduleCellInfo, SectionTimeInfo, StudentProfile, TermStatus } from '../model/JwModels';
 import { SelectionRepository } from './SelectionRepository';
+import { ZcpRepository } from './ZcpRepository';
 
 const JW_DOMAIN: string = 'https://jwxt.dmu.edu.cn';
 const JW_APP_ROOT: string = JW_DOMAIN + '/jwapp';
@@ -99,18 +100,18 @@ interface GradeDatasRaw {
 }
 
 interface GradeReportRaw {
-  fawbx?: GradeItemRaw[];
-  fanbx?: FanTreeRaw;
+  fawbx?: GradeItemRaw[] | null;
+  fanbx?: FanTreeRaw | null;
   calculatedTime?: string;
 }
 
 interface FanTreeRaw {
-  children?: FanCategoryRaw[];
+  children?: FanCategoryRaw[] | null;
 }
 
 interface FanCategoryRaw {
   courseCategoryName?: string;
-  checkCourseVOS?: GradeItemRaw[];
+  checkCourseVOS?: GradeItemRaw[] | null;
 }
 
 interface GradeItemRaw {
@@ -440,6 +441,9 @@ export class JwxtRepository {
     } else if (mode === 'restricted') {
       // 已保存的选课学号/密码不属于课表数据，受限模式同样清除
       SelectionRepository.clearSavedCredentials();
+      // 综评数据不属于课表数据，受限模式连同临时缓存一并清除
+      ZcpRepository.clearMemory();
+      ZcpRepository.clearCache();
       if (context !== null) {
         CardDataStore.clearAppCache(context);
         CardDataStore.clearFinalExams(context);
@@ -461,6 +465,9 @@ export class JwxtRepository {
     ReminderScheduler.cancelAll();
     SelectionRepository.clearSession();
     SelectionRepository.clearSavedCredentials();
+    // 综评为个人测评数据，严格模式连同 xgfw 会话标记与临时缓存一并清除
+    ZcpRepository.clearSession();
+    ZcpRepository.clearCache();
     const context: common.UIAbilityContext | null = JwxtRepository.appContext;
     if (context === null) {
       return;
@@ -475,14 +482,13 @@ export class JwxtRepository {
 
   /**
    * 应用进入后台或退出（PondAbility 生命周期回调）：
-   * 严格隐私模式下清理缓存并退出登录，下次使用需重新登录。
+   * 严格隐私模式下清理全部含课程信息的数据并退出登录，下次使用需重新登录。
    */
   static handleAppHide(): void {
     if (JwxtRepository.privacyMode() !== 'strict') {
       return;
     }
     hilog.info(DOMAIN, TAG, 'strict privacy: cleanup and logout on app hide');
-    JwxtRepository.clearStrictData();
     JwxtRepository.logout();
   }
 
@@ -522,7 +528,7 @@ export class JwxtRepository {
     }
   }
 
-  /** 查询本地缓存大小（字节，应用级+模块级 cacheDir），无上下文时返回 0 */
+  /** 查询本地缓存大小（字节，应用级+模块级 cacheDir 与综评本地缓存文件），无上下文时返回 0 */
   static getCacheSizeBytes(): number {
     const context: common.UIAbilityContext | null = JwxtRepository.appContext;
     if (context === null) {
@@ -534,6 +540,8 @@ export class JwxtRepository {
     if (abilityCacheDir !== appCacheDir) {
       bytes += CacheManager.dirSize(abilityCacheDir);
     }
+    // 综评缓存存于 filesDir（不在 cacheDir 内），随"清理缓存"一并清除，统计时单独计入
+    bytes += ZcpRepository.cacheSizeBytes();
     hilog.info(DOMAIN, TAG, 'cacheDir=%{public}s abilityDir=%{public}s size=%{public}d',
       appCacheDir, abilityCacheDir, bytes);
     return bytes;
@@ -556,6 +564,9 @@ export class JwxtRepository {
     CardDataStore.clearAppCache(context);
     AppStorage.setOrCreate<GradeEntry[]>('jwGrades', []);
     AppStorage.setOrCreate<GradeCategory[]>('jwGradeCategories', []);
+    // 综评数据与成绩同级：清缓存同时清空内存态与临时缓存（会话保留，重进页签可重新在线获取）
+    ZcpRepository.clearMemory();
+    ZcpRepository.clearCache();
   }
 
   /** 更新单门课程的上课提醒开关（按课程名），写入 AppStorage、持久化并立即重新调度 */
@@ -960,21 +971,39 @@ export class JwxtRepository {
   }
 
   /**
-   * 退出登录：清除 WebView 会话 Cookie 与应用内离线缓存，回到未登录空态。
-   * 不清除已持久化的卡片课表，桌面卡片继续显示最近一次同步的数据。
+   * 退出登录：清除 WebView 会话 Cookie 与教务登录状态，按隐私模式分级处理数据：
+   * 标准模式保留应用内离线缓存与内存数据，页面继续显示离线数据（横幅切换为离线提示）；
+   * 限制模式清除课表以外的离线缓存与内存数据（页面不再显示数据），桌面课表卡片不受影响；
+   * 严格模式进一步清除桌面课表卡片等全部含课程信息的数据并刷新卡片。
    */
   static logout(): void {
     try {
       webview.WebCookieManager.clearAllCookiesSync();
     } catch (error) {
       const err: BusinessError = error as BusinessError;
-      hilog.error(DOMAIN, TAG, 'clearAllCookiesSync failed: %{public}s %{public}s', `${err.code}`, `${err.message}`);
+      hilog.error(DOMAIN, TAG, "clearAllCookiesSync failed: %{public}s %{public}s", `${err.code}`, `${err.message}`);
     }
-    const context: common.Context | null = JwxtRepository.appContext;
+    JwxtRepository.lastCookie = '';
+    const mode: string = JwxtRepository.privacyMode();
+    if (mode === 'standard') {
+      // 保留离线数据：仅失效 xgfw 会话标记，页面继续显示已获取的离线数据
+      ZcpRepository.invalidateSession();
+      AppStorage.setOrCreate<string>('jwDataMode', 'offlineCache');
+      AppStorage.setOrCreate<boolean>('jwLoaded', true);
+      return;
+    }
+    if (mode === 'strict') {
+      JwxtRepository.clearStrictData();
+      JwxtRepository.applyEmpty('offline');
+      return;
+    }
+    // 限制模式：清除课表以外的离线缓存与内存数据，桌面课表卡片不受影响
+    const context: common.UIAbilityContext | null = JwxtRepository.appContext;
     if (context !== null) {
       CardDataStore.clearAppCache(context);
     }
-    JwxtRepository.lastCookie = '';
+    ZcpRepository.clearSession();
+    ZcpRepository.clearCache();
     JwxtRepository.applyEmpty('offline');
   }
 
@@ -1032,9 +1061,9 @@ export class JwxtRepository {
     return list;
   }
 
-  private static parseGrades(items?: GradeItemRaw[]): GradeEntry[] {
+  private static parseGrades(items?: GradeItemRaw[] | null): GradeEntry[] {
     const list: GradeEntry[] = [];
-    if (items === undefined) {
+    if (items === undefined || items === null) {
       return list;
     }
     for (const item of items) {
@@ -1062,7 +1091,7 @@ export class JwxtRepository {
    * 培养方案分类成绩（专业基础课/专业课/公共课/实习等）：
    * 仅保留已有成绩的科目，未出分（空）与成绩为 0 的科目自动隐藏。
    */
-  private static parseGradeCategories(fan?: FanTreeRaw): GradeCategory[] {
+  private static parseGradeCategories(fan?: FanTreeRaw | null): GradeCategory[] {
     const list: GradeCategory[] = [];
     const children: FanCategoryRaw[] | undefined = fan?.children ?? undefined;
     if (children === undefined) {

@@ -26,7 +26,8 @@ struct LoginIndex {
   private webController: webview.WebviewController = new webview.WebviewController();
   @State pageTitle: string = '教务系统登录';
   private checking: boolean = false;
-  private syncing: boolean = false;
+  /** 同步状态参与"完成/同步中…"按钮渲染，须为 @State 才能触发刷新 */
+  @State syncing: boolean = false;
   private leaving: boolean = false;
   private detectTimer: number = -1;
 
@@ -165,12 +166,13 @@ struct LoginIndex {
    * 避免字符串比对失败导致返回键失效；同时记录栈状态便于诊断。
    */
   private backToHome(): void {
-    this.leaving = true;
     try {
       const state: router.RouterState = router.getState();
       hilog.info(DOMAIN, TAG, 'back: index=%{public}d path=%{public}s',
         state.index, state.path);
       if (state.index > 1) {
+        // 仅在真正返回时锁定；返回中止（登录页为栈根）时保持页面可交互、探测可继续
+        this.leaving = true;
         router.back();
       } else {
         hilog.error(DOMAIN, TAG, 'back aborted: login page is root');

@@ -2,12 +2,14 @@ import { ConfigurationConstant, UIAbility } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { window } from '@kit.ArkUI';
 import { JwxtRepository } from '../data/JwxtRepository';
+import { ZcpRepository } from '../data/ZcpRepository';
 
 const DOMAIN = 0x0000;
 
 export default class PondAbility extends UIAbility {
   onCreate(): void {
     JwxtRepository.attachContext(this.context);
+    ZcpRepository.attachContext(this.context);
     try {
       this.context.getApplicationContext().setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET);
     } catch (err) {

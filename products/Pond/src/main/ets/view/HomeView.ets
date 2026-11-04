@@ -18,6 +18,8 @@ export struct HomeView {
   @StorageProp('jwSchedule') @Watch('onScheduleChanged') scheduleCells: ScheduleCellInfo[] = [];
   @StorageProp('jwTerm') @Watch('onScheduleChanged') termStatus: TermStatus = new TermStatus();
   @StorageProp('jwDataMode') dataMode: string = 'preview';
+  /** 隐私模式：standard=缓存全部 / restricted=仅课表卡片 / strict=不缓存 */
+  @StorageProp('jwPrivacyMode') privacyMode: string = 'standard';
   /** 各课程期末考试日期设置（按课程名） */
   @StorageProp('jwFinalExams') finalExams: FinalExamEntry[] = [];
   @StorageLink('mainBreakpoint') currentBreakpoint: string = 'md';
@@ -126,10 +128,21 @@ export struct HomeView {
     });
   }
 
+  /** 退出登录确认弹窗文案：按隐私模式说明退出后数据去留 */
+  private logoutMessage(): string {
+    if (this.privacyMode === 'standard') {
+      return '退出后将清除教务登录状态，课表、成绩与综评等离线数据将继续显示，确定退出吗？';
+    }
+    if (this.privacyMode === 'strict') {
+      return '退出后将清除教务登录状态与全部缓存数据（含桌面课表卡片），课表与成绩等不再显示，确定退出吗？';
+    }
+    return '退出后将清除教务登录状态与课表以外的缓存数据，课表与成绩等不再显示；桌面课表卡片不受影响。确定退出吗？';
+  }
+
   private confirmLogout(): void {
     AlertDialog.show({
       title: '退出登录',
-      message: '退出后将清除教务登录状态，课表与成绩不再显示，确定退出吗？',
+      message: this.logoutMessage(),
       primaryButton: {
         value: '取消',
         action: () => {
@@ -362,11 +375,16 @@ export struct HomeView {
     .width('100%')
   }
 
-  /** 期末倒计时条目：日期合法的科目按考试日期升序 */
+  /** 该科目距考天数（日期非法返回 -1，按"已结束"展示） */
+  private examDaysOf(entry: FinalExamEntry): number {
+    const parsed: Date | null = ExamDateUtils.parseYmd(entry.examDate);
+    return parsed !== null ? ExamDateUtils.daysFromDate(parsed) : -1;
+  }
+
+  /** 期末倒计时条目：仅保留日期合法且未考完（含当天）的科目，按考试日期升序 */
   private sortedFinalExams(): FinalExamEntry[] {
     return this.finalExams
-      .filter((e: FinalExamEntry): boolean => ExamDateUtils.parseYmd(e.examDate) !== null)
-      .slice()
+      .filter((e: FinalExamEntry): boolean => this.examDaysOf(e) >= 0)
       .sort((a: FinalExamEntry, b: FinalExamEntry): number =>
         a.examDate < b.examDate ? -1 : (a.examDate > b.examDate ? 1 : 0));
   }
@@ -432,7 +450,7 @@ export struct HomeView {
       .layoutWeight(1)
       .alignItems(HorizontalAlign.Start)
 
-      this.countdownBadge(ExamDateUtils.daysFromDate(ExamDateUtils.parseYmd(entry.examDate) ?? new Date()))
+      this.countdownBadge(this.examDaysOf(entry))
     }
     .width('100%')
     .alignItems(VerticalAlign.Center)

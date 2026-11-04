@@ -641,8 +641,12 @@ export class CardDataStore {
   }
 
   private static cellInWeek(cell: CardCellItem, week: number): boolean {
-    if (week <= 0 || cell.w.length === 0) {
+    // 无位图时无法判断，保守视为有课；有位图但周次未知（<=0）时不可归入本周，宁可不放行
+    if (cell.w.length === 0) {
       return true;
+    }
+    if (week <= 0) {
+      return false;
     }
     const idx: number = week - 1;
     if (idx >= cell.w.length) {

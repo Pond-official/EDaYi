@@ -5,12 +5,13 @@ import { deviceInfo } from '@kit.BasicServicesKit';
 import { HdsNavigation, HdsTabs, HdsTabsController, hdsMaterial, SystemMaterialParams } from '@kit.UIDesignKit';
 import { HomeView } from '../view/HomeView';
 import { GradeView } from '../view/GradeView';
+import { ZcpView } from '../view/ZcpView';
 import { SelectionView } from '../view/SelectionView';
 import { SettingsEntryButton } from '../view/SettingsEntryButton';
 import { JwxtRepository } from '../data/JwxtRepository';
 import { MaterialUtils } from '../utils/MaterialUtils';
 
-const TAB_COUNT: number = 3;
+const TAB_COUNT: number = 4;
 /** 悬浮页签栏最大宽度（宽屏基准），窄屏按屏宽收缩 */
 const BAR_MAX_WIDTH: number = 392;
 /** 悬浮页签栏左右留白（vp） */
@@ -39,15 +40,17 @@ const DRAG_SLOP: number = 8;
 const IMMERSIVE_OS_API_VERSION: number = 260000;
 /** HDS 组件（UI Design Kit）系统能力标识 */
 const HDS_SYSCAP: string = 'SystemCapability.UIDesign.HDSComponent.Core';
+/** 综评页签索引（驱动综评页首次可见时自动建立会话并加载） */
+const TAB_INDEX_ZCP: number = 2;
 /** 选课页签索引（驱动选课页首次可见时自动加载验证码） */
-const TAB_INDEX_SELECTION: number = 2;
+const TAB_INDEX_SELECTION: number = 3;
 /** 右上角设置入口与屏幕顶部边距（vp） */
 const SETTINGS_TOP_MARGIN: number = 10;
 /** 右上角设置入口与屏幕右侧边距（vp） */
 const SETTINGS_SIDE_MARGIN: number = 16;
 
 /**
- * 应用主框架：首页、成绩、选课三个页签 + 右上角设置入口（所有页面可见）。
+ * 应用主框架：首页、成绩、综评、选课四个页签 + 右上角设置入口（所有页面可见）。
  * 底栏（HDS 版本，主路径）：
  *   build 以 Stack 为根，HdsNavigation 包裹 HdsTabs，
  *   HdsTabs 设 barFloatingStyle 悬浮导航栏样式（沉浸材质 + 光感反馈），
@@ -81,7 +84,7 @@ struct Index {
   /** 光晕 HDR 提亮滤镜：作用于光晕胶囊合成后的整体图像，设备不支持 HDR 时自动退回 SDR */
   private readonly hdrGlowFilter: uiEffect.Filter =
     uiEffect.createFilter().hdrBrightnessRatio(GLOW_HDR_BRIGHTNESS_RATIO);
-  tabLabels: string[] = ['首页', '成绩', '选课'];
+  tabLabels: string[] = ['首页', '成绩', '综评', '选课'];
   private readonly hdsTabsController: HdsTabsController = new HdsTabsController();
   private readonly tabsController: TabsController = new TabsController();
   private readonly breakpointSystem: BreakpointSystem = new BreakpointSystem('mainBreakpoint');
@@ -101,12 +104,14 @@ struct Index {
   }
 
   /**
-   * 页签切换：写入选课页签激活状态（AppStorage），
+   * 页签切换：写入选课/综评页签激活状态（AppStorage），
    * 选课页据此在首次可见且未登录时自动获取图形验证码，
+   * 综评页据此在首次可见时自动建立 xgfw 会话并加载综评数据，
    * 避免应用启动（Tabs 全量构建页签内容）即触发网络请求。
    */
   onTabChanged(): void {
     AppStorage.setOrCreate<boolean>('jwSelectionTabActive', this.currentTabIndex === TAB_INDEX_SELECTION);
+    AppStorage.setOrCreate<boolean>('jwZcpTabActive', this.currentTabIndex === TAB_INDEX_ZCP);
   }
 
   /** 按给定窗口宽度收缩悬浮页签栏宽度：栏宽 = min(基准宽, 窗宽 - 左右留白) */
@@ -217,6 +222,9 @@ struct Index {
     if (index === 1) {
       return $r('sys.symbol.doc_text');
     }
+    if (index === 2) {
+      return $r('sys.symbol.medal');
+    }
     return $r('sys.symbol.list_bullet');
   }
 
@@ -231,7 +239,7 @@ struct Index {
     return symbol;
   }
 
-  /** 三个页签页（HDS/悬浮/普通三种底栏共用）：TabContent 顶部安全区扩展，配合视图内顶部材质条上扩覆盖状态栏 */
+  /** 四个页签页（HDS/悬浮/普通三种底栏共用）：TabContent 顶部安全区扩展，配合视图内顶部材质条上扩覆盖状态栏 */
   @Builder
   tabPages() {
     TabContent() {
@@ -247,10 +255,16 @@ struct Index {
     .tabBar(new BottomTabBarStyle(this.tabSymbol(1), this.tabLabels[1]))
 
     TabContent() {
-      SelectionView()
+      ZcpView()
     }
     .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
     .tabBar(new BottomTabBarStyle(this.tabSymbol(2), this.tabLabels[2]))
+
+    TabContent() {
+      SelectionView()
+    }
+    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
+    .tabBar(new BottomTabBarStyle(this.tabSymbol(3), this.tabLabels[3]))
   }
 
   /**

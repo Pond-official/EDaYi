@@ -9,6 +9,7 @@
 - **教务登录**：内置 WebView 打开学校统一入口，账号密码只在学校的登录页面输入，应用不接触。
 - **课表**：按教学周展示课程，支持查看今日课程。
 - **成绩**：查询并展示各学期成绩。
+- **综评**：查看综合测评得分、指标明细与雷达图，按测评状态标注（已通过 / 已退回 / 审核中）；仅调用只读接口，不做任何测评提交。
 - **选课**：选课系统原生登录（图形验证码），支持按课程名或教师检索、分页浏览、提交选课、查看已选结果；登录凭据可由用户选择保存到系统关键资产存储。
 - **期末考试**：录入考试时间后按远近排列倒计时。
 - **上课提醒**：上课前通过系统通知提醒，提醒时间可自定义（后台代理提醒，应用退出后仍会送达）。
@@ -28,7 +29,7 @@
 | 构建 | hvigor |
 | 包管理 | ohpm |
 | 主要 Kit | AbilityKit、ArkWeb、NetworkKit、NotificationKit、BackgroundTasksKit（reminderAgentManager）、CalendarKit、CryptoArchitectureKit（AES 加密密码）、AssetStoreKit（凭据存储）、UIDesignKit、PerformanceAnalysisKit |
-| 数据来源 | 教务 `jwxt.dmu.edu.cn`（WebView 登录 + Cookie 会话）；选课 `jwxk.dmu.edu.cn/xsxk`（原生 HTTP 接口） |
+| 数据来源 | 教务 `jwxt.dmu.edu.cn`（WebView 登录 + Cookie 会话）；选课 `jwxk.dmu.edu.cn/xsxk`（原生 HTTP 接口）；综评 `xgfw.dmu.edu.cn`（只读接口） |
 | 本地存储 | 应用沙箱 preferences 与 cache 目录；选课登录凭据存于系统关键资产存储 |
 
 ## 工程结构
@@ -42,10 +43,10 @@ eDaiYi_Next/
 │   └── Pond/                        入口模块（entry）
 │       └── src/main/
 │           ├── ets/
-│           │   ├── pages/           Index（首页/成绩/选课）、LoginIndex（教务登录）、SettingsIndex（设置）
-│           │   ├── view/            HomeView、GradeView、SelectionView、ScheduleBoard、SettingsView、FrostBand、SettingsEntryButton
-│           │   ├── data/            JwxtRepository（教务数据）、SelectionRepository（选课系统）、ReminderScheduler（提醒）、CacheManager、CardDataStore
-│           │   ├── model/           JwModels、SelectionModels
+│           │   ├── pages/           Index（首页/成绩/综评/选课）、LoginIndex（教务登录）、SettingsIndex（设置）
+│           │   ├── view/            HomeView、GradeView、ZcpView、ZcpRadarChart、SelectionView、ScheduleBoard、SettingsView、FrostBand、SettingsEntryButton
+│           │   ├── data/            JwxtRepository（教务数据）、ZcpRepository（综评数据）、SelectionRepository（选课系统）、ReminderScheduler（提醒）、CacheManager、CardDataStore
+│           │   ├── model/           JwModels、ZcpModels、SelectionModels
 │           │   ├── widget/pages/    卡片 UI：ScheduleCard、ScheduleCardLarge、ExamCountdownCard
 │           │   ├── scheduleformability/  「今日课程」卡片 FormAbility
 │           │   ├── examformability/      「期末倒计时」卡片 FormAbility
@@ -85,6 +86,7 @@ eDaiYi_Next/
 
 - **教务登录不经过应用**：登录在 WebView 内完成，由学校页面直接提交，应用只读取登录后的会话 Cookie。
 - **选课登录为原生提交**：密码使用学校登录页同款的前端 AES 密钥加密后发送，不以明文传输；仅在用户主动勾选时保存凭据，存放于系统关键资产存储（系统级加密、仅本机可读），可随时在设置页清除。
+- **综评只读**：综合测评部分仅调用查询接口（角色切换、批次、指标与得分），不做任何提交、修改或评价操作。
 - **数据只存在本机**：会话 Cookie、课表、成绩、选课信息均保存在应用沙箱，不上传任何第三方服务器。
 - **三档隐私模式**：
   - 标准：缓存课表、成绩等全部信息（默认）。
@@ -94,8 +96,9 @@ eDaiYi_Next/
 
 ## 版本
 
-当前版本 **2.0.0**（versionCode 2000000）。
+当前版本 **2.1.5**（versionCode 2010500）。
 
+- 2.1.5：新增「综评」页签，展示综合测评得分、指标明细与雷达图；重构成绩解析逻辑；优化退出登录提示。
 - 2.0.0：选课系统改为原生登录（AES 加密密码 + 图形验证码），凭据存入系统关键资产存储；选课页重写，支持检索、分页与已选查询；设置改为独立页面，新增顶部材质条与设置入口按钮；更新深浅色配色。
 - 1.6.0：新增期末倒计时卡片、隐私模式、前后台切换处理；移除示例模块，工程精简为 `Pond` + `common`。
 - 1.5.0：新增上课提醒（后台代理提醒）、设置页、离线缓存。
