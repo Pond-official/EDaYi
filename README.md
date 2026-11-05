@@ -16,7 +16,8 @@
 - **桌面卡片**：「今日课程」与「期末倒计时」两种服务卡片，课程卡片支持 2×4 与 4×4 两种尺寸。
 - **隐私模式**：标准 / 限制 / 严格三档，控制本地缓存范围与退出行为。
 - **缓存管理**：查看缓存占用、一键清理，不影响登录状态与桌面卡片。
-- **设置页**：从各页面右上角入口进入独立设置页，集中管理提醒、隐私、缓存与版本信息。
+- **设置页**：从各页面右上角入口进入独立设置页，集中管理提醒（含代理提醒开关与下次提醒预览）、隐私、缓存与版本信息。
+- **应用日志**：开发者模式下可实时查看应用运行日志（内存缓冲最多 1000 条），支持复制导出与清空，便于排查问题。
 - **数据备份**：支持系统备份扩展。
 
 ## 技术栈
@@ -44,8 +45,8 @@ eDaiYi_Next/
 │       └── src/main/
 │           ├── ets/
 │           │   ├── pages/           Index（首页/成绩/综评/选课）、LoginIndex（教务登录）、SettingsIndex（设置）
-│           │   ├── view/            HomeView、GradeView、ZcpView、ZcpRadarChart、SelectionView、ScheduleBoard、SettingsView、FrostBand、SettingsEntryButton
-│           │   ├── data/            JwxtRepository（教务数据）、ZcpRepository（综评数据）、SelectionRepository（选课系统）、ReminderScheduler（提醒）、CacheManager、CardDataStore
+│           │   ├── view/            HomeView、GradeView、ZcpView、ZcpRadarChart、SelectionView、ScheduleBoard、SettingsView、AppLogCard、FrostBand、SettingsEntryButton
+│           │   ├── data/            JwxtRepository（教务数据）、ZcpRepository（综评数据）、SelectionRepository（选课系统）、ReminderScheduler（提醒）、CacheManager、CardDataStore、AppLog（应用日志）
 │           │   ├── model/           JwModels、ZcpModels、SelectionModels
 │           │   ├── widget/pages/    卡片 UI：ScheduleCard、ScheduleCardLarge、ExamCountdownCard
 │           │   ├── scheduleformability/  「今日课程」卡片 FormAbility
@@ -88,6 +89,7 @@ eDaiYi_Next/
 - **选课登录为原生提交**：密码使用学校登录页同款的前端 AES 密钥加密后发送，不以明文传输；仅在用户主动勾选时保存凭据，存放于系统关键资产存储（系统级加密、仅本机可读），可随时在设置页清除。
 - **综评只读**：综合测评部分仅调用查询接口（角色切换、批次、指标与得分），不做任何提交、修改或评价操作。
 - **数据只存在本机**：会话 Cookie、课表、成绩、选课信息均保存在应用沙箱，不上传任何第三方服务器。
+- **敏感信息不写日志**：应用日志仅记录流程状态，密码、令牌等敏感内容不会以明文写入；日志只存在内存中，应用退出即清空，不会持久化到存储。
 - **三档隐私模式**：
   - 标准：缓存课表、成绩等全部信息（默认）。
   - 限制：仅缓存课表以支持桌面卡片，其余数据不落盘。
@@ -96,8 +98,9 @@ eDaiYi_Next/
 
 ## 版本
 
-当前版本 **2.1.5**（versionCode 2010500）。
+当前版本 **2.2.1**（versionCode 2020100）。
 
+- 2.2.1：新增应用内日志与应用日志查看卡片（开发者选项），设置页补充开发者模式、代理提醒开关与下次提醒预览；综评页支持离线数据提示，选课页补充未登录提示；全局日志调用统一至 AppLog。
 - 2.1.5：新增「综评」页签，展示综合测评得分、指标明细与雷达图；重构成绩解析逻辑；优化退出登录提示。
 - 2.0.0：选课系统改为原生登录（AES 加密密码 + 图形验证码），凭据存入系统关键资产存储；选课页重写，支持检索、分页与已选查询；设置改为独立页面，新增顶部材质条与设置入口按钮；更新深浅色配色。
 - 1.6.0：新增期末倒计时卡片、隐私模式、前后台切换处理；移除示例模块，工程精简为 `Pond` + `common`。

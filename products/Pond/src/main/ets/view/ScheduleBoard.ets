@@ -44,7 +44,8 @@ export struct ScheduleBoard {
 
   aboutToAppear(): void {
     this.refreshToday();
-    const listener: mediaquery.MediaQueryListener = mediaquery.matchMediaSync('(min-width: 600vp)');
+    const listener: mediaquery.MediaQueryListener =
+      this.getUIContext().getMediaQuery().matchMediaSync('(min-width: 600vp)');
     this.isWideScreen = listener.matches;
     this.wideQueryCallback = (result: mediaquery.MediaQueryResult): void => {
       this.isWideScreen = result.matches;

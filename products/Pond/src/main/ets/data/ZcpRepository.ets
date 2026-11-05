@@ -1,6 +1,6 @@
 import { http } from '@kit.NetworkKit';
 import { webview } from '@kit.ArkWeb';
-import { hilog } from '@kit.PerformanceAnalysisKit';
+import { AppLog } from './AppLog';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { common } from '@kit.AbilityKit';
 import { fileIo as fs } from '@kit.CoreFileKit';
@@ -186,7 +186,7 @@ export class ZcpRepository {
       fs.writeSync(file.fd, raw);
       fs.closeSync(file);
       fs.unlinkSync(legacyPath);
-      hilog.info(DOMAIN, TAG, 'zcp cache migrated from cacheDir to filesDir');
+      AppLog.info(DOMAIN, TAG, 'zcp cache migrated from cacheDir to filesDir');
     } catch (error) {
       // 迁移失败保持现状，下次在线获取成功后写入新路径
     }
@@ -204,7 +204,7 @@ export class ZcpRepository {
   /** Web 单点引导完成后标记会话可用 */
   static markSessionReady(): void {
     ZcpRepository.sessionReady = true;
-    hilog.info(DOMAIN, TAG, 'session ready (web sso done)');
+    AppLog.info(DOMAIN, TAG, 'session ready (web sso done)');
   }
 
   /** 清除会话标记与内存数据（限制/严格隐私模式退出登录、严格隐私清理、会话失效时调用） */
@@ -237,7 +237,7 @@ export class ZcpRepository {
       ZcpRepository.lastCookie = cookie;
     } catch (error) {
       const err: BusinessError = error as BusinessError;
-      hilog.error(DOMAIN, TAG, 'fetchCookieSync failed: %{public}s %{public}s', `${err.code}`, `${err.message}`);
+      AppLog.error(DOMAIN, TAG, 'fetchCookieSync failed: %{public}s %{public}s', `${err.code}`, `${err.message}`);
       cookie = ZcpRepository.lastCookie;
     }
     return cookie;
@@ -275,7 +275,7 @@ export class ZcpRepository {
       }
       const response: http.HttpResponse = await client.request(url, options);
       if (response.responseCode !== 200) {
-        hilog.error(DOMAIN, TAG, 'HTTP %{public}s on %{public}s', `${response.responseCode}`, url);
+        AppLog.error(DOMAIN, TAG, 'HTTP %{public}s on %{public}s', `${response.responseCode}`, url);
         throw new Error('HTTP ' + `${response.responseCode}` + '（角色或会话异常，请稍后重试）');
       }
       let text: string = '';
@@ -283,7 +283,7 @@ export class ZcpRepository {
         text = response.result;
       }
       if (text.indexOf('authserver') >= 0) {
-        hilog.warn(DOMAIN, TAG, 'cas login page returned, session invalid, len=%{public}s', `${text.length}`);
+        AppLog.warn(DOMAIN, TAG, 'cas login page returned, session invalid, len=%{public}s', `${text.length}`);
         throw new Error(ZCP_SESSION_INVALID_ERROR);
       }
       return text;
@@ -303,17 +303,17 @@ export class ZcpRepository {
     const url1: string = XG_SYS_BASE + '/funauthapp/api/changeAppRole/zhcptybbapp/' + ZCP_ROLE_STUDENT + '.do';
     const text1: string = await ZcpRepository.postForm(url1, '');
     if (text1.indexOf('"success":true') < 0) {
-      hilog.warn(DOMAIN, TAG, 'changeAppRole not confirmed: len=%{public}s', `${text1.length}`);
+      AppLog.warn(DOMAIN, TAG, 'changeAppRole not confirmed: len=%{public}s', `${text1.length}`);
       throw new Error('角色切换未生效，请稍后重试');
     }
     const body2: string = 'requestParamStr=' + encodeURIComponent('{"ROLEID":"' + ZCP_ROLE_STUDENT + '"}');
     const url2: string = XG_SYS_BASE + '/swpubapp/userinfo/setXgCommonAppRole.do';
     const text2: string = await ZcpRepository.postForm(url2, body2);
     if (text2.indexOf('#E000000000000') < 0) {
-      hilog.warn(DOMAIN, TAG, 'setXgCommonAppRole not confirmed: len=%{public}s', `${text2.length}`);
+      AppLog.warn(DOMAIN, TAG, 'setXgCommonAppRole not confirmed: len=%{public}s', `${text2.length}`);
       throw new Error('角色切换未生效，请稍后重试');
     }
-    hilog.info(DOMAIN, TAG, 'role switched to student');
+    AppLog.info(DOMAIN, TAG, 'role switched to student');
   }
 
   /**
@@ -346,7 +346,7 @@ export class ZcpRepository {
       result.hasContext = true;
     }
     if (!result.hasContext) {
-      hilog.warn(DOMAIN, TAG, 'no ZHCP_SZ context, evaluation not available');
+      AppLog.warn(DOMAIN, TAG, 'no ZHCP_SZ context, evaluation not available');
       return result;
     }
 
@@ -368,7 +368,7 @@ export class ZcpRepository {
       }
     } catch (processError) {
       // 状态接口失败不阻塞指标树展示
-      hilog.warn(DOMAIN, TAG, 'getEvaluationProcess failed: %{public}s', `${processError}`);
+      AppLog.warn(DOMAIN, TAG, 'getEvaluationProcess failed: %{public}s', `${processError}`);
     }
 
     const listPayload: Record<string, string> = {};
@@ -378,7 +378,7 @@ export class ZcpRepository {
     const listEnvelope: ZcpEnvelopeRaw<ZcpZbItemRaw[]> = JSON.parse(listText) as ZcpEnvelopeRaw<ZcpZbItemRaw[]>;
     const items: ZcpZbItemRaw[] = listEnvelope.data ?? [];
     const flat: ZcpIndicator[] = ZcpRepository.buildTree(items, result.indicators);
-    hilog.info(DOMAIN, TAG, 'indicators: %{public}s raw -> %{public}s roots', `${items.length}`, `${flat.length}`);
+    AppLog.info(DOMAIN, TAG, 'indicators: %{public}s raw -> %{public}s roots', `${items.length}`, `${flat.length}`);
 
     const rootZbdm: string = ZcpRepository.findScoreRoot(items);
     if (rootZbdm.length > 0) {
@@ -392,7 +392,7 @@ export class ZcpRepository {
         ZcpRepository.mergeScores(flat, scoreEnvelope.data ?? []);
       } catch (scoreError) {
         // 得分接口失败时指标树仍展示（FS 为空），不阻塞
-        hilog.warn(DOMAIN, TAG, 'get23zbScore failed: %{public}s', `${scoreError}`);
+        AppLog.warn(DOMAIN, TAG, 'get23zbScore failed: %{public}s', `${scoreError}`);
       }
     }
     return result;
@@ -422,7 +422,7 @@ export class ZcpRepository {
         list.push(detail);
       }
     }
-    hilog.info(DOMAIN, TAG, 'fjf detail %{public}s: %{public}s items', zbdm, `${list.length}`);
+    AppLog.info(DOMAIN, TAG, 'fjf detail %{public}s: %{public}s items', zbdm, `${list.length}`);
     return list;
   }
 
@@ -466,9 +466,9 @@ export class ZcpRepository {
       const file: fs.File = fs.openSync(path, fs.OpenMode.READ_WRITE | fs.OpenMode.CREATE | fs.OpenMode.TRUNC);
       fs.writeSync(file.fd, JSON.stringify(result));
       fs.closeSync(file);
-      hilog.info(DOMAIN, TAG, 'zcp cache saved');
+      AppLog.info(DOMAIN, TAG, 'zcp cache saved');
     } catch (error) {
-      hilog.warn(DOMAIN, TAG, 'saveCache failed: %{public}s', `${error}`);
+      AppLog.warn(DOMAIN, TAG, 'saveCache failed: %{public}s', `${error}`);
     }
   }
 
@@ -512,7 +512,7 @@ export class ZcpRepository {
       result.fromCache = true;
       return result;
     } catch (error) {
-      hilog.warn(DOMAIN, TAG, 'loadCache failed: %{public}s', `${error}`);
+      AppLog.warn(DOMAIN, TAG, 'loadCache failed: %{public}s', `${error}`);
       return null;
     }
   }
@@ -552,7 +552,7 @@ export class ZcpRepository {
       if (fs.accessSync(path)) {
         fs.unlinkSync(path);
       }
-      hilog.info(DOMAIN, TAG, 'zcp cache cleared');
+      AppLog.info(DOMAIN, TAG, 'zcp cache cleared');
     } catch (error) {
       // 文件不存在或删除失败按已清除处理
     }
@@ -662,7 +662,7 @@ export class ZcpRepository {
       indicator.extraApplied = ZcpRepository.toText(item.FJFFS);
       merged++;
     }
-    hilog.info(DOMAIN, TAG, 'scores merged: %{public}s / %{public}s', `${merged}`, `${items.length}`);
+    AppLog.info(DOMAIN, TAG, 'scores merged: %{public}s / %{public}s', `${merged}`, `${items.length}`);
   }
 
   /** 时间窗文本：起止任一为空返回空串，否则 `起 ~ 止` */

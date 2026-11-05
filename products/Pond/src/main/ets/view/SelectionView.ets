@@ -54,6 +54,7 @@ export struct SelectionView {
   /** 正在提交选课的教学班 ID（同时只允许一个提交，防重复提交） */
   @State submittingId: string = '';
   @State tipText: string = '';
+  @State isRefreshing: boolean = false;
 
   aboutToAppear(): void {
     this.loggedIn = SelectionRepository.isLoggedIn();
@@ -378,6 +379,22 @@ export struct SelectionView {
     await this.refreshBatches();
     await this.refreshSelected();
     await this.searchCourses(true);
+  }
+
+  /** 下拉刷新：已登录选课系统时刷新轮次、已选与课程列表；未登录时提示先登录 */
+  private doRefresh(): void {
+    if (!this.loggedIn) {
+      this.isRefreshing = false;
+      try {
+        this.getUIContext().getPromptAction()
+          .showToast({ message: '请先登录选课系统后再刷新', duration: 1500 });
+      } catch (error) {
+      }
+      return;
+    }
+    this.refreshAll().then(() => {
+      this.isRefreshing = false;
+    });
   }
 
   private async refreshBatches(): Promise<void> {
@@ -1021,6 +1038,7 @@ export struct SelectionView {
 
   build() {
     Stack({ alignContent: Alignment.Top }) {
+      Refresh({ refreshing: $$this.isRefreshing }) {
       Scroll() {
         Column() {
           if (this.loggedIn) {
@@ -1037,7 +1055,10 @@ export struct SelectionView {
       .height('100%')
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
       .scrollBar(BarState.Off)
-      .edgeEffect(EdgeEffect.Spring)
+      }
+      .onRefreshing(() => {
+        this.doRefresh();
+      })
 
       FrostBand()
     }

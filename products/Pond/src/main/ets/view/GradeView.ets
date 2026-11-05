@@ -17,6 +17,7 @@ export struct GradeView {
   @StorageLink('mainBreakpoint') currentBreakpoint: string = 'md';
   @State selectedTerm: string = TERM_ALL;
   @State termChips: string[] = [TERM_ALL];
+  @State isRefreshing: boolean = false;
 
   aboutToAppear(): void {
     JwxtRepository.ensureLoaded();
@@ -234,10 +235,75 @@ export struct GradeView {
     }
   }
 
+  private goLogin(): void {
+    this.getUIContext().getRouter().pushUrl({ url: 'pages/LoginIndex' });
+  }
+
+  /** 下拉刷新：已连接教务系统时在线刷新；未登录时提示先登录并立即收起刷新动画 */
+  private doRefresh(): void {
+    if (this.dataMode !== 'online') {
+      this.isRefreshing = false;
+      try {
+        this.getUIContext().getPromptAction()
+          .showToast({ message: '请先登录教务系统后再刷新', duration: 1500 });
+      } catch (error) {
+      }
+      return;
+    }
+    JwxtRepository.reload().then((ok: boolean) => {
+      this.isRefreshing = false;
+      if (!ok) {
+        try {
+          this.getUIContext().getPromptAction()
+            .showToast({ message: '刷新失败，请稍后重试', duration: 1500 });
+        } catch (error) {
+        }
+      }
+    });
+  }
+
+  /** 离线数据提示条：使用本地缓存成绩时置顶提示，点击“去登录”重新在线获取 */
+  @Builder
+  offlineBanner() {
+    Row({ space: 10 }) {
+      SymbolGlyph($r('sys.symbol.exclamationmark_circle'))
+        .fontSize(20)
+        .fontColor([$r('sys.color.ohos_id_color_warning')])
+      Column({ space: 2 }) {
+        Text('正在使用离线数据')
+          .fontSize(14)
+          .fontWeight(FontWeight.Medium)
+          .fontColor($r('sys.color.ohos_id_color_text_primary'))
+        Text('当前展示本地缓存，重新登录后自动更新')
+          .fontSize(11)
+          .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+      }
+      .alignItems(HorizontalAlign.Start)
+      .layoutWeight(1)
+      Text('去登录')
+        .fontSize(13)
+        .fontWeight(FontWeight.Medium)
+        .fontColor($r('sys.color.ohos_id_color_text_primary_activated'))
+    }
+    .width('100%')
+    .alignItems(VerticalAlign.Center)
+    .padding({ left: 14, right: 14, top: 10, bottom: 10 })
+    .borderRadius(12)
+    .backgroundColor($r('sys.color.comp_background_tertiary'))
+    .margin({ bottom: 12 })
+    .onClick(() => {
+      this.goLogin();
+    })
+  }
+
   build() {
     Stack({ alignContent: Alignment.Top }) {
+      Refresh({ refreshing: $$this.isRefreshing }) {
       Scroll() {
         Column() {
+          if (this.dataMode === 'offlineCache') {
+            this.offlineBanner()
+          }
           this.summaryCard()
           Flex({
             direction: FlexDirection.Row,
@@ -269,7 +335,10 @@ export struct GradeView {
       .height('100%')
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
       .scrollBar(BarState.Off)
-      .edgeEffect(EdgeEffect.Spring)
+      }
+      .onRefreshing(() => {
+        this.doRefresh();
+      })
 
       FrostBand() {
         Row({ space: 8 }) {
@@ -277,14 +346,6 @@ export struct GradeView {
             .fontSize(20)
             .fontWeight(FontWeight.Bold)
             .fontColor($r('sys.color.ohos_id_color_text_primary'))
-          if (this.dataMode !== 'online') {
-            Text(this.dataMode === 'offlineCache' ?
-              '离线数据 · 请重新登录' : '未登录教务系统，登录后在线获取成绩')
-              .fontSize(11)
-              .fontColor(this.dataMode === 'offlineCache' ?
-                $r('sys.color.ohos_id_color_warning') :
-                $r('sys.color.ohos_id_color_text_secondary'))
-          }
         }
         .width('100%')
         .height(FROST_BAND_HEIGHT)

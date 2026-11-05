@@ -1,6 +1,6 @@
 import { http } from '@kit.NetworkKit';
 import { webview } from '@kit.ArkWeb';
-import { hilog } from '@kit.PerformanceAnalysisKit';
+import { AppLog } from './AppLog';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { common } from '@kit.AbilityKit';
 import { CardCellItem, CardDataStore, ReminderSettings } from './CardDataStore';
@@ -236,9 +236,11 @@ export class JwxtRepository {
     const settings: ReminderSettings = CardDataStore.loadReminderSettings(context);
     AppStorage.setOrCreate('jwReminderEnabled', settings.enabled);
     AppStorage.setOrCreate('jwReminderAdvance', settings.advanceMinutes);
+    AppStorage.setOrCreate('jwReminderAgentEnabled', settings.agentEnabled);
     AppStorage.setOrCreate('jwReminderDisabledCourses', CardDataStore.loadDisabledCourses(context));
     AppStorage.setOrCreate('jwFinalExams', CardDataStore.loadFinalExams(context));
     AppStorage.setOrCreate('jwPrivacyMode', CardDataStore.loadPrivacyMode(context));
+    AppStorage.setOrCreate('jwDeveloperMode', CardDataStore.loadDeveloperMode(context));
   }
 
   static loginUrl(): string {
@@ -257,7 +259,7 @@ export class JwxtRepository {
       JwxtRepository.lastCookie = cookie;
     } catch (error) {
       const err: BusinessError = error as BusinessError;
-      hilog.error(DOMAIN, TAG, 'fetchCookieSync failed: %{public}s %{public}s', `${err.code}`, `${err.message}`);
+      AppLog.error(DOMAIN, TAG, 'fetchCookieSync failed: %{public}s %{public}s', `${err.code}`, `${err.message}`);
       cookie = JwxtRepository.lastCookie;
     }
     return cookie;
@@ -286,7 +288,7 @@ export class JwxtRepository {
       }
       const response: http.HttpResponse = await client.request(JW_APP_ROOT + path, options);
       if (response.responseCode !== 200) {
-        hilog.error(DOMAIN, TAG, 'HTTP %{public}s on %{public}s', `${response.responseCode}`, path);
+        AppLog.error(DOMAIN, TAG, 'HTTP %{public}s on %{public}s', `${response.responseCode}`, path);
         throw new Error('HTTP ' + response.responseCode);
       }
       let text: string = '';
@@ -321,16 +323,16 @@ export class JwxtRepository {
         code = raw.code ?? '';
         ok = raw.code === '0' && raw.datas !== undefined && raw.datas.userId !== undefined;
       } catch (parseError) {
-        hilog.error(DOMAIN, TAG,
+        AppLog.error(DOMAIN, TAG,
           'probe: json parse failed, len=%{public}s, head=%{public}s',
           `${text.length}`, text.length > 0 ? text.substring(0, 80) : '(empty)');
         return false;
       }
-      hilog.info(DOMAIN, TAG, 'probe: code=%{public}s len=%{public}s ok=%{public}s',
+      AppLog.info(DOMAIN, TAG, 'probe: code=%{public}s len=%{public}s ok=%{public}s',
         code, `${text.length}`, `${ok}`);
       return ok;
     } catch (error) {
-      hilog.error(DOMAIN, TAG, 'probeSession failed: %{public}s', `${error}`);
+      AppLog.error(DOMAIN, TAG, 'probeSession failed: %{public}s', `${error}`);
       return false;
     }
   }
@@ -371,7 +373,7 @@ export class JwxtRepository {
     try {
       ok = await JwxtRepository.tryLoadOnline();
     } catch (error) {
-      hilog.error(DOMAIN, TAG, 'load cycle error: %{public}s', `${error}`);
+      AppLog.error(DOMAIN, TAG, 'load cycle error: %{public}s', `${error}`);
       ok = false;
     }
     if (!ok) {
@@ -404,12 +406,13 @@ export class JwxtRepository {
   }
 
   /** 更新上课提醒设置：写入 AppStorage、持久化并立即重新调度 */
-  static updateReminderSettings(enabled: boolean, advanceMinutes: number): void {
+  static updateReminderSettings(enabled: boolean, advanceMinutes: number, agentEnabled: boolean): void {
     AppStorage.setOrCreate('jwReminderEnabled', enabled);
     AppStorage.setOrCreate('jwReminderAdvance', advanceMinutes);
+    AppStorage.setOrCreate('jwReminderAgentEnabled', agentEnabled);
     const context: common.UIAbilityContext | null = JwxtRepository.appContext;
     if (context !== null) {
-      CardDataStore.saveReminderSettings(context, enabled, advanceMinutes);
+      CardDataStore.saveReminderSettings(context, enabled, advanceMinutes, agentEnabled);
     }
     JwxtRepository.rescheduleReminders();
   }
@@ -422,6 +425,15 @@ export class JwxtRepository {
   /** 当前隐私模式：standard=缓存全部 / restricted=仅课表卡片 / strict=不缓存 */
   static privacyMode(): string {
     return AppStorage.get<string>('jwPrivacyMode') ?? 'standard';
+  }
+
+  /** 切换开发者选项开关：开启（关于应用内连续点击版本号 5 次）或关闭（开发者页开关），立即生效并持久化 */
+  static updateDeveloperMode(enabled: boolean): void {
+    AppStorage.setOrCreate('jwDeveloperMode', enabled);
+    const context: common.UIAbilityContext | null = JwxtRepository.appContext;
+    if (context !== null) {
+      CardDataStore.saveDeveloperMode(context, enabled);
+    }
   }
 
   /**
@@ -488,7 +500,7 @@ export class JwxtRepository {
     if (JwxtRepository.privacyMode() !== 'strict') {
       return;
     }
-    hilog.info(DOMAIN, TAG, 'strict privacy: cleanup and logout on app hide');
+    AppLog.info(DOMAIN, TAG, 'strict privacy: cleanup and logout on app hide');
     JwxtRepository.logout();
   }
 
@@ -542,7 +554,7 @@ export class JwxtRepository {
     }
     // 综评缓存存于 filesDir（不在 cacheDir 内），随"清理缓存"一并清除，统计时单独计入
     bytes += ZcpRepository.cacheSizeBytes();
-    hilog.info(DOMAIN, TAG, 'cacheDir=%{public}s abilityDir=%{public}s size=%{public}d',
+    AppLog.info(DOMAIN, TAG, 'cacheDir=%{public}s abilityDir=%{public}s size=%{public}d',
       appCacheDir, abilityCacheDir, bytes);
     return bytes;
   }
@@ -645,7 +657,7 @@ export class JwxtRepository {
       return;
     }
     CardDataStore.saveAppCache(context, JwxtRepository.buildAppCacheJson());
-    hilog.info(DOMAIN, TAG, 'app cache persisted');
+    AppLog.info(DOMAIN, TAG, 'app cache persisted');
   }
 
   private static buildAppCacheJson(): string {
@@ -817,12 +829,12 @@ export class JwxtRepository {
       AppStorage.setOrCreate<string>('jwDataMode', 'offlineCache');
       AppStorage.setOrCreate<boolean>('jwLoaded', true);
       JwxtRepository.loadedOnce = true;
-      hilog.info(DOMAIN, TAG,
+      AppLog.info(DOMAIN, TAG,
         'app cache applied: cells=%{public}s grades=%{public}s cats=%{public}s sections=%{public}s',
         `${cells.length}`, `${grades.length}`, `${categories.length}`, `${sections.length}`);
       return true;
     } catch (error) {
-      hilog.error(DOMAIN, TAG, 'app cache parse failed: %{public}s', `${error}`);
+      AppLog.error(DOMAIN, TAG, 'app cache parse failed: %{public}s', `${error}`);
       return false;
     }
   }
@@ -851,12 +863,12 @@ export class JwxtRepository {
 
   private static async tryLoadOnline(): Promise<boolean> {
     if (!await JwxtRepository.probeSession()) {
-      hilog.error(DOMAIN, TAG, 'tryLoadOnline stop: probe failed, not logged in');
+      AppLog.error(DOMAIN, TAG, 'tryLoadOnline stop: probe failed, not logged in');
       return false;
     }
     try {
       await JwxtRepository.postForm(JW_SET_APP_ROLE, 'ROLEID=' + JW_ROLE_ID);
-      hilog.info(DOMAIN, TAG, 'step: role set');
+      AppLog.info(DOMAIN, TAG, 'step: role set');
 
       const userText: string = await JwxtRepository.getForm(JW_CURRENT_USER);
       const userRaw: CurrentUserRaw = JSON.parse(userText) as CurrentUserRaw;
@@ -881,14 +893,14 @@ export class JwxtRepository {
           }
         }
       } catch (termError) {
-        hilog.error(DOMAIN, TAG, 'term query failed, keep welcomeInfo term: %{public}s', `${termError}`);
+        AppLog.error(DOMAIN, TAG, 'term query failed, keep welcomeInfo term: %{public}s', `${termError}`);
       }
 
       if (termCode.length === 0) {
-        hilog.error(DOMAIN, TAG, 'tryLoadOnline stop: no term code');
+        AppLog.error(DOMAIN, TAG, 'tryLoadOnline stop: no term code');
         return false;
       }
-      hilog.info(DOMAIN, TAG, 'step: term %{public}s', termCode);
+      AppLog.info(DOMAIN, TAG, 'step: term %{public}s', termCode);
 
       const studentText: string = await JwxtRepository.postForm(JW_QUERY_STUDENT, '');
       const studentEnvelope: StudentEnvelopeRaw = JSON.parse(studentText) as StudentEnvelopeRaw;
@@ -897,7 +909,7 @@ export class JwxtRepository {
       if (userRaw.datas?.userName !== undefined && student.name.length === 0) {
         student.name = userRaw.datas.userName;
       }
-      hilog.info(DOMAIN, TAG, 'step: student %{public}s pyfadm=%{public}s', student.name, pyfadm);
+      AppLog.info(DOMAIN, TAG, 'step: student %{public}s pyfadm=%{public}s', student.name, pyfadm);
 
       const scheduleText: string =
         await JwxtRepository.postForm(JW_SCHEDULE_DETAIL, 'XNXQDM=' + termCode + '&XQDM=1');
@@ -913,7 +925,7 @@ export class JwxtRepository {
       // 仅保留当前周与下一周的课程，不保存整学期课表
       const weeklyCells: ScheduleCellInfo[] =
         JwxtRepository.filterCurrentAndNextWeek(scheduleCells, currentWeek);
-      hilog.info(DOMAIN, TAG,
+      AppLog.info(DOMAIN, TAG,
         'step: schedule %{public}s -> weekly %{public}s (week %{public}d-%{public}d) sections %{public}s',
         `${scheduleCells.length}`, `${weeklyCells.length}`, `${currentWeek}`, `${currentWeek + 1}`,
         `${sections.length}`);
@@ -928,7 +940,7 @@ export class JwxtRepository {
         gradeCategories =
           JwxtRepository.parseGradeCategories(gradeEnvelope.datas?.queryXyzhbx?.fanbx);
       } else {
-        hilog.error(DOMAIN, TAG, 'faArr empty, skip grades query');
+        AppLog.error(DOMAIN, TAG, 'faArr empty, skip grades query');
       }
 
       const term: TermStatus = new TermStatus();
@@ -945,12 +957,12 @@ export class JwxtRepository {
       AppStorage.setOrCreate<string>('jwDataMode', 'online');
       AppStorage.setOrCreate<boolean>('jwLoaded', true);
       JwxtRepository.loadedOnce = true;
-      hilog.info(DOMAIN, TAG, 'sync ok: cells=%{public}s grades=%{public}s cats=%{public}s sections=%{public}s',
+      AppLog.info(DOMAIN, TAG, 'sync ok: cells=%{public}s grades=%{public}s cats=%{public}s sections=%{public}s',
         `${scheduleCells.length}`, `${grades.length}`, `${gradeCategories.length}`, `${sections.length}`);
       return true;
     } catch (error) {
       const err: BusinessError = error as BusinessError;
-      hilog.error(DOMAIN, TAG, 'tryLoadOnline failed: %{public}s %{public}s', `${err.code}`, `${err.message}`);
+      AppLog.error(DOMAIN, TAG, 'tryLoadOnline failed: %{public}s %{public}s', `${err.code}`, `${err.message}`);
       return false;
     }
   }
@@ -981,7 +993,7 @@ export class JwxtRepository {
       webview.WebCookieManager.clearAllCookiesSync();
     } catch (error) {
       const err: BusinessError = error as BusinessError;
-      hilog.error(DOMAIN, TAG, "clearAllCookiesSync failed: %{public}s %{public}s", `${err.code}`, `${err.message}`);
+      AppLog.error(DOMAIN, TAG, "clearAllCookiesSync failed: %{public}s %{public}s", `${err.code}`, `${err.message}`);
     }
     JwxtRepository.lastCookie = '';
     const mode: string = JwxtRepository.privacyMode();
@@ -1026,7 +1038,7 @@ export class JwxtRepository {
    */
   private static filterCurrentAndNextWeek(cells: ScheduleCellInfo[], currentWeek: number): ScheduleCellInfo[] {
     if (currentWeek <= 0) {
-      hilog.warn(DOMAIN, TAG, 'week filter skipped: unknown current week');
+      AppLog.warn(DOMAIN, TAG, 'week filter skipped: unknown current week');
       return cells;
     }
     return cells.filter((cell: ScheduleCellInfo): boolean =>

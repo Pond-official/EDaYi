@@ -1,6 +1,6 @@
 import { webview } from '@kit.ArkWeb';
 import { router } from '@kit.ArkUI';
-import { hilog } from '@kit.PerformanceAnalysisKit';
+import { AppLog } from '../data/AppLog';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { JwxtRepository } from '../data/JwxtRepository';
 import { FrostBand, FROST_BAND_HEIGHT } from '../view/FrostBand';
@@ -52,7 +52,7 @@ struct LoginIndex {
     } catch (error) {
       endedUrl = '';
     }
-    hilog.info(DOMAIN, TAG, 'page end: %{public}s', endedUrl);
+    AppLog.info(DOMAIN, TAG, 'page end: %{public}s', endedUrl);
     this.detectSession();
   }
 
@@ -73,16 +73,16 @@ struct LoginIndex {
       return;
     }
     this.checking = true;
-    hilog.info(DOMAIN, TAG, 'detect probe start, url=%{public}s', currentUrl);
+    AppLog.info(DOMAIN, TAG, 'detect probe start, url=%{public}s', currentUrl);
     JwxtRepository.probeSession().then((ok: boolean) => {
       this.checking = false;
-      hilog.info(DOMAIN, TAG, 'detect probe result: %{public}s', `${ok}`);
+      AppLog.info(DOMAIN, TAG, 'detect probe result: %{public}s', `${ok}`);
       if (ok && !this.leaving && !this.syncing) {
         this.syncAndReturn();
       }
     }).catch((error: BusinessError) => {
       this.checking = false;
-      hilog.error(DOMAIN, TAG, 'detect probe error: %{public}s %{public}s',
+      AppLog.error(DOMAIN, TAG, 'detect probe error: %{public}s %{public}s',
         `${error.code}`, `${error.message}`);
     });
   }
@@ -97,9 +97,9 @@ struct LoginIndex {
     }
     this.syncing = true;
     this.showPrompt('登录成功，正在同步教务数据…', 1500);
-    hilog.info(DOMAIN, TAG, 'sync and return: start');
+    AppLog.info(DOMAIN, TAG, 'sync and return: start');
     JwxtRepository.reload().then((ok: boolean) => {
-      hilog.info(DOMAIN, TAG, 'sync and return: result %{public}s', `${ok}`);
+      AppLog.info(DOMAIN, TAG, 'sync and return: result %{public}s', `${ok}`);
       if (this.leaving) {
         return;
       }
@@ -110,7 +110,7 @@ struct LoginIndex {
         this.showPrompt('数据同步失败，请检查网络后点击完成重试', 2000);
       }
     }).catch((error: BusinessError) => {
-      hilog.error(DOMAIN, TAG, 'sync and return: error %{public}s %{public}s',
+      AppLog.error(DOMAIN, TAG, 'sync and return: error %{public}s %{public}s',
         `${error.code}`, `${error.message}`);
       if (this.leaving) {
         return;
@@ -132,9 +132,9 @@ struct LoginIndex {
       return;
     }
     this.showPrompt('正在检测登录状态…', 1000);
-    hilog.info(DOMAIN, TAG, 'manual: probe start');
+    AppLog.info(DOMAIN, TAG, 'manual: probe start');
     JwxtRepository.probeSession().then((ok: boolean) => {
-      hilog.info(DOMAIN, TAG, 'manual: probe result %{public}s', `${ok}`);
+      AppLog.info(DOMAIN, TAG, 'manual: probe result %{public}s', `${ok}`);
       if (this.leaving) {
         return;
       }
@@ -144,7 +144,7 @@ struct LoginIndex {
         this.showPrompt('尚未登录成功，请先在页面中完成登录', 1500);
       }
     }).catch((error: BusinessError) => {
-      hilog.error(DOMAIN, TAG, 'manual: probe error %{public}s %{public}s',
+      AppLog.error(DOMAIN, TAG, 'manual: probe error %{public}s %{public}s',
         `${error.code}`, `${error.message}`);
       if (this.leaving) {
         return;
@@ -157,7 +157,7 @@ struct LoginIndex {
     try {
       this.getUIContext().getPromptAction().showToast({ message: message, duration: duration });
     } catch (error) {
-      hilog.error(DOMAIN, TAG, 'showToast failed: %{public}s', `${error}`);
+      AppLog.error(DOMAIN, TAG, 'showToast failed: %{public}s', `${error}`);
     }
   }
 
@@ -167,18 +167,18 @@ struct LoginIndex {
    */
   private backToHome(): void {
     try {
-      const state: router.RouterState = router.getState();
-      hilog.info(DOMAIN, TAG, 'back: index=%{public}d path=%{public}s',
+      const state: router.RouterState = this.getUIContext().getRouter().getState();
+      AppLog.info(DOMAIN, TAG, 'back: index=%{public}d path=%{public}s',
         state.index, state.path);
       if (state.index > 1) {
         // 仅在真正返回时锁定；返回中止（登录页为栈根）时保持页面可交互、探测可继续
         this.leaving = true;
-        router.back();
+        this.getUIContext().getRouter().back();
       } else {
-        hilog.error(DOMAIN, TAG, 'back aborted: login page is root');
+        AppLog.error(DOMAIN, TAG, 'back aborted: login page is root');
       }
     } catch (error) {
-      hilog.error(DOMAIN, TAG, 'router back failed: %{public}s', `${error}`);
+      AppLog.error(DOMAIN, TAG, 'router back failed: %{public}s', `${error}`);
     }
   }
 

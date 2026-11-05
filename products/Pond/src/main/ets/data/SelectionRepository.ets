@@ -1,5 +1,5 @@
 import { http } from '@kit.NetworkKit';
-import { hilog } from '@kit.PerformanceAnalysisKit';
+import { AppLog } from './AppLog';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { cryptoFramework } from '@kit.CryptoArchitectureKit';
 import { asset } from '@kit.AssetStoreKit';
@@ -198,10 +198,10 @@ export class SelectionRepository {
         updateAttrs.set(asset.Tag.SECRET, secret);
         await asset.update(query, updateAttrs);
       }
-      hilog.info(DOMAIN, TAG, 'credentials saved');
+      AppLog.info(DOMAIN, TAG, 'credentials saved');
     } catch (error) {
       const err: BusinessError = error as BusinessError;
-      hilog.warn(DOMAIN, TAG, 'save credentials failed: code=%{public}s msg=%{public}s',
+      AppLog.warn(DOMAIN, TAG, 'save credentials failed: code=%{public}s msg=%{public}s',
         `${err.code ?? ''}`, `${err.message ?? ''}`);
     }
   }
@@ -209,7 +209,7 @@ export class SelectionRepository {
   /** 读取已保存的登录凭据（密码可能为空：登录尝试时保存的学号草稿）；不存在或读取失败返回 null */
   static async loadCredentials(): Promise<SelectionCredentials | null> {
     if (!canIUse('SystemCapability.Security.Asset')) {
-      hilog.warn(DOMAIN, TAG, 'load credentials: asset unsupported');
+      AppLog.warn(DOMAIN, TAG, 'load credentials: asset unsupported');
       return null;
     }
     try {
@@ -218,12 +218,12 @@ export class SelectionRepository {
       query.set(asset.Tag.RETURN_TYPE, asset.ReturnType.ALL);
       const records: Array<asset.AssetMap> = await asset.query(query);
       if (records.length === 0) {
-        hilog.info(DOMAIN, TAG, 'load credentials: no record');
+        AppLog.info(DOMAIN, TAG, 'load credentials: no record');
         return null;
       }
       const value: boolean | number | Uint8Array | undefined = records[0].get(asset.Tag.SECRET);
       if (!(value instanceof Uint8Array)) {
-        hilog.warn(DOMAIN, TAG, 'load credentials: secret missing');
+        AppLog.warn(DOMAIN, TAG, 'load credentials: secret missing');
         return null;
       }
       const decoder: util.TextDecoder = util.TextDecoder.create('utf-8');
@@ -234,12 +234,12 @@ export class SelectionRepository {
       if (credentials.loginName.length === 0) {
         return null;
       }
-      hilog.info(DOMAIN, TAG, 'credentials loaded: hasPassword=%{public}s', `${credentials.password.length > 0}`);
+      AppLog.info(DOMAIN, TAG, 'credentials loaded: hasPassword=%{public}s', `${credentials.password.length > 0}`);
       return credentials;
     } catch (error) {
       // 24000002 资产不存在等：无已保存凭据
       const err: BusinessError = error as BusinessError;
-      hilog.info(DOMAIN, TAG, 'load credentials: none or failed, code=%{public}s', `${err.code ?? ''}`);
+      AppLog.info(DOMAIN, TAG, 'load credentials: none or failed, code=%{public}s', `${err.code ?? ''}`);
       return null;
     }
   }
@@ -268,14 +268,14 @@ export class SelectionRepository {
       const query: asset.AssetMap = new Map();
       query.set(asset.Tag.ALIAS, SelectionRepository.credentialAlias());
       await asset.remove(query);
-      hilog.info(DOMAIN, TAG, 'credentials cleared');
+      AppLog.info(DOMAIN, TAG, 'credentials cleared');
     } catch (error) {
       // 24000002 资产不存在视为已清除
       const err: BusinessError = error as BusinessError;
       if (err.code === 24000002) {
         return;
       }
-      hilog.warn(DOMAIN, TAG, 'clear credentials failed: code=%{public}s msg=%{public}s',
+      AppLog.warn(DOMAIN, TAG, 'clear credentials failed: code=%{public}s msg=%{public}s',
         `${err.code ?? ''}`, `${err.message ?? ''}`);
     }
   }
@@ -314,13 +314,13 @@ export class SelectionRepository {
       } catch (reqError) {
         // 原生层拒绝值非 Error 实例（字符串化为 [object Object]），统一转可读错误码/信息
         const reqErr: BusinessError = reqError as BusinessError;
-        hilog.error(DOMAIN, TAG, 'request failed: code=%{public}s msg=%{public}s url=%{public}s',
+        AppLog.error(DOMAIN, TAG, 'request failed: code=%{public}s msg=%{public}s url=%{public}s',
           `${reqErr.code ?? ''}`, `${reqErr.message ?? ''}`, path);
         throw new Error('网络连接失败（' + `${reqErr.code ?? ''}` + '：'
           + `${reqErr.message ?? '请检查网络后重试'}` + '）');
       }
       if (response.responseCode !== 200) {
-        hilog.error(DOMAIN, TAG, 'HTTP %{public}s on %{public}s', `${response.responseCode}`, path);
+        AppLog.error(DOMAIN, TAG, 'HTTP %{public}s on %{public}s', `${response.responseCode}`, path);
         throw new Error('网络请求失败（HTTP ' + `${response.responseCode}` + '）');
       }
       return typeof response.result === 'string' ? response.result : '';
@@ -344,7 +344,7 @@ export class SelectionRepository {
     try {
       return JSON.parse(text) as XkResponseRaw<T>;
     } catch (parseError) {
-      hilog.error(DOMAIN, TAG, '%{public}s: non-json response, len=%{public}s, head=%{public}s',
+      AppLog.error(DOMAIN, TAG, '%{public}s: non-json response, len=%{public}s, head=%{public}s',
         apiName, `${text.length}`, text.length > 0 ? text.substring(0, 60) : '(empty)');
       throw new Error('服务返回异常，请稍后重试');
     }
@@ -354,7 +354,7 @@ export class SelectionRepository {
   private static checkCode<T>(raw: XkResponseRaw<T>, apiName: string): T {
     if (raw.code !== 200) {
       const msg: string = raw.msg !== undefined && raw.msg.length > 0 ? raw.msg : '请求失败（code ' + `${raw.code ?? -1}` + '）';
-      hilog.warn(DOMAIN, TAG, '%{public}s: code=%{public}s msg=%{public}s', apiName, `${raw.code ?? -1}`, msg);
+      AppLog.warn(DOMAIN, TAG, '%{public}s: code=%{public}s msg=%{public}s', apiName, `${raw.code ?? -1}`, msg);
       throw new Error(msg);
     }
     if (raw.data === undefined) {
@@ -378,7 +378,7 @@ export class SelectionRepository {
     if (captcha.captcha.length === 0 || captcha.uuid.length === 0) {
       throw new Error('验证码数据不完整，请重试');
     }
-    hilog.info(DOMAIN, TAG, 'captcha ok: type=%{public}d imgLen=%{public}s',
+    AppLog.info(DOMAIN, TAG, 'captcha ok: type=%{public}d imgLen=%{public}s',
       captcha.type, `${captcha.captcha.length}`);
     return captcha;
   }
@@ -416,7 +416,7 @@ export class SelectionRepository {
     }
     SelectionRepository.token = data.token;
     SelectionRepository.studentNameValue = data.student?.XM ?? '';
-    hilog.info(DOMAIN, TAG, 'login ok');
+    AppLog.info(DOMAIN, TAG, 'login ok');
   }
 
   /** 学生信息 + 全部选课轮次；轮次未初始化时服务端返回 HTML 提示页，按格式异常处理 */
@@ -448,7 +448,7 @@ export class SelectionRepository {
         list.push(batch);
       }
     }
-    hilog.info(DOMAIN, TAG, 'batches: %{public}s', `${list.length}`);
+    AppLog.info(DOMAIN, TAG, 'batches: %{public}s', `${list.length}`);
     return list;
   }
 
@@ -489,7 +489,7 @@ export class SelectionRepository {
         result.courses.push(course);
       }
     }
-    hilog.info(DOMAIN, TAG, 'courses: page %{public}s total %{public}s rows %{public}s',
+    AppLog.info(DOMAIN, TAG, 'courses: page %{public}s total %{public}s rows %{public}s',
       `${pageNumber}`, `${result.total}`, `${result.courses.length}`);
     return result;
   }
@@ -513,7 +513,7 @@ export class SelectionRepository {
       item.operateTime = row.CZSJ ?? '';
       list.push(item);
     }
-    hilog.info(DOMAIN, TAG, 'selected: %{public}s', `${list.length}`);
+    AppLog.info(DOMAIN, TAG, 'selected: %{public}s', `${list.length}`);
     return list;
   }
 
@@ -536,7 +536,7 @@ export class SelectionRepository {
       outcome.success = false;
       outcome.message = raw.msg !== undefined && raw.msg.length > 0 ? raw.msg : '选课失败（code ' + `${raw.code ?? -1}` + '）';
     }
-    hilog.info(DOMAIN, TAG, 'submit %{public}s: success=%{public}s msg=%{public}s',
+    AppLog.info(DOMAIN, TAG, 'submit %{public}s: success=%{public}s msg=%{public}s',
       course.jxbId, `${outcome.success}`, outcome.message);
     return outcome;
   }
@@ -549,10 +549,10 @@ export class SelectionRepository {
     try {
       await SelectionRepository.post(XK_LOGOUT, '{}', JSON_CONTENT_TYPE, true);
     } catch (error) {
-      hilog.warn(DOMAIN, TAG, 'logout request failed: %{public}s', `${error}`);
+      AppLog.warn(DOMAIN, TAG, 'logout request failed: %{public}s', `${error}`);
     }
     SelectionRepository.clearSession();
-    hilog.info(DOMAIN, TAG, 'logout ok');
+    AppLog.info(DOMAIN, TAG, 'logout ok');
   }
 
   /** 拼接上课时间地点文本：`周次/星期/起止节次/地点`，多时段以「；」分隔 */

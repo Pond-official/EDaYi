@@ -1,12 +1,8 @@
-﻿import { router } from '@kit.ArkUI';
-import { FinalExamEntry, ScheduleCellInfo, StudentProfile, TermStatus } from '../model/JwModels';
+﻿import { FinalExamEntry, ScheduleCellInfo, StudentProfile, TermStatus } from '../model/JwModels';
 import { JwxtRepository } from '../data/JwxtRepository';
 import { ExamDateUtils } from '../utils/ExamDateUtils';
 import { ScheduleBoard } from './ScheduleBoard';
 import { FrostBand, FROST_BAND_HEIGHT } from './FrostBand';
-
-/** 已连接教务系统提示的绿色 */
-const ONLINE_COLOR: string = '#0FA958';
 
 /**
  * 首页：学生信息卡 + 今日课程 + 我的课表（原生 Row/Column 布局，三端自适应）。
@@ -29,6 +25,8 @@ export struct HomeView {
   @State todayCells: ScheduleCellInfo[] = [];
   /** 课表周切换：0=本周，1=下周 */
   @State scheduleWeekOffset: number = 0;
+  /** 下拉刷新进行中（仅登录后实际刷新，未登录提示后立即收起） */
+  @State isRefreshing: boolean = false;
 
   aboutToAppear(): void {
     JwxtRepository.ensureLoaded();
@@ -87,37 +85,23 @@ export struct HomeView {
     return 74;
   }
 
-  private modeLabel(): string {
-    if (this.dataMode === 'online') {
-      return '已连接教务系统';
-    }
-    if (this.dataMode === 'offlineCache') {
-      return '离线数据 · 请重新登录';
-    }
-    return '未登录教务系统';
-  }
-
-  /** 状态条文字颜色：已连接教务系统为绿色，离线缓存为警示色，其余次要文字色 */
-  private bannerTextColor(): ResourceColor {
-    if (this.dataMode === 'online') {
-      return ONLINE_COLOR;
-    }
-    if (this.dataMode === 'offlineCache') {
-      return $r('sys.color.ohos_id_color_warning');
-    }
-    return $r('sys.color.ohos_id_color_text_secondary');
-  }
-
   private goLogin(): void {
-    router.pushUrl({ url: 'pages/LoginIndex' });
+    this.getUIContext().getRouter().pushUrl({ url: 'pages/LoginIndex' });
   }
 
-  private refreshData(): void {
-    try {
-      this.getUIContext().getPromptAction().showToast({ message: '正在刷新…', duration: 1000 });
-    } catch (error) {
+  /** 下拉刷新：已连接教务系统时在线刷新；未登录时提示先登录并立即收起刷新动画 */
+  private doRefresh(): void {
+    if (this.dataMode !== 'online') {
+      this.isRefreshing = false;
+      try {
+        this.getUIContext().getPromptAction()
+          .showToast({ message: '请先登录教务系统后再刷新', duration: 1500 });
+      } catch (error) {
+      }
+      return;
     }
     JwxtRepository.reload().then((ok: boolean) => {
+      this.isRefreshing = false;
       if (!ok) {
         try {
           this.getUIContext().getPromptAction()
@@ -140,7 +124,7 @@ export struct HomeView {
   }
 
   private confirmLogout(): void {
-    AlertDialog.show({
+    this.getUIContext().showAlertDialog({
       title: '退出登录',
       message: this.logoutMessage(),
       primaryButton: {
@@ -158,34 +142,43 @@ export struct HomeView {
     });
   }
 
+  /** 离线数据提示条：使用本地缓存数据时置顶提示，点击“去登录”重新在线同步 */
   @Builder
-  dataModeBanner() {
-    Row() {
-      Text(this.modeLabel())
-        .fontSize(this.dataMode === 'offlineCache' ? 12 : 11)
-        .fontWeight(this.dataMode === 'offlineCache' ? FontWeight.Medium : FontWeight.Normal)
-        .fontColor(this.bannerTextColor())
-        .layoutWeight(1)
+  offlineBanner() {
+    Row({ space: 10 }) {
+      SymbolGlyph($r('sys.symbol.exclamationmark_circle'))
+        .fontSize(20)
+        .fontColor([$r('sys.color.ohos_id_color_warning')])
+      Column({ space: 2 }) {
+        Text('正在使用离线数据')
+          .fontSize(14)
+          .fontWeight(FontWeight.Medium)
+          .fontColor($r('sys.color.ohos_id_color_text_primary'))
+        Text('当前展示本地缓存，重新登录后自动更新')
+          .fontSize(11)
+          .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+      }
+      .alignItems(HorizontalAlign.Start)
+      .layoutWeight(1)
+      Text('去登录')
+        .fontSize(13)
+        .fontWeight(FontWeight.Medium)
+        .fontColor($r('sys.color.ohos_id_color_text_primary_activated'))
     }
     .width('100%')
-    .height(FROST_BAND_HEIGHT)
     .alignItems(VerticalAlign.Center)
-    .padding({ left: 16, right: 16 })
+    .padding({ left: 14, right: 14, top: 10, bottom: 10 })
+    .borderRadius(12)
+    .backgroundColor($r('sys.color.comp_background_tertiary'))
+    .margin({ bottom: 12 })
+    .onClick(() => {
+      this.goLogin();
+    })
   }
 
   @Builder
   studentCard() {
     Column() {
-      Row() {
-        Blank()
-        Text('刷新')
-          .fontSize(12)
-          .fontColor($r('sys.color.ohos_id_color_text_primary_activated'))
-          .onClick(() => {
-            this.refreshData();
-          })
-      }
-      .width('100%')
       Row() {
         Stack() {
           Text(this.student.name.length > 0 ? this.student.name.substring(0, 1) : '生')
@@ -553,25 +546,41 @@ export struct HomeView {
 
   build() {
     Stack({ alignContent: Alignment.Top }) {
-      Scroll() {
-        Column() {
-          if (this.isWide()) {
-            this.wideContent()
-          } else {
-            this.narrowContent()
+      Refresh({ refreshing: $$this.isRefreshing }) {
+        Scroll() {
+          Column() {
+            if (this.dataMode === 'offlineCache') {
+              this.offlineBanner()
+            }
+            if (this.isWide()) {
+              this.wideContent()
+            } else {
+              this.narrowContent()
+            }
           }
+          .padding({ left: 16, right: 16, top: FROST_BAND_HEIGHT, bottom: this.bottomInset() })
+          .constraintSize({ minWidth: '100%' })
         }
-        .padding({ left: 16, right: 16, top: FROST_BAND_HEIGHT, bottom: this.bottomInset() })
-        .constraintSize({ minWidth: '100%' })
-      }
-      .width('100%')
-      .height('100%')
-      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
-      .scrollBar(BarState.Off)
-      .edgeEffect(EdgeEffect.Spring)
+        .width('100%')
+        .height('100%')
+        .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
+        .scrollBar(BarState.Off)
+        }
+      .onRefreshing(() => {
+        this.doRefresh();
+      })
 
       FrostBand() {
-        this.dataModeBanner()
+        Row({ space: 8 }) {
+          Text('首页')
+            .fontSize(20)
+            .fontWeight(FontWeight.Bold)
+            .fontColor($r('sys.color.ohos_id_color_text_primary'))
+        }
+        .width('100%')
+        .height(FROST_BAND_HEIGHT)
+        .alignItems(VerticalAlign.Center)
+        .padding({ left: 16, right: 16 })
       }
     }
     .width('100%')

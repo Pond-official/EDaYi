@@ -28,6 +28,8 @@ const BOOTSTRAP_TIMEOUT: number = 20000;
 @Component
 export struct ZcpView {
   @StorageLink('mainBreakpoint') currentBreakpoint: string = 'md';
+  /** 教务数据模式：offlineCache（标准模式退出登录）时综评页同样置顶离线提示 */
+  @StorageProp('jwDataMode') dataMode: string = 'preview';
   /** 综评页签是否处于激活（可见）状态：首次激活自动开始加载 */
   @StorageProp('jwZcpTabActive') @Watch('onTabActive') zcpTabActive: boolean = false;
   /** 综评查询结果（仅内存态，隐私清理/退出登录时置空） */
@@ -35,6 +37,7 @@ export struct ZcpView {
   /** idle=未加载 bootstrap=Web 单点引导中 loading=业务拉取中 error=失败 */
   @State phase: string = 'idle';
   @State errorText: string = '';
+  @State isRefreshing: boolean = false;
   /** 隐藏 Web 单点引导是否进行中（条件渲染隐藏 Web 的开关） */
   @State bootstrapRunning: boolean = false;
   /** 展开附加分明细的指标代码（空串 = 无展开） */
@@ -87,6 +90,29 @@ export struct ZcpView {
 
   /** 手动重试（错误卡片/未加载卡片的按钮）：清空错误后重新启动 */
   private retry(): void {
+    if (this.phase === 'bootstrap' || this.phase === 'loading' || this.bootstrapRunning) {
+      return;
+    }
+    this.errorText = '';
+    this.start();
+  }
+
+  /** 去登录：标准模式退出登录后离线数据仍在，引导重新登录以在线刷新 */
+  private goLogin(): void {
+    this.getUIContext().getRouter().pushUrl({ url: 'pages/LoginIndex' });
+  }
+
+  /** 下拉刷新：已连接教务系统时重新获取综评数据；未登录时提示先登录并立即收起刷新动画 */
+  private doRefresh(): void {
+    this.isRefreshing = false;
+    if (this.dataMode !== 'online') {
+      try {
+        this.getUIContext().getPromptAction()
+          .showToast({ message: '请先登录教务系统后再刷新', duration: 1500 });
+      } catch (error) {
+      }
+      return;
+    }
     if (this.phase === 'bootstrap' || this.phase === 'loading' || this.bootstrapRunning) {
       return;
     }
@@ -331,11 +357,8 @@ export struct ZcpView {
     return Number.isNaN(total) || total <= 0 ? 100 : total;
   }
 
-  /** 顶带副标题：状态/无批次/获取中/失败 */
+  /** 顶带副标题：状态/无批次/获取中（获取失败时由页面内错误卡片与离线提示条反馈，顶带不显示红字） */
   private bandSubtitle(): string {
-    if (this.phase === 'error') {
-      return '获取失败，点击页面内按钮重试';
-    }
     if (this.phase === 'bootstrap') {
       return '正在建立综评会话…';
     }
@@ -780,22 +803,56 @@ export struct ZcpView {
     .backgroundColor($r('app.color.card_background'))
   }
 
+  /** 离线数据提示条：当前展示本地缓存数据时置顶提示，点击重试在线刷新 */
+  @Builder
+  offlineBanner() {
+    Row({ space: 10 }) {
+      SymbolGlyph($r('sys.symbol.exclamationmark_circle'))
+        .fontSize(20)
+        .fontColor([$r('sys.color.ohos_id_color_warning')])
+      Column({ space: 2 }) {
+        Text('正在使用离线数据')
+          .fontSize(14)
+          .fontWeight(FontWeight.Medium)
+          .fontColor($r('sys.color.ohos_id_color_text_primary'))
+        Text(this.dataMode === 'offlineCache' ?
+          '当前展示本地缓存，重新登录后自动更新' :
+          '当前展示本地缓存，联网刷新成功后自动更新')
+          .fontSize(11)
+          .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+      }
+      .alignItems(HorizontalAlign.Start)
+      .layoutWeight(1)
+      Text(this.dataMode === 'offlineCache' ? '去登录' : '重试')
+        .fontSize(13)
+        .fontWeight(FontWeight.Medium)
+        .fontColor($r('sys.color.ohos_id_color_text_primary_activated'))
+    }
+    .width('100%')
+    .alignItems(VerticalAlign.Center)
+    .padding({ left: 14, right: 14, top: 10, bottom: 10 })
+    .borderRadius(12)
+    .backgroundColor($r('sys.color.comp_background_tertiary'))
+    .margin({ bottom: 10 })
+    .onClick(() => {
+      if (this.dataMode === 'offlineCache') {
+        this.goLogin();
+      } else {
+        this.retry();
+      }
+    })
+  }
+
   build() {
     Stack({ alignContent: Alignment.Top }) {
+      Refresh({ refreshing: $$this.isRefreshing }) {
       Scroll() {
         Column() {
           if (this.result !== null) {
-            this.ctxCard(this.result)
-            if (this.result.fromCache) {
-              Text('正在展示本地缓存数据，联网刷新成功后自动更新（点击重试）')
-                .fontSize(11)
-                .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-                .width('100%')
-                .padding({ top: 6 })
-                .onClick(() => {
-                  this.retry();
-                })
+            if (this.result.fromCache || this.dataMode === 'offlineCache') {
+              this.offlineBanner()
             }
+            this.ctxCard(this.result)
             if (!this.result.hasContext) {
               Text('当前学期暂无综评批次（未开放或无参评资格）')
                 .fontSize(13)
@@ -833,7 +890,10 @@ export struct ZcpView {
       .height('100%')
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
       .scrollBar(BarState.Off)
-      .edgeEffect(EdgeEffect.Spring)
+      }
+      .onRefreshing(() => {
+        this.doRefresh();
+      })
 
       FrostBand() {
         Row({ space: 8 }) {
@@ -843,9 +903,7 @@ export struct ZcpView {
             .fontColor($r('sys.color.ohos_id_color_text_primary'))
           Text(this.bandSubtitle())
             .fontSize(12)
-            .fontColor(this.phase === 'error' ?
-              $r('sys.color.ohos_id_color_warning') :
-              $r('sys.color.ohos_id_color_text_secondary'))
+            .fontColor($r('sys.color.ohos_id_color_text_secondary'))
         }
         .width('100%')
         .height(FROST_BAND_HEIGHT)

@@ -2,7 +2,7 @@
 import { reminderAgentManager } from '@kit.BackgroundTasksKit';
 import { calendarManager } from '@kit.CalendarKit';
 import { common } from '@kit.AbilityKit';
-import { hilog } from '@kit.PerformanceAnalysisKit';
+import { AppLog } from './AppLog';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { ScheduleCellInfo, TermStatus } from '../model/JwModels';
 
@@ -14,8 +14,8 @@ const LEGACY_CALENDAR_NAME: string = 'com.example.edaiyi_next.schedule';
 const TEST_NOTIFICATION_ID: number = 999999;
 /** 设置页测试代理提醒使用的通知 id */
 const TEST_AGENT_NOTIFICATION_ID: number = 999998;
-/** 单应用有效代理提醒上限（API26 为 64），预留余量后取 60 */
-const MAX_AGENT_REMINDERS: number = 60;
+/** 单次重建最多写入系统的代理提醒条数（避免超出系统/云端数量上限触发 1700002） */
+const MAX_AGENT_REMINDERS: number = 20;
 /** 本应用包名与入口 Ability（点击提醒通知后跳转） */
 const APP_PKG_NAME: string = 'com.example.edaiyi_next';
 const APP_ABILITY_NAME: string = 'PondAbility';
@@ -31,10 +31,11 @@ class ClassOccurrence {
 /**
  * 上课提醒调度器（后台代理提醒方案）：
  * 读取用户设置（开关 + 提前分钟数），为本周/下周课表内尚未到提醒时间的
- * 每节课向系统发布一条后台代理提醒（reminderAgentManager 倒计时类型），
- * 应用退到后台、退出或进程被清理后由系统服务代理，到点经
+ * 每节课计算提醒时间点，其中单次重建最多向系统写入 20 条后台代理提醒
+ * （reminderAgentManager 倒计时类型），其余降级为应用内定时器。
+ * 应用退到后台、退出或进程被清理后，代理提醒仍由系统服务代理，到点经
  * Notification Kit 弹出系统通知（SOCIAL_COMMUNICATION 通道）。
- * 代理提醒发布失败（未开通权益/超出数量上限等）时降级为应用内定时器，
+ * 代理提醒发布失败（未开通权益/超出数量上限等）时同样降级为应用内定时器，
  * 应用存活期间仍可提醒。数据同步、应用启动（含离线缓存回显）与设置
  * 变更时重建。另含旧版日历方案的一次性清理：删除"e大医课表"日历账户及其日程，
  * 无权限或无该账户时静默跳过。
@@ -50,23 +51,23 @@ export class ReminderScheduler {
     await ReminderScheduler.cancelCourseReminders();
     const enabled: boolean = AppStorage.get<boolean>('jwReminderEnabled') ?? true;
     const advance: number = AppStorage.get<number>('jwReminderAdvance') ?? 10;
+    const agentEnabled: boolean = AppStorage.get<boolean>('jwReminderAgentEnabled') ?? true;
     if (!enabled) {
       AppStorage.setOrCreate('jwNextReminder', '');
-      hilog.info(DOMAIN, TAG, 'reminder disabled by settings');
+      AppLog.info(DOMAIN, TAG, 'reminder disabled by settings');
       return;
     }
     await ReminderScheduler.ensureNotificationEnabled(context);
     const occurrences: ClassOccurrence[] = ReminderScheduler.upcomingOccurrences(cells, term, advance);
-    const targets: ClassOccurrence[] = occurrences.slice(0, MAX_AGENT_REMINDERS);
     let agentCount: number = 0;
     let inAppCount: number = 0;
     let agentAvailable: boolean = true;
-    for (const occurrence of targets) {
+    for (const occurrence of occurrences) {
       const delay: number = occurrence.fireAt - Date.now();
       if (delay <= 0) {
         continue;
       }
-      if (agentAvailable) {
+      if (agentEnabled && agentAvailable && agentCount < MAX_AGENT_REMINDERS) {
         try {
           await ReminderScheduler.publishAgentReminder(occurrence, advance);
           agentCount++;
@@ -75,7 +76,7 @@ export class ReminderScheduler {
           // 代理提醒不可用（未开通权益/超出数量上限），后续全部降级为应用内定时器
           agentAvailable = false;
           const err: BusinessError = error as BusinessError;
-          hilog.error(DOMAIN, TAG, 'agent reminder publish failed: code=%{public}s msg=%{public}s',
+          AppLog.error(DOMAIN, TAG, 'agent reminder publish failed: code=%{public}s msg=%{public}s',
             `${err.code}`, `${err.message}`);
         }
       }
@@ -91,9 +92,9 @@ export class ReminderScheduler {
     } else {
       AppStorage.setOrCreate('jwNextReminder', '');
     }
-    hilog.info(DOMAIN, TAG,
-      'reminders armed: agent=%{public}d inApp=%{public}d advance=%{public}d upcoming=%{public}d',
-      agentCount, inAppCount, advance, occurrences.length);
+    AppLog.info(DOMAIN, TAG,
+      'reminders armed: agent=%{public}d inApp=%{public}d agentOn=%{public}s advance=%{public}d upcoming=%{public}d',
+      agentCount, inAppCount, `${agentEnabled}`, advance, occurrences.length);
   }
 
   /**
@@ -117,7 +118,7 @@ export class ReminderScheduler {
         }
       };
       await notificationManager.publish(request);
-      hilog.info(DOMAIN, TAG, 'test notification published');
+      AppLog.info(DOMAIN, TAG, 'test notification published');
       try {
         const agentTest: reminderAgentManager.ReminderRequestTimer = {
           reminderType: reminderAgentManager.ReminderType.REMINDER_TYPE_TIMER,
@@ -132,14 +133,14 @@ export class ReminderScheduler {
           }
         };
         await reminderAgentManager.publishReminder(agentTest);
-        hilog.info(DOMAIN, TAG, 'test agent reminder published, fires in 60s');
+        AppLog.info(DOMAIN, TAG, 'test agent reminder published, fires in 60s');
       } catch (error) {
         const err: BusinessError = error as BusinessError;
-        hilog.error(DOMAIN, TAG, 'test agent reminder failed: code=%{public}s msg=%{public}s',
+        AppLog.error(DOMAIN, TAG, 'test agent reminder failed: code=%{public}s msg=%{public}s',
           `${err.code}`, `${err.message}`);
       }
     } catch (error) {
-      hilog.error(DOMAIN, TAG, 'publishTest failed: %{public}s', `${error}`);
+      AppLog.error(DOMAIN, TAG, 'publishTest failed: %{public}s', `${error}`);
     }
   }
 
@@ -175,7 +176,7 @@ export class ReminderScheduler {
     try {
       await reminderAgentManager.cancelAllReminders();
     } catch (error) {
-      hilog.error(DOMAIN, TAG, 'cancelAgentReminders failed: %{public}s', `${error}`);
+      AppLog.error(DOMAIN, TAG, 'cancelAgentReminders failed: %{public}s', `${error}`);
     }
   }
 
@@ -188,6 +189,13 @@ export class ReminderScheduler {
     try {
       const infos: reminderAgentManager.ReminderInfo[] =
         await reminderAgentManager.getAllValidReminders();
+      // TODO 调试：发布 1700002 排查，验证后移除
+      AppLog.info(DOMAIN, TAG, 'valid reminders before cancel: count=%{public}d', infos.length);
+      for (const info of infos) {
+        AppLog.info(DOMAIN, TAG, 'valid reminder: id=%{public}s notificationId=%{public}s type=%{public}s',
+          `${info.reminderId ?? -1}`, `${info.reminderReq.notificationId}`,
+          `${info.reminderReq.reminderType}`);
+      }
       for (const info of infos) {
         if (info.reminderReq.notificationId === TEST_AGENT_NOTIFICATION_ID) {
           continue;
@@ -195,12 +203,16 @@ export class ReminderScheduler {
         try {
           await reminderAgentManager.cancelReminder(info.reminderId);
         } catch (error) {
-          hilog.error(DOMAIN, TAG, 'cancelReminder failed: id=%{public}d %{public}s',
+          AppLog.error(DOMAIN, TAG, 'cancelReminder failed: id=%{public}d %{public}s',
             info.reminderId, `${error}`);
         }
       }
+      // TODO 调试：取消后复查
+      const after: reminderAgentManager.ReminderInfo[] =
+        await reminderAgentManager.getAllValidReminders();
+      AppLog.info(DOMAIN, TAG, 'valid reminders after cancel: count=%{public}d', after.length);
     } catch (error) {
-      hilog.error(DOMAIN, TAG, 'cancelCourseReminders failed: %{public}s', `${error}`);
+      AppLog.error(DOMAIN, TAG, 'cancelCourseReminders failed: %{public}s', `${error}`);
     }
   }
 
@@ -220,13 +232,13 @@ export class ReminderScheduler {
         return;
       }
       if (context === null) {
-        hilog.error(DOMAIN, TAG, 'notification disabled and no UIAbilityContext, skip request');
+        AppLog.error(DOMAIN, TAG, 'notification disabled and no UIAbilityContext, skip request');
         return;
       }
       await notificationManager.requestEnableNotification(context);
-      hilog.info(DOMAIN, TAG, 'requestEnableNotification done');
+      AppLog.info(DOMAIN, TAG, 'requestEnableNotification done');
     } catch (error) {
-      hilog.error(DOMAIN, TAG, 'ensureNotificationEnabled failed: %{public}s', `${error}`);
+      AppLog.error(DOMAIN, TAG, 'ensureNotificationEnabled failed: %{public}s', `${error}`);
     }
   }
 
@@ -250,11 +262,11 @@ export class ReminderScheduler {
     };
     notificationManager.publish(request)
       .then(() => {
-        hilog.info(DOMAIN, TAG, 'notification published: %{public}d %{public}s',
+        AppLog.info(DOMAIN, TAG, 'notification published: %{public}d %{public}s',
           notifyId, occurrence.courseName);
       })
       .catch((error: BusinessError) => {
-        hilog.error(DOMAIN, TAG, 'publish failed: code=%{public}s msg=%{public}s',
+        AppLog.error(DOMAIN, TAG, 'publish failed: code=%{public}s msg=%{public}s',
           `${error.code}`, `${error.message}`);
       });
   }
@@ -280,9 +292,9 @@ export class ReminderScheduler {
       };
       const calendar: calendarManager.Calendar = await manager.getCalendar(account);
       await manager.deleteCalendar(calendar);
-      hilog.info(DOMAIN, TAG, 'legacy calendar deleted');
+      AppLog.info(DOMAIN, TAG, 'legacy calendar deleted');
     } catch (error) {
-      hilog.info(DOMAIN, TAG, 'legacy calendar cleanup skipped: %{public}s', `${error}`);
+      AppLog.info(DOMAIN, TAG, 'legacy calendar cleanup skipped: %{public}s', `${error}`);
     }
   }
 

@@ -1,6 +1,6 @@
 import { FormExtensionAbility, formBindingData, formInfo } from '@kit.FormKit';
 import { Want } from '@kit.AbilityKit';
-import { hilog } from '@kit.PerformanceAnalysisKit';
+import { AppLog } from '../data/AppLog';
 import { CardDataStore } from '../data/CardDataStore';
 
 /**
@@ -19,18 +19,18 @@ export default class ExamFormAbility extends FormExtensionAbility {
         formId = id;
       }
     }
-    hilog.info(0x0000, 'ExamForm', 'onAddForm formId:%{public}s', formId);
+    AppLog.info(0x0000, 'ExamForm', 'onAddForm formId:%{public}s', formId);
     CardDataStore.addExamFormEntry(this.context, formId);
     return CardDataStore.buildExamBindingData(this.context);
   }
 
   onUpdateForm(formId: string): void {
-    hilog.info(0x0000, 'ExamForm', 'onUpdateForm formId:%{public}s', formId);
+    AppLog.info(0x0000, 'ExamForm', 'onUpdateForm formId:%{public}s', formId);
     CardDataStore.refreshExamCards(this.context);
   }
 
   onRemoveForm(formId: string): void {
-    hilog.info(0x0000, 'ExamForm', 'onRemoveForm formId:%{public}s', formId);
+    AppLog.info(0x0000, 'ExamForm', 'onRemoveForm formId:%{public}s', formId);
     CardDataStore.removeExamFormEntry(this.context, formId);
   }
 }

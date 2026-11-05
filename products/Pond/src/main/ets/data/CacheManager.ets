@@ -1,5 +1,5 @@
 import { fileIo as fs } from '@kit.CoreFileKit';
-import { hilog } from '@kit.PerformanceAnalysisKit';
+import { AppLog } from './AppLog';
 
 const TAG: string = 'CacheManager';
 const DOMAIN: number = 0x0000;
@@ -48,7 +48,7 @@ export class CacheManager {
         }
       }
     } catch (error) {
-      hilog.warn(DOMAIN, TAG, 'clearDir skip: %{public}s %{public}s', path, `${error}`);
+      AppLog.warn(DOMAIN, TAG, 'clearDir skip: %{public}s %{public}s', path, `${error}`);
     }
   }
 

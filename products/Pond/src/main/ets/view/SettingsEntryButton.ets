@@ -1,6 +1,6 @@
-import { router, uiMaterial } from '@kit.ArkUI';
+import { uiMaterial } from '@kit.ArkUI';
 import { BusinessError } from '@kit.BasicServicesKit';
-import { hilog } from '@kit.PerformanceAnalysisKit';
+import { AppLog } from '../data/AppLog';
 import { MaterialUtils } from '../utils/MaterialUtils';
 
 const TAG: string = 'SettingsEntryButton';
@@ -26,10 +26,10 @@ export struct SettingsEntryButton {
 
   /** 跳转设置页 */
   private openSettings(): void {
-    hilog.info(DOMAIN, TAG, 'open settings');
-    router.pushUrl({ url: 'pages/SettingsIndex' })
+    AppLog.info(DOMAIN, TAG, 'open settings');
+    this.getUIContext().getRouter().pushUrl({ url: 'pages/SettingsIndex' })
       .catch((error: BusinessError) => {
-        hilog.error(DOMAIN, TAG, 'push settings failed: %{public}s %{public}s',
+        AppLog.error(DOMAIN, TAG, 'push settings failed: %{public}s %{public}s',
           `${error.code}`, `${error.message}`);
       });
   }

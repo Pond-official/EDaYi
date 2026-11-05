@@ -1,5 +1,5 @@
 import { router } from '@kit.ArkUI';
-import { hilog } from '@kit.PerformanceAnalysisKit';
+import { AppLog } from '../data/AppLog';
 import { SettingsView, SettingsSubPage, PAGE_PUSH_DURATION } from '../view/SettingsView';
 import { FrostBand, FROST_BAND_HEIGHT } from '../view/FrostBand';
 
@@ -21,7 +21,7 @@ struct SettingsIndex {
   @StorageLink('jwSettingsSubPage') subPage: SettingsSubPage = SettingsSubPage.Main;
 
   aboutToAppear(): void {
-    hilog.info(DOMAIN, TAG, 'aboutToAppear');
+    AppLog.info(DOMAIN, TAG, 'aboutToAppear');
     // 每次进入都从设置主页开始（上次会话可能停留在二级页）
     this.subPage = SettingsSubPage.Main;
   }
@@ -40,20 +40,20 @@ struct SettingsIndex {
   /** 返回上一页 */
   private backToPrev(): void {
     try {
-      const state: router.RouterState = router.getState();
-      hilog.info(DOMAIN, TAG, 'back: index=%{public}d path=%{public}s', state.index, state.path);
+      const state: router.RouterState = this.getUIContext().getRouter().getState();
+      AppLog.info(DOMAIN, TAG, 'back: index=%{public}d path=%{public}s', state.index, state.path);
       if (state.index > 1) {
-        router.back();
+        this.getUIContext().getRouter().back();
       }
     } catch (error) {
-      hilog.error(DOMAIN, TAG, 'router back failed: %{public}s', `${error}`);
+      AppLog.error(DOMAIN, TAG, 'router back failed: %{public}s', `${error}`);
     }
   }
 
   /** 顶带返回键：二级页打开时先弹回设置主页（与设备返回一致），否则返回上一页 */
   private backFromBand(): void {
     if (this.subPage !== SettingsSubPage.Main) {
-      hilog.info(DOMAIN, TAG, 'band back to settings main');
+      AppLog.info(DOMAIN, TAG, 'band back to settings main');
       this.getUIContext().animateTo({ duration: PAGE_PUSH_DURATION, curve: Curve.Friction }, () => {
         this.subPage = SettingsSubPage.Main;
       });

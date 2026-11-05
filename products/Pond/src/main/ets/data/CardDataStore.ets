@@ -1,7 +1,7 @@
 import { preferences } from '@kit.ArkData';
 import { formBindingData, formProvider } from '@kit.FormKit';
 import { common } from '@kit.AbilityKit';
-import { hilog } from '@kit.PerformanceAnalysisKit';
+import { AppLog } from './AppLog';
 import { FinalExamEntry } from '../model/JwModels';
 import { ExamDateUtils } from '../utils/ExamDateUtils';
 
@@ -17,6 +17,7 @@ const KEY_DISABLED_COURSES: string = 'reminderDisabledCourses';
 const KEY_FINAL_EXAMS: string = 'finalExamDates';
 const KEY_PRIVACY_MODE: string = 'privacyMode';
 const KEY_EXAM_FORM_IDS: string = 'examFormIds';
+const KEY_DEVELOPER_MODE: string = 'developerMode';
 
 /** 持久化的课表单元格（紧凑字段，仅本周与下周数据） */
 export class CardCellItem {
@@ -59,6 +60,8 @@ export class FormEntry {
 export class ReminderSettings {
   enabled: boolean = true;
   advanceMinutes: number = 10;
+  /** 代理提醒（系统后台代理发布，应用退出后仍送达）开关 */
+  agentEnabled: boolean = true;
 }
 
 /** 下发给期末倒计时卡片的条目（紧凑字段） */
@@ -88,6 +91,7 @@ interface FormEntryRaw {
 interface ReminderSettingsRaw {
   enabled?: boolean;
   advance?: number;
+  agent?: boolean;
 }
 
 interface FinalExamRaw {
@@ -120,7 +124,7 @@ export class CardDataStore {
       pref.flushSync();
       CardDataStore.refreshAllCards(context);
     } catch (error) {
-      hilog.error(DOMAIN, TAG, 'saveAndRefresh failed: %{public}s', `${error}`);
+      AppLog.error(DOMAIN, TAG, 'saveAndRefresh failed: %{public}s', `${error}`);
     }
   }
 
@@ -131,7 +135,7 @@ export class CardDataStore {
       pref.putSync(KEY_APP_CACHE, cacheJson);
       pref.flushSync();
     } catch (error) {
-      hilog.error(DOMAIN, TAG, 'saveAppCache failed: %{public}s', `${error}`);
+      AppLog.error(DOMAIN, TAG, 'saveAppCache failed: %{public}s', `${error}`);
     }
   }
 
@@ -140,7 +144,7 @@ export class CardDataStore {
       const pref: preferences.Preferences = CardDataStore.store(context);
       return CardDataStore.readString(pref, KEY_APP_CACHE);
     } catch (error) {
-      hilog.error(DOMAIN, TAG, 'loadAppCache failed: %{public}s', `${error}`);
+      AppLog.error(DOMAIN, TAG, 'loadAppCache failed: %{public}s', `${error}`);
       return '';
     }
   }
@@ -151,7 +155,7 @@ export class CardDataStore {
       pref.deleteSync(KEY_APP_CACHE);
       pref.flushSync();
     } catch (error) {
-      hilog.error(DOMAIN, TAG, 'clearAppCache failed: %{public}s', `${error}`);
+      AppLog.error(DOMAIN, TAG, 'clearAppCache failed: %{public}s', `${error}`);
     }
   }
 
@@ -166,22 +170,24 @@ export class CardDataStore {
         settings.enabled = typeof raw.enabled === 'boolean' ? raw.enabled : true;
         settings.advanceMinutes =
           typeof raw.advance === 'number' && raw.advance > 0 && raw.advance <= 120 ? raw.advance : 10;
+        settings.agentEnabled = typeof raw.agent === 'boolean' ? raw.agent : true;
       }
     } catch (error) {
-      hilog.error(DOMAIN, TAG, 'loadReminderSettings failed: %{public}s', `${error}`);
+      AppLog.error(DOMAIN, TAG, 'loadReminderSettings failed: %{public}s', `${error}`);
     }
     return settings;
   }
 
   /** 保存上课提醒设置 */
-  static saveReminderSettings(context: common.Context, enabled: boolean, advanceMinutes: number): void {
+  static saveReminderSettings(context: common.Context, enabled: boolean, advanceMinutes: number,
+    agentEnabled: boolean): void {
     try {
       const pref: preferences.Preferences = CardDataStore.store(context);
-      const payload: ReminderSettingsRaw = { enabled: enabled, advance: advanceMinutes };
+      const payload: ReminderSettingsRaw = { enabled: enabled, advance: advanceMinutes, agent: agentEnabled };
       pref.putSync(KEY_REMINDER_SETTINGS, JSON.stringify(payload));
       pref.flushSync();
     } catch (error) {
-      hilog.error(DOMAIN, TAG, 'saveReminderSettings failed: %{public}s', `${error}`);
+      AppLog.error(DOMAIN, TAG, 'saveReminderSettings failed: %{public}s', `${error}`);
     }
   }
 
@@ -200,7 +206,7 @@ export class CardDataStore {
         }
       }
     } catch (error) {
-      hilog.error(DOMAIN, TAG, 'loadDisabledCourses failed: %{public}s', `${error}`);
+      AppLog.error(DOMAIN, TAG, 'loadDisabledCourses failed: %{public}s', `${error}`);
     }
     return result;
   }
@@ -212,7 +218,7 @@ export class CardDataStore {
       pref.putSync(KEY_DISABLED_COURSES, JSON.stringify(courses));
       pref.flushSync();
     } catch (error) {
-      hilog.error(DOMAIN, TAG, 'saveDisabledCourses failed: %{public}s', `${error}`);
+      AppLog.error(DOMAIN, TAG, 'saveDisabledCourses failed: %{public}s', `${error}`);
     }
   }
 
@@ -235,7 +241,7 @@ export class CardDataStore {
         }
       }
     } catch (error) {
-      hilog.error(DOMAIN, TAG, 'loadFinalExams failed: %{public}s', `${error}`);
+      AppLog.error(DOMAIN, TAG, 'loadFinalExams failed: %{public}s', `${error}`);
     }
     return result;
   }
@@ -251,7 +257,7 @@ export class CardDataStore {
       pref.putSync(KEY_FINAL_EXAMS, JSON.stringify(raw));
       pref.flushSync();
     } catch (error) {
-      hilog.error(DOMAIN, TAG, 'saveFinalExams failed: %{public}s', `${error}`);
+      AppLog.error(DOMAIN, TAG, 'saveFinalExams failed: %{public}s', `${error}`);
     }
   }
 
@@ -265,7 +271,7 @@ export class CardDataStore {
         mode = stored;
       }
     } catch (error) {
-      hilog.error(DOMAIN, TAG, 'loadPrivacyMode failed: %{public}s', `${error}`);
+      AppLog.error(DOMAIN, TAG, 'loadPrivacyMode failed: %{public}s', `${error}`);
     }
     return mode;
   }
@@ -277,7 +283,33 @@ export class CardDataStore {
       pref.putSync(KEY_PRIVACY_MODE, mode);
       pref.flushSync();
     } catch (error) {
-      hilog.error(DOMAIN, TAG, 'savePrivacyMode failed: %{public}s', `${error}`);
+      AppLog.error(DOMAIN, TAG, 'savePrivacyMode failed: %{public}s', `${error}`);
+    }
+  }
+
+  /** 读取开发者选项是否已开启（连续点击版本号 5 次开启，未配置默认关闭） */
+  static loadDeveloperMode(context: common.Context): boolean {
+    let enabled: boolean = false;
+    try {
+      const pref: preferences.Preferences = CardDataStore.store(context);
+      const value: preferences.ValueType = pref.getSync(KEY_DEVELOPER_MODE, false);
+      if (typeof value === 'boolean') {
+        enabled = value;
+      }
+    } catch (error) {
+      AppLog.error(DOMAIN, TAG, 'loadDeveloperMode failed: %{public}s', `${error}`);
+    }
+    return enabled;
+  }
+
+  /** 保存开发者选项开关状态 */
+  static saveDeveloperMode(context: common.Context, enabled: boolean): void {
+    try {
+      const pref: preferences.Preferences = CardDataStore.store(context);
+      pref.putSync(KEY_DEVELOPER_MODE, enabled);
+      pref.flushSync();
+    } catch (error) {
+      AppLog.error(DOMAIN, TAG, 'saveDeveloperMode failed: %{public}s', `${error}`);
     }
   }
 
@@ -288,7 +320,7 @@ export class CardDataStore {
       pref.deleteSync(KEY_PAYLOAD);
       pref.flushSync();
     } catch (error) {
-      hilog.error(DOMAIN, TAG, 'clearCardPayload failed: %{public}s', `${error}`);
+      AppLog.error(DOMAIN, TAG, 'clearCardPayload failed: %{public}s', `${error}`);
     }
   }
 
@@ -299,7 +331,7 @@ export class CardDataStore {
       pref.deleteSync(KEY_FINAL_EXAMS);
       pref.flushSync();
     } catch (error) {
-      hilog.error(DOMAIN, TAG, 'clearFinalExams failed: %{public}s', `${error}`);
+      AppLog.error(DOMAIN, TAG, 'clearFinalExams failed: %{public}s', `${error}`);
     }
   }
 
@@ -310,7 +342,7 @@ export class CardDataStore {
       pref.deleteSync(KEY_DISABLED_COURSES);
       pref.flushSync();
     } catch (error) {
-      hilog.error(DOMAIN, TAG, 'clearDisabledCourses failed: %{public}s', `${error}`);
+      AppLog.error(DOMAIN, TAG, 'clearDisabledCourses failed: %{public}s', `${error}`);
     }
   }
 
@@ -329,7 +361,7 @@ export class CardDataStore {
       pref.putSync(KEY_FORM_ENTRIES, JSON.stringify(kept));
       pref.flushSync();
     } catch (error) {
-      hilog.error(DOMAIN, TAG, 'addFormEntry failed: %{public}s', `${error}`);
+      AppLog.error(DOMAIN, TAG, 'addFormEntry failed: %{public}s', `${error}`);
     }
   }
 
@@ -341,7 +373,7 @@ export class CardDataStore {
       pref.putSync(KEY_FORM_ENTRIES, JSON.stringify(kept));
       pref.flushSync();
     } catch (error) {
-      hilog.error(DOMAIN, TAG, 'removeFormEntry failed: %{public}s', `${error}`);
+      AppLog.error(DOMAIN, TAG, 'removeFormEntry failed: %{public}s', `${error}`);
     }
   }
 
@@ -372,7 +404,7 @@ export class CardDataStore {
         cells = raw.cells ?? [];
       }
     } catch (error) {
-      hilog.error(DOMAIN, TAG, 'read payload failed: %{public}s', `${error}`);
+      AppLog.error(DOMAIN, TAG, 'read payload failed: %{public}s', `${error}`);
     }
     const day: number = new Date().getDay();
     const today: number = day === 0 ? 7 : day;
@@ -381,7 +413,7 @@ export class CardDataStore {
       .sort((a: CardCellItem, b: CardCellItem): number => a.s - b.s);
     const shown: CardCellItem[] = todayCells.slice(0, maxCourses);
     const more: number = todayCells.length - shown.length;
-    hilog.info(DOMAIN, TAG,
+    AppLog.info(DOMAIN, TAG,
       'buildBindingData max:%{public}d week:%{public}d cells:%{public}d todayCells:%{public}d',
       maxCourses, week, cells.length, todayCells.length);
     const courseData: CardCourseData[] = [];
@@ -432,15 +464,15 @@ export class CardDataStore {
         const binding: formBindingData.FormBindingData =
           CardDataStore.buildBindingData(context, entry.max);
         formProvider.updateForm(entry.id, binding).catch((error: Error) => {
-          hilog.error(DOMAIN, TAG, 'updateForm %{public}s failed: %{public}s', entry.id, `${error}`);
+          AppLog.error(DOMAIN, TAG, 'updateForm %{public}s failed: %{public}s', entry.id, `${error}`);
           if (`${error}`.includes('does not exist')) {
             CardDataStore.removeFormEntry(context, entry.id);
           }
         });
       }
-      hilog.info(DOMAIN, TAG, 'refresh cards: %{public}s', `${entries.length}`);
+      AppLog.info(DOMAIN, TAG, 'refresh cards: %{public}s', `${entries.length}`);
     } catch (error) {
-      hilog.error(DOMAIN, TAG, 'refreshAllCards failed: %{public}s', `${error}`);
+      AppLog.error(DOMAIN, TAG, 'refreshAllCards failed: %{public}s', `${error}`);
     }
   }
 
@@ -458,7 +490,7 @@ export class CardDataStore {
         pref.flushSync();
       }
     } catch (error) {
-      hilog.error(DOMAIN, TAG, 'addExamFormEntry failed: %{public}s', `${error}`);
+      AppLog.error(DOMAIN, TAG, 'addExamFormEntry failed: %{public}s', `${error}`);
     }
   }
 
@@ -471,7 +503,7 @@ export class CardDataStore {
       pref.putSync(KEY_EXAM_FORM_IDS, JSON.stringify(kept));
       pref.flushSync();
     } catch (error) {
-      hilog.error(DOMAIN, TAG, 'removeExamFormEntry failed: %{public}s', `${error}`);
+      AppLog.error(DOMAIN, TAG, 'removeExamFormEntry failed: %{public}s', `${error}`);
     }
   }
 
@@ -525,7 +557,7 @@ export class CardDataStore {
     if (upcoming.length === 0) {
       emptyText = exams.length > 0 ? '暂无即将到来的期末考试' : '在课表课程详情中设置期末时间';
     }
-    hilog.info(DOMAIN, TAG, 'buildExamBindingData exams:%{public}d upcoming:%{public}d shown:%{public}d',
+    AppLog.info(DOMAIN, TAG, 'buildExamBindingData exams:%{public}d upcoming:%{public}d shown:%{public}d',
       exams.length, upcoming.length, shown.length);
     const data: Record<string, string> = {
       'examsJson': JSON.stringify(items),
@@ -547,15 +579,15 @@ export class CardDataStore {
       const binding: formBindingData.FormBindingData = CardDataStore.buildExamBindingData(context);
       for (const id of ids) {
         formProvider.updateForm(id, binding).catch((error: Error) => {
-          hilog.error(DOMAIN, TAG, 'exam updateForm %{public}s failed: %{public}s', id, `${error}`);
+          AppLog.error(DOMAIN, TAG, 'exam updateForm %{public}s failed: %{public}s', id, `${error}`);
           if (`${error}`.includes('does not exist')) {
             CardDataStore.removeExamFormEntry(context, id);
           }
         });
       }
-      hilog.info(DOMAIN, TAG, 'refresh exam cards: %{public}s', `${ids.length}`);
+      AppLog.info(DOMAIN, TAG, 'refresh exam cards: %{public}s', `${ids.length}`);
     } catch (error) {
-      hilog.error(DOMAIN, TAG, 'refreshExamCards failed: %{public}s', `${error}`);
+      AppLog.error(DOMAIN, TAG, 'refreshExamCards failed: %{public}s', `${error}`);
     }
   }
 
@@ -599,7 +631,7 @@ export class CardDataStore {
           return entries;
         }
       } catch (error) {
-        hilog.error(DOMAIN, TAG, 'parse entries failed: %{public}s', `${error}`);
+        AppLog.error(DOMAIN, TAG, 'parse entries failed: %{public}s', `${error}`);
       }
     }
     const legacyIds: string[] = CardDataStore.readFormIds(pref);
