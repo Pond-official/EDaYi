@@ -1,4 +1,7 @@
-import { ScheduleCellInfo, TermStatus } from '../model/JwModels';
+import { FinalExamEntry, ScheduleCellInfo, TermStatus } from '../model/JwModels';
+import { JwxtRepository } from '../data/JwxtRepository';
+import { ExamDateUtils } from '../utils/ExamDateUtils';
+import { mediaquery } from '@kit.ArkUI';
 
 const DAY_NAMES: string[] = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
 const CELL_GAP: number = 4;
@@ -19,18 +22,54 @@ const LABEL_COLUMN_WIDTH: number = 58;
 export struct ScheduleBoard {
   @StorageProp('jwSchedule') cells: ScheduleCellInfo[] = [];
   @StorageProp('jwTerm') termStatus: TermStatus = new TermStatus();
+  /** 被单独关闭上课提醒的课次名单（按会话键：课程名|星期|起始节次） */
+  @StorageProp('jwReminderDisabledSessions') disabledSessions: string[] = [];
+  /** 各课程期末考试日期设置（按课程名） */
+  @StorageProp('jwFinalExams') finalExams: FinalExamEntry[] = [];
   @Prop dayCellWidth: number = 52;
   @Prop sectionRowHeight: number = 62;
   @Prop showHeader: boolean = true;
   /** 0=本周，1=下周，由父组件控制 */
   @Prop weekOffset: number = 0;
-  private todayDay: number = 1;
+  /** 今天是周几（1=周一…7=周日），回前台跨天时重算以刷新"今天"高亮 */
+  @State todayDay: number = 1;
+  /** 应用回前台时刻戳（PondAbility onForeground），跨天时重算"今天" */
+  @StorageProp('jwForegroundTick') @Watch('onForegroundTick') foregroundTick: number = 0;
   @State showDetail: boolean = false;
   @State selectedCell: ScheduleCellInfo = new ScheduleCellInfo();
+  /** 窗口宽度是否达到宽屏（>=600vp）：平板/折叠屏展开时半模态默认为居中样式，需显式指定宽度 */
+  @State isWideScreen: boolean = false;
+  private wideQueryListener: mediaquery.MediaQueryListener | null = null;
+  private wideQueryCallback: Callback<mediaquery.MediaQueryResult> | null = null;
 
   aboutToAppear(): void {
+    this.refreshToday();
+    const listener: mediaquery.MediaQueryListener =
+      this.getUIContext().getMediaQuery().matchMediaSync('(min-width: 600vp)');
+    this.isWideScreen = listener.matches;
+    this.wideQueryCallback = (result: mediaquery.MediaQueryResult): void => {
+      this.isWideScreen = result.matches;
+    };
+    listener.on('change', this.wideQueryCallback);
+    this.wideQueryListener = listener;
+  }
+
+  /** 应用回前台：跨天挂起后重算"今天"高亮 */
+  onForegroundTick(): void {
+    this.refreshToday();
+  }
+
+  private refreshToday(): void {
     const day: number = new Date().getDay();
     this.todayDay = day === 0 ? 7 : day;
+  }
+
+  aboutToDisappear(): void {
+    if (this.wideQueryListener !== null && this.wideQueryCallback !== null) {
+      this.wideQueryListener.off('change', this.wideQueryCallback);
+    }
+    this.wideQueryListener = null;
+    this.wideQueryCallback = null;
   }
 
   private displayedWeek(): number {
@@ -120,11 +159,11 @@ export struct ScheduleBoard {
   detailRow(label: string, value: string) {
     Row() {
       Text(label)
-        .fontSize(13)
-        .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-        .width(76)
-      Text(value.length > 0 ? value : '—')
         .fontSize(14)
+        .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+        .width(84)
+      Text(value.length > 0 ? value : '—')
+        .fontSize(16)
         .fontColor($r('sys.color.ohos_id_color_text_primary'))
         .layoutWeight(1)
     }
@@ -132,13 +171,57 @@ export struct ScheduleBoard {
     .alignItems(VerticalAlign.Top)
   }
 
+  /** 该节课（同一课程同一时段，每周重复）的上课提醒是否开启（未在关闭名单中即开启） */
+  private sessionReminderOn(cell: ScheduleCellInfo): boolean {
+    return this.disabledSessions.indexOf(cell.reminderKey()) < 0;
+  }
+
+  /** 该课程的期末考试日期（未设置返回空串） */
+  private examDateOf(courseName: string): string {
+    const found: FinalExamEntry | undefined = this.finalExams
+      .find((e: FinalExamEntry): boolean => e.courseName === courseName);
+    return found !== undefined ? found.examDate : '';
+  }
+
+  /** 期末时间行右侧按钮文本：已设置显示日期，未设置显示"设置" */
+  private examDateText(): string {
+    const date: string = this.examDateOf(this.selectedCell.courseName);
+    return date.length > 0 ? ExamDateUtils.formatDisplay(date) : '设置';
+  }
+
+  /** 期末时间行副标题：未设置时引导设置，已设置时显示倒计时 */
+  private examSubtitle(): string {
+    const date: string = this.examDateOf(this.selectedCell.courseName);
+    if (date.length === 0) {
+      return '设定该课程期末考试日期';
+    }
+    const parsed: Date | null = ExamDateUtils.parseYmd(date);
+    if (parsed === null) {
+      return '日期无效，点击重新设置';
+    }
+    return '距期末 ' + ExamDateUtils.countdownText(ExamDateUtils.daysFromDate(parsed));
+  }
+
+  /** 打开日期选择器设定期末时间 */
+  private openExamDatePicker(): void {
+    const current: string = this.examDateOf(this.selectedCell.courseName);
+    const parsedCurrent: Date | null = current.length > 0 ? ExamDateUtils.parseYmd(current) : null;
+    this.getUIContext().showDatePickerDialog({
+      selected: parsedCurrent ?? new Date(),
+      onDateAccept: (value: Date) => {
+        JwxtRepository.updateFinalExam(this.selectedCell.courseName, ExamDateUtils.toYmd(value));
+      }
+    });
+  }
+
   @Builder
   courseDetailSheet() {
     Column({ space: 12 }) {
       Text(this.selectedCell.courseName)
-        .fontSize(20)
+        .fontSize(22)
         .fontWeight(FontWeight.Bold)
         .fontColor($r('sys.color.ohos_id_color_text_primary'))
+        .padding({ right: 48 })
       this.detailRow('时间', DAY_NAMES[this.selectedCell.dayOfWeek - 1] + ' 第' + this.selectedCell.startSection
         + '-' + this.selectedCell.endSection + '节'
         + ' ' + this.periodTimeOf(this.selectedCell))
@@ -148,10 +231,70 @@ export struct ScheduleBoard {
       if (this.selectedCell.courseSerialNo.length > 0) {
         this.detailRow('课程序号', this.selectedCell.courseSerialNo)
       }
+      Divider()
+        .color($r('sys.color.ohos_id_color_list_separator'))
+      Row() {
+        Column({ space: 2 }) {
+          Text('上课提醒')
+            .fontSize(17)
+            .fontWeight(FontWeight.Medium)
+            .fontColor($r('sys.color.ohos_id_color_text_primary'))
+          Text('仅本节课生效，每周同一时段保持；提醒时间在"设置"中调整')
+            .fontSize(12)
+            .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+        }
+        .layoutWeight(1)
+        .alignItems(HorizontalAlign.Start)
+
+        Toggle({ type: ToggleType.Switch, isOn: this.sessionReminderOn(this.selectedCell) })
+          .onChange((isOn: boolean) => {
+            JwxtRepository.updateSessionReminder(this.selectedCell.reminderKey(), isOn);
+          })
+      }
+      .width('100%')
+      .alignItems(VerticalAlign.Center)
+
+      Divider()
+        .color($r('sys.color.ohos_id_color_list_separator'))
+
+      Row() {
+        Column({ space: 2 }) {
+          Text('期末时间')
+            .fontSize(17)
+            .fontWeight(FontWeight.Medium)
+            .fontColor($r('sys.color.ohos_id_color_text_primary'))
+          Text(this.examSubtitle())
+            .fontSize(12)
+            .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+        }
+        .layoutWeight(1)
+        .alignItems(HorizontalAlign.Start)
+
+        Text(this.examDateText())
+          .fontSize(13)
+          .fontColor($r('sys.color.ohos_id_color_text_primary_activated'))
+          .padding({ left: 12, right: 12, top: 6, bottom: 6 })
+          .borderRadius(14)
+          .backgroundColor($r('sys.color.ohos_id_color_button_normal'))
+          .onClick(() => {
+            this.openExamDatePicker();
+          })
+        if (this.examDateOf(this.selectedCell.courseName).length > 0) {
+          Text('清除')
+            .fontSize(12)
+            .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+            .padding({ left: 10 })
+            .onClick(() => {
+              JwxtRepository.updateFinalExam(this.selectedCell.courseName, '');
+            })
+        }
+      }
+      .width('100%')
+      .alignItems(VerticalAlign.Center)
     }
     .width('100%')
     .alignItems(HorizontalAlign.Start)
-    .padding({ left: 24, right: 24, top: 8, bottom: 32 })
+    .padding({ left: 28, right: 28, top: 12, bottom: 36 })
   }
 
   private periodTimeOf(cell: ScheduleCellInfo): string {
@@ -272,9 +415,11 @@ export struct ScheduleBoard {
     }
     .scrollable(ScrollDirection.Horizontal)
     .scrollBar(BarState.Auto)
+    .edgeEffect(EdgeEffect.Spring)
     .width('100%')
     .bindSheet($$this.showDetail, this.courseDetailSheet(), {
-      height: SheetSize.MEDIUM,
+      height: this.isWideScreen ? SheetSize.FIT_CONTENT : SheetSize.MEDIUM,
+      width: this.isWideScreen ? 560 : '100%',
       dragBar: true,
       showClose: true
     })

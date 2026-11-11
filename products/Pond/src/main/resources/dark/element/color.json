@@ -1,4 +1,4 @@
-{
+﻿{
     "color": [
       {
         "name": "start_window_background",
@@ -7,6 +7,18 @@
       {
         "name": "card_background",
         "value": "#1C1C1E"
-      }
+      },
+        {
+            "name": "settings_button_fill",
+            "value": "#B32C2C2E"
+        },
+        {
+            "name": "frost_band_scrim",
+            "value": "#B31C1C1E"
+        },
+        {
+            "name": "frost_band_scrim_clear",
+            "value": "#001C1C1E"
+        }
     ]
   }

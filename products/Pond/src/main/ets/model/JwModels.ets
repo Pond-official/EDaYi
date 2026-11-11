@@ -42,6 +42,11 @@ export class ScheduleCellInfo {
     }
     return this.weekBitmap.charAt(idx) === '1';
   }
+
+  /** 单课提醒开关键：课程名+星期+起始节次（内容寻址，跨周数据同步后保持一致） */
+  reminderKey(): string {
+    return this.courseName + '|' + this.dayOfWeek + '|' + this.startSection;
+  }
 }
 
 export class GradeEntry {
@@ -51,6 +56,8 @@ export class GradeEntry {
   credit: number = 0;
   termCode: string = '';
   natureText: string = '';
+  /** 考核方式（考试/考查，KSLXDM_DISPLAY） */
+  examTypeText: string = '';
   passed: boolean = true;
 }
 
@@ -59,15 +66,24 @@ export class GradeCategory {
   grades: GradeEntry[] = [];
 }
 
-export class ElectiveCourseInfo {
-  courseId: string = '';
+/** 培养计划课程（方案内，来自个人学业监测报告 40 字段库视图） */
+export class PlanCourse {
+  courseName: string = '';
+  credit: number = 0;
+  /** 课程性质（必修/选修/限选） */
+  natureText: string = '';
+  /** 考核方式（考试/考查，KSLXDM_DISPLAY） */
+  examTypeText: string = '';
+  /** 计划开课学期（JHXNXQDM，如 2025-2026-1，可能为空） */
+  plannedTerm: string = '';
+  /** 已修读成绩展示值（未出分为空） */
+  scoreView: string = '';
+}
+
+/** 培养计划分组（专业基础课/专业课/公共课/实习，保持服务端顺序） */
+export class PlanCategory {
   name: string = '';
-  teacher: string = '';
-  credit: number = 1;
-  timeText: string = '';
-  place: string = '';
-  capacity: number = 60;
-  selectedCount: number = 0;
+  courses: PlanCourse[] = [];
 }
 
 export class SectionTimeInfo {
@@ -80,4 +96,11 @@ export class TermStatus {
   termCode: string = '';
   termName: string = '';
   currentWeek: number = 0;
+}
+
+/** 课程期末考试日期设置（按课程名，用户在课表课程详情中设定） */
+export class FinalExamEntry {
+  courseName: string = '';
+  /** 期末考试日期（'YYYY-MM-DD'） */
+  examDate: string = '';
 }

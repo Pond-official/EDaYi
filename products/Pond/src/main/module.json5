@@ -12,9 +12,36 @@
     "deliveryWithInstall": true,
     "installationFree": false,
     "pages": "$profile:main_pages",
+    "easyGo": "$profile:easy_go",
     "requestPermissions": [
       {
         "name": "ohos.permission.INTERNET"
+      },
+      {
+        "name": "ohos.permission.PUBLISH_AGENT_REMINDER"
+      },
+      {
+        "name": "ohos.permission.HDR_BRIGHTNESS"
+      },
+      {
+        "name": "ohos.permission.READ_CALENDAR",
+        "reason": "$string:calendar_permission_reason",
+        "usedScene": {
+          "abilities": [
+            "PondAbility"
+          ],
+          "when": "inuse"
+        }
+      },
+      {
+        "name": "ohos.permission.WRITE_CALENDAR",
+        "reason": "$string:calendar_permission_reason",
+        "usedScene": {
+          "abilities": [
+            "PondAbility"
+          ],
+          "when": "inuse"
+        }
       }
     ],
     "abilities": [
@@ -27,6 +54,12 @@
         "startWindowIcon": "$media:startIcon",
         "startWindowBackground": "$color:start_window_background",
         "exported": true,
+        "orientation": "auto_rotation_restricted",
+        "supportWindowMode": [
+          "fullscreen",
+          "split",
+          "floating"
+        ],
         "skills": [
           {
             "entities": [
@@ -63,6 +96,20 @@
           {
             "name": "ohos.extension.form",
             "resource": "$profile:schedule_card_config"
+          }
+        ]
+      },
+      {
+        "name": "ExamFormAbility",
+        "srcEntry": "./ets/examformability/ExamFormAbility.ets",
+        "label": "$string:form_exam_label",
+        "description": "$string:form_exam_desc",
+        "type": "form",
+        "exported": false,
+        "metadata": [
+          {
+            "name": "ohos.extension.form",
+            "resource": "$profile:exam_card_config"
           }
         ]
       }

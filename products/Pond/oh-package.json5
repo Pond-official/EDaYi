@@ -6,8 +6,6 @@
   "author": "",
   "license": "",
   "dependencies": {
-    "@ohos/adaptivelayout": "file:../../features/adaptiveLayout",
-    "@ohos/responsivelayout": "file:../../features/responsiveLayout",
     "@ohos/common": "file:../../common"
   }
 }

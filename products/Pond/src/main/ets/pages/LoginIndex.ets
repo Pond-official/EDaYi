@@ -1,8 +1,10 @@
 import { webview } from '@kit.ArkWeb';
 import { router } from '@kit.ArkUI';
-import { hilog } from '@kit.PerformanceAnalysisKit';
+import { AppLog } from '../data/AppLog';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { JwxtRepository } from '../data/JwxtRepository';
+import { FrostBand, FROST_BAND_HEIGHT, frostTopInsetVp } from '../view/FrostBand';
+import { BackButton } from '../view/BackButton';
 
 const TAG: string = 'LoginIndex';
 const DOMAIN: number = 0x0000;
@@ -25,7 +27,10 @@ struct LoginIndex {
   private webController: webview.WebviewController = new webview.WebviewController();
   @State pageTitle: string = '教务系统登录';
   private checking: boolean = false;
-  private syncing: boolean = false;
+  /** 同步状态参与"完成/同步中…"按钮渲染，须为 @State 才能触发刷新 */
+  @State syncing: boolean = false;
+  /** 状态栏避让区高度（px）：沉浸式全屏下内容顶部让位计算用 */
+  @StorageProp('jwSafeTopPx') safeTopPx: number = 0;
   private leaving: boolean = false;
   private detectTimer: number = -1;
 
@@ -50,7 +55,7 @@ struct LoginIndex {
     } catch (error) {
       endedUrl = '';
     }
-    hilog.info(DOMAIN, TAG, 'page end: %{public}s', endedUrl);
+    AppLog.info(DOMAIN, TAG, 'page end: %{public}s', endedUrl);
     this.detectSession();
   }
 
@@ -71,16 +76,16 @@ struct LoginIndex {
       return;
     }
     this.checking = true;
-    hilog.info(DOMAIN, TAG, 'detect probe start, url=%{public}s', currentUrl);
+    AppLog.info(DOMAIN, TAG, 'detect probe start, url=%{public}s', currentUrl);
     JwxtRepository.probeSession().then((ok: boolean) => {
       this.checking = false;
-      hilog.info(DOMAIN, TAG, 'detect probe result: %{public}s', `${ok}`);
+      AppLog.info(DOMAIN, TAG, 'detect probe result: %{public}s', `${ok}`);
       if (ok && !this.leaving && !this.syncing) {
         this.syncAndReturn();
       }
     }).catch((error: BusinessError) => {
       this.checking = false;
-      hilog.error(DOMAIN, TAG, 'detect probe error: %{public}s %{public}s',
+      AppLog.error(DOMAIN, TAG, 'detect probe error: %{public}s %{public}s',
         `${error.code}`, `${error.message}`);
     });
   }
@@ -95,9 +100,9 @@ struct LoginIndex {
     }
     this.syncing = true;
     this.showPrompt('登录成功，正在同步教务数据…', 1500);
-    hilog.info(DOMAIN, TAG, 'sync and return: start');
+    AppLog.info(DOMAIN, TAG, 'sync and return: start');
     JwxtRepository.reload().then((ok: boolean) => {
-      hilog.info(DOMAIN, TAG, 'sync and return: result %{public}s', `${ok}`);
+      AppLog.info(DOMAIN, TAG, 'sync and return: result %{public}s', `${ok}`);
       if (this.leaving) {
         return;
       }
@@ -108,7 +113,7 @@ struct LoginIndex {
         this.showPrompt('数据同步失败，请检查网络后点击完成重试', 2000);
       }
     }).catch((error: BusinessError) => {
-      hilog.error(DOMAIN, TAG, 'sync and return: error %{public}s %{public}s',
+      AppLog.error(DOMAIN, TAG, 'sync and return: error %{public}s %{public}s',
         `${error.code}`, `${error.message}`);
       if (this.leaving) {
         return;
@@ -130,9 +135,9 @@ struct LoginIndex {
       return;
     }
     this.showPrompt('正在检测登录状态…', 1000);
-    hilog.info(DOMAIN, TAG, 'manual: probe start');
+    AppLog.info(DOMAIN, TAG, 'manual: probe start');
     JwxtRepository.probeSession().then((ok: boolean) => {
-      hilog.info(DOMAIN, TAG, 'manual: probe result %{public}s', `${ok}`);
+      AppLog.info(DOMAIN, TAG, 'manual: probe result %{public}s', `${ok}`);
       if (this.leaving) {
         return;
       }
@@ -142,7 +147,7 @@ struct LoginIndex {
         this.showPrompt('尚未登录成功，请先在页面中完成登录', 1500);
       }
     }).catch((error: BusinessError) => {
-      hilog.error(DOMAIN, TAG, 'manual: probe error %{public}s %{public}s',
+      AppLog.error(DOMAIN, TAG, 'manual: probe error %{public}s %{public}s',
         `${error.code}`, `${error.message}`);
       if (this.leaving) {
         return;
@@ -155,7 +160,7 @@ struct LoginIndex {
     try {
       this.getUIContext().getPromptAction().showToast({ message: message, duration: duration });
     } catch (error) {
-      hilog.error(DOMAIN, TAG, 'showToast failed: %{public}s', `${error}`);
+      AppLog.error(DOMAIN, TAG, 'showToast failed: %{public}s', `${error}`);
     }
   }
 
@@ -164,66 +169,68 @@ struct LoginIndex {
    * 避免字符串比对失败导致返回键失效；同时记录栈状态便于诊断。
    */
   private backToHome(): void {
-    this.leaving = true;
     try {
-      const state: router.RouterState = router.getState();
-      hilog.info(DOMAIN, TAG, 'back: index=%{public}d path=%{public}s',
+      const state: router.RouterState = this.getUIContext().getRouter().getState();
+      AppLog.info(DOMAIN, TAG, 'back: index=%{public}d path=%{public}s',
         state.index, state.path);
       if (state.index > 1) {
-        router.back();
+        // 仅在真正返回时锁定；返回中止（登录页为栈根）时保持页面可交互、探测可继续
+        this.leaving = true;
+        this.getUIContext().getRouter().back();
       } else {
-        hilog.error(DOMAIN, TAG, 'back aborted: login page is root');
+        AppLog.error(DOMAIN, TAG, 'back aborted: login page is root');
       }
     } catch (error) {
-      hilog.error(DOMAIN, TAG, 'router back failed: %{public}s', `${error}`);
+      AppLog.error(DOMAIN, TAG, 'router back failed: %{public}s', `${error}`);
     }
   }
 
   build() {
-    Column() {
-      Row() {
-        Row() {
-          SymbolGlyph($r('sys.symbol.chevron_left'))
-            .fontSize(24)
-            .fontColor([$r('sys.color.titlebar_icon_color')])
-        }
-        .width(40)
-        .height(40)
-        .borderRadius(20)
-        .justifyContent(FlexAlign.Center)
-        .alignItems(VerticalAlign.Center)
-        .onClick(() => {
-          this.backToHome();
-        })
-        Text(this.pageTitle)
-          .fontSize(18)
-          .fontWeight(FontWeight.Bold)
-          .fontColor($r('sys.color.ohos_id_color_text_primary'))
+    Stack({ alignContent: Alignment.Top }) {
+      Column() {
+        Web({ src: JwxtRepository.loginUrl(), controller: this.webController })
           .layoutWeight(1)
-        Text(this.syncing ? '同步中…' : '完成')
-          .fontSize(15)
-          .fontColor($r('sys.color.ohos_id_color_text_primary_activated'))
-          .padding({ left: 12, right: 12, top: 8, bottom: 8 })
-          .borderRadius(16)
-          .onClick(() => {
-            this.manualSync();
+          .javaScriptAccess(true)
+          .domStorageAccess(true)
+          .databaseAccess(true)
+          .onPageEnd(() => {
+            this.handlePageEnd();
           })
       }
       .width('100%')
-      .height(56)
-      .padding({ left: 8, right: 8 })
-      .alignItems(VerticalAlign.Center)
-      Web({ src: JwxtRepository.loginUrl(), controller: this.webController })
-        .layoutWeight(1)
-        .javaScriptAccess(true)
-        .domStorageAccess(true)
-        .databaseAccess(true)
-        .onPageEnd(() => {
-          this.handlePageEnd();
-        })
+      .height('100%')
+          .padding({ top: frostTopInsetVp(this.safeTopPx, this.getUIContext()) })
+
+      FrostBand() {
+        Row() {
+          BackButton({
+            onBack: () => {
+              this.backToHome();
+            }
+          })
+          Text(this.pageTitle)
+            .fontSize(18)
+            .fontWeight(FontWeight.Bold)
+            .fontColor($r('sys.color.ohos_id_color_text_primary'))
+            .layoutWeight(1)
+          Text(this.syncing ? '同步中…' : '完成')
+            .fontSize(15)
+            .fontColor($r('sys.color.ohos_id_color_text_primary_activated'))
+            .padding({ left: 12, right: 12, top: 8, bottom: 8 })
+            .borderRadius(16)
+            .onClick(() => {
+              this.manualSync();
+            })
+        }
+        .width('100%')
+        .height(FROST_BAND_HEIGHT)
+        .padding({ left: 8, right: 8 })
+        .alignItems(VerticalAlign.Center)
+      }
     }
     .width('100%')
     .height('100%')
     .backgroundColor($r('sys.color.ohos_id_color_sub_background'))
+    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
   }
 }

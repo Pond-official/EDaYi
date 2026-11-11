@@ -25,6 +25,18 @@
       "value": "展示今日完整课程安排"
     },
     {
+      "name": "form_exam_label",
+      "value": "期末倒计时"
+    },
+    {
+      "name": "form_exam_desc",
+      "value": "按考试时间从近到远展示期末考试倒计时"
+    },
+    {
+      "name": "calendar_permission_reason",
+      "value": "用于将本周与下周课程写入系统日历并在上课前提醒您"
+    },
+    {
       "name": "grid_title_label",
       "value": "title"
     },

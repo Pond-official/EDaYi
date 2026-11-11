@@ -51,6 +51,11 @@ export class BreakpointSystem {
       }
 
       breakpoint.mediaQueryListener = uiContext.getMediaQuery().matchMediaSync(condition);
+      // 启动时立即按当前窗口宽度初始化断点：宽屏/横屏启动时媒体查询条件自注册起就满足，
+      // 不会触发 change 事件，必须主动查询 matches，否则断点停留初始值（竖屏排版）。
+      if (breakpoint.mediaQueryListener.matches) {
+        this.updateCurrentBreakpoint(breakpoint.name);
+      }
       breakpoint.mediaQueryListener.on('change', (mediaQueryResult: mediaquery.MediaQueryResult) => {
         if (mediaQueryResult.matches) {
           this.updateCurrentBreakpoint(breakpoint.name);
@@ -68,7 +73,9 @@ export class BreakpointSystem {
   private updateCurrentBreakpoint(breakpoint: string): void {
     if (this.currentBreakpoint !== breakpoint) {
       this.currentBreakpoint = breakpoint;
-      AppStorage.set<string>(this.breakpointId, this.currentBreakpoint);
+      // setOrCreate：aboutToAppear 阶段注册即初始化时，AppStorage 中可能尚无该键
+      // （视图组件的 @StorageLink 还未创建），set 对不存在的键会静默失败。
+      AppStorage.setOrCreate<string>(this.breakpointId, this.currentBreakpoint);
     }
   }
 }

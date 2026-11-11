@@ -2,8 +2,7 @@
   "src": [
     "pages/Index",
     "pages/LoginIndex",
-    "pages/AdaptiveIndex",
-    "pages/ResponsiveIndex",
-    "pages/SystemCapabilitiesIndex"
+    "pages/SettingsIndex",
+    "pages/TrainingPlanIndex"
   ]
 }

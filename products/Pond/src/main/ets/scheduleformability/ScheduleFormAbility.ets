@@ -1,6 +1,6 @@
 import { FormExtensionAbility, formBindingData, formInfo } from '@kit.FormKit';
 import { Want } from '@kit.AbilityKit';
-import { hilog } from '@kit.PerformanceAnalysisKit';
+import { AppLog } from '../data/AppLog';
 import { CardDataStore } from '../data/CardDataStore';
 
 /**
@@ -24,18 +24,18 @@ export default class ScheduleFormAbility extends FormExtensionAbility {
         maxCourses = CardDataStore.MAX_LARGE;
       }
     }
-    hilog.info(0x0000, 'ScheduleForm', 'onAddForm formId:%{public}s max:%{public}d', formId, maxCourses);
+    AppLog.info(0x0000, 'ScheduleForm', 'onAddForm formId:%{public}s max:%{public}d', formId, maxCourses);
     CardDataStore.addFormEntry(this.context, formId, maxCourses);
     return CardDataStore.buildBindingData(this.context, maxCourses);
   }
 
   onUpdateForm(formId: string): void {
-    hilog.info(0x0000, 'ScheduleForm', 'onUpdateForm formId:%{public}s', formId);
+    AppLog.info(0x0000, 'ScheduleForm', 'onUpdateForm formId:%{public}s', formId);
     CardDataStore.refreshAllCards(this.context);
   }
 
   onRemoveForm(formId: string): void {
-    hilog.info(0x0000, 'ScheduleForm', 'onRemoveForm formId:%{public}s', formId);
+    AppLog.info(0x0000, 'ScheduleForm', 'onRemoveForm formId:%{public}s', formId);
     CardDataStore.removeFormEntry(this.context, formId);
   }
 }
