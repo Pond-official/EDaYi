@@ -186,13 +186,14 @@ struct ScheduleCardLarge {
     .justifyContent(FlexAlign.Center)
   }
 
+  // 高亮状态在 Builder 体内直读 this.showNextWeek：按值传参不随状态刷新，经参数传递会导致 chip 高亮不更新
   @Builder
-  weekChip(label: string, selected: boolean, isNext: boolean) {
+  weekChip(label: string, isNext: boolean) {
     Text(label)
       .fontSize(10)
-      .fontWeight(selected ? FontWeight.Bold : FontWeight.Normal)
-      .fontColor(selected ? Color.White : $r('sys.color.ohos_id_color_text_secondary'))
-      .backgroundColor(selected ? WIDGET_SELECTED_COLOR : $r('sys.color.ohos_id_color_button_normal'))
+      .fontWeight(this.showNextWeek === isNext ? FontWeight.Bold : FontWeight.Normal)
+      .fontColor(this.showNextWeek === isNext ? Color.White : $r('sys.color.ohos_id_color_text_secondary'))
+      .backgroundColor(this.showNextWeek === isNext ? WIDGET_SELECTED_COLOR : $r('sys.color.ohos_id_color_button_normal'))
       .borderRadius(9)
       .padding({ left: 8, right: 8, top: 3, bottom: 3 })
       .onClick(() => {
@@ -271,8 +272,8 @@ struct ScheduleCardLarge {
           .fontColor($r('sys.color.ohos_id_color_text_secondary'))
       } else {
         Row({ space: 4 }) {
-          this.weekChip('本周', !this.showNextWeek, false)
-          this.weekChip('下周', this.showNextWeek, true)
+          this.weekChip('本周', false)
+          this.weekChip('下周', true)
         }
         .width('100%')
         .justifyContent(FlexAlign.Center)

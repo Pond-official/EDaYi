@@ -103,13 +103,14 @@ struct ScheduleCard {
     return this.showTomorrow ? this.tomorrowMoreText : this.moreText;
   }
 
+  // 高亮状态在 Builder 体内直读 this.showTomorrow：按值传参不随状态刷新，经参数传递会导致 chip 高亮不更新
   @Builder
-  dayChip(label: string, selected: boolean, isTomorrow: boolean) {
+  dayChip(label: string, isTomorrow: boolean) {
     Text(label)
       .fontSize(10)
-      .fontWeight(selected ? FontWeight.Bold : FontWeight.Normal)
-      .fontColor(selected ? Color.White : $r('sys.color.ohos_id_color_text_secondary'))
-      .backgroundColor(selected ? WIDGET_SELECTED_COLOR : $r('sys.color.ohos_id_color_button_normal'))
+      .fontWeight(this.showTomorrow === isTomorrow ? FontWeight.Bold : FontWeight.Normal)
+      .fontColor(this.showTomorrow === isTomorrow ? Color.White : $r('sys.color.ohos_id_color_text_secondary'))
+      .backgroundColor(this.showTomorrow === isTomorrow ? WIDGET_SELECTED_COLOR : $r('sys.color.ohos_id_color_button_normal'))
       .borderRadius(9)
       .padding({ left: 8, right: 8, top: 3, bottom: 3 })
       .margin({ left: 4 })
@@ -134,8 +135,8 @@ struct ScheduleCard {
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
         if (this.privacyDisabledText.length === 0 && this.synced()) {
-          this.dayChip('今天', !this.showTomorrow, false)
-          this.dayChip('明天', this.showTomorrow, true)
+          this.dayChip('今天', false)
+          this.dayChip('明天', true)
         }
       }
       .width('100%')
