@@ -4,6 +4,7 @@ import { ExamDateUtils } from '../utils/ExamDateUtils';
 import { ScheduleBoard } from './ScheduleBoard';
 import { FrostBand, FROST_BAND_HEIGHT, frostTopInsetVp } from './FrostBand';
 import { display, window } from '@kit.ArkUI';
+import { HomeOfflineBanner, HomeStudentCard, HomeSectionTitle, HomeTodayCard, HomeWeekChip, HomeFinalExamCard } from './HomeCards';
 
 /**
  * 首页：学生信息卡 + 今日课程 + 我的课表（原生 Row/Column 布局，三端自适应）。
@@ -229,183 +230,6 @@ export struct HomeView {
     });
   }
 
-  /** 离线数据提示条：使用本地缓存数据时置顶提示，点击“去登录”重新在线同步 */
-  @Builder
-  offlineBanner() {
-    Row({ space: 10 }) {
-      SymbolGlyph($r('sys.symbol.exclamationmark_circle'))
-        .fontSize(20)
-        .fontColor([$r('sys.color.ohos_id_color_warning')])
-      Column({ space: 2 }) {
-        Text('正在使用离线数据')
-          .fontSize(14)
-          .fontWeight(FontWeight.Medium)
-          .fontColor($r('sys.color.ohos_id_color_text_primary'))
-        Text('当前展示本地缓存，重新登录后自动更新')
-          .fontSize(11)
-          .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-      }
-      .alignItems(HorizontalAlign.Start)
-      .layoutWeight(1)
-      Text('去登录')
-        .fontSize(13)
-        .fontWeight(FontWeight.Medium)
-        .fontColor($r('sys.color.ohos_id_color_text_primary_activated'))
-    }
-    .width('100%')
-    .alignItems(VerticalAlign.Center)
-    .padding({ left: 14, right: 14, top: 10, bottom: 10 })
-    .borderRadius(12)
-    .backgroundColor($r('sys.color.comp_background_tertiary'))
-    .margin({ bottom: 12 })
-    .onClick(() => {
-      this.goLogin();
-    })
-  }
-
-  @Builder
-  studentCard() {
-    Column() {
-      Row() {
-        Stack() {
-          Text(this.student.name.length > 0 ? this.student.name.substring(0, 1) : '生')
-            .fontSize(24)
-            .fontWeight(FontWeight.Bold)
-            .fontColor(Color.White)
-        }
-        .width(56)
-        .height(56)
-        .borderRadius(28)
-        .backgroundColor($r('sys.color.ohos_id_color_text_primary_activated'))
-        Column({ space: 4 }) {
-          Text(this.student.name)
-            .fontSize(18)
-            .fontWeight(FontWeight.Bold)
-            .fontColor($r('sys.color.ohos_id_color_text_primary'))
-          Text(this.student.studentId)
-            .fontSize(12)
-            .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-        }
-        .layoutWeight(1)
-        .alignItems(HorizontalAlign.Start)
-        .padding({ left: 12 })
-        Column({ space: 4 }) {
-          Text(this.student.className)
-            .fontSize(11)
-            .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-            .textAlign(TextAlign.End)
-          Text(this.student.collegeName)
-            .fontSize(11)
-            .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-            .textAlign(TextAlign.End)
-            .maxLines(2)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
-        }
-        .alignItems(HorizontalAlign.End)
-        .constraintSize({ maxWidth: '45%' })
-      }
-      .width('100%')
-      .alignItems(VerticalAlign.Center)
-    }
-    .width('100%')
-    .padding(16)
-    .borderRadius(16)
-    .backgroundColor($r('app.color.card_background'))
-  }
-
-  @Builder
-  sectionTitle(title: string) {
-    Text(title)
-      .fontSize(16)
-      .fontWeight(FontWeight.Bold)
-      .fontColor($r('sys.color.ohos_id_color_text_primary'))
-      .padding({ top: 16, bottom: 8 })
-  }
-
-  @Builder
-  todayCourseRow(cell: ScheduleCellInfo) {
-    Row() {
-      Text(cell.startTime)
-        .fontSize(12)
-        .fontWeight(FontWeight.Bold)
-        .fontColor($r('sys.color.ohos_id_color_text_primary'))
-        .width(44)
-      Column()
-        .width(3)
-        .height(32)
-        .borderRadius(2)
-        .backgroundColor(cell.colorHex)
-        .margin({ left: 4, right: 12 })
-      Column({ space: 2 }) {
-        Text(cell.courseName)
-          .fontSize(14)
-          .fontWeight(FontWeight.Medium)
-          .fontColor($r('sys.color.ohos_id_color_text_primary'))
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-        Text('第' + cell.startSection + '-' + cell.endSection + '节 · ' + cell.location + ' · ' + cell.teacher)
-          .fontSize(11)
-          .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-      }
-      .layoutWeight(1)
-      .alignItems(HorizontalAlign.Start)
-    }
-    .width('100%')
-    .alignItems(VerticalAlign.Center)
-    .padding({ top: 8, bottom: 8 })
-  }
-
-  @Builder
-  todayCard() {
-    Column() {
-      Row() {
-        Text('今日课程')
-          .fontSize(15)
-          .fontWeight(FontWeight.Bold)
-          .fontColor($r('sys.color.ohos_id_color_text_primary'))
-        Blank()
-        Text('共' + this.todayCells.length + '门')
-          .fontSize(11)
-          .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-      }
-      .width('100%')
-      if (this.todayCells.length === 0) {
-        Text('今天没有课程安排')
-          .fontSize(12)
-          .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-          .padding({ top: 16, bottom: 16 })
-      } else {
-        ForEach(this.todayCells, (cell: ScheduleCellInfo) => {
-          this.todayCourseRow(cell)
-        }, (cell: ScheduleCellInfo) => 'today' + cell.courseSerialNo + cell.dayOfWeek + cell.startSection)
-      }
-    }
-    .width('100%')
-    .alignItems(HorizontalAlign.Start)
-    .padding(16)
-    .borderRadius(16)
-    .backgroundColor($r('app.color.card_background'))
-  }
-
-  @Builder
-  weekChip(label: string, offset: number) {
-    Text(label)
-      .fontSize(11)
-      .fontWeight(this.scheduleWeekOffset === offset ? FontWeight.Bold : FontWeight.Normal)
-      .fontColor(this.scheduleWeekOffset === offset ?
-        Color.White : $r('sys.color.ohos_id_color_text_secondary'))
-      .backgroundColor(this.scheduleWeekOffset === offset ?
-        $r('sys.color.ohos_id_color_text_primary_activated') : $r('sys.color.ohos_id_color_button_normal'))
-      .borderRadius(10)
-      .padding({ left: 10, right: 10, top: 3, bottom: 3 })
-      .margin({ left: 6 })
-      .onClick(() => {
-        this.scheduleWeekOffset = offset;
-      })
-  }
-
   @Builder
   scheduleCard() {
     Column() {
@@ -415,8 +239,12 @@ export struct HomeView {
           .fontWeight(FontWeight.Bold)
           .fontColor($r('sys.color.ohos_id_color_text_primary'))
         Blank()
-        this.weekChip('本周', 0)
-        this.weekChip('下周', 1)
+        HomeWeekChip('本周', 0, this.scheduleWeekOffset === 0, (): void => {
+          this.scheduleWeekOffset = 0;
+        })
+        HomeWeekChip('下周', 1, this.scheduleWeekOffset === 1, (): void => {
+          this.scheduleWeekOffset = 1;
+        })
       }
       .width('100%')
       .padding({ bottom: 12 })
@@ -445,14 +273,14 @@ export struct HomeView {
   @Builder
   infoColumn() {
     Column() {
-      this.studentCard()
+      HomeStudentCard(this.student.name, this.student.studentId, this.student.className, this.student.collegeName)
       if (this.dataMode !== 'online') {
         this.loginFooter()
       } else {
         this.logoutFooter()
       }
-      this.sectionTitle('今日安排')
-      this.todayCard()
+      HomeSectionTitle('今日安排')
+      HomeTodayCard(this.todayCells)
     }
     .width('100%')
     .geometryTransition('home-info')
@@ -480,98 +308,6 @@ export struct HomeView {
     return found !== undefined ? found.colorHex : '';
   }
 
-  /** 倒计时徽标：未来为激活色底白字，当天为警示色，已结束为次要文字 */
-  @Builder
-  countdownBadge(days: number) {
-    if (days > 0) {
-      Text(ExamDateUtils.countdownText(days))
-        .fontSize(12)
-        .fontWeight(FontWeight.Bold)
-        .fontColor(Color.White)
-        .padding({ left: 10, right: 10, top: 4, bottom: 4 })
-        .borderRadius(12)
-        .backgroundColor($r('sys.color.ohos_id_color_text_primary_activated'))
-    } else if (days === 0) {
-      Text(ExamDateUtils.countdownText(days))
-        .fontSize(12)
-        .fontWeight(FontWeight.Bold)
-        .fontColor($r('sys.color.ohos_id_color_warning'))
-        .padding({ left: 10, right: 10, top: 4, bottom: 4 })
-        .borderRadius(12)
-        .backgroundColor($r('sys.color.ohos_id_color_button_normal'))
-    } else {
-      Text(ExamDateUtils.countdownText(days))
-        .fontSize(12)
-        .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-        .padding({ left: 10, right: 10, top: 4, bottom: 4 })
-        .borderRadius(12)
-        .backgroundColor($r('sys.color.ohos_id_color_button_normal'))
-    }
-  }
-
-  @Builder
-  finalExamRow(entry: FinalExamEntry) {
-    Row() {
-      if (this.courseColorOf(entry.courseName).length > 0) {
-        Column()
-          .width(10)
-          .height(10)
-          .borderRadius(5)
-          .backgroundColor(this.courseColorOf(entry.courseName))
-          .margin({ right: 8 })
-      }
-      Column({ space: 2 }) {
-        Text(entry.courseName)
-          .fontSize(14)
-          .fontWeight(FontWeight.Medium)
-          .fontColor($r('sys.color.ohos_id_color_text_primary'))
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-        Text(ExamDateUtils.formatDisplay(entry.examDate))
-          .fontSize(11)
-          .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-      }
-      .layoutWeight(1)
-      .alignItems(HorizontalAlign.Start)
-
-      this.countdownBadge(this.examDaysOf(entry))
-    }
-    .width('100%')
-    .alignItems(VerticalAlign.Center)
-    .padding({ top: 7, bottom: 7 })
-  }
-
-  /** 期末倒计时卡：显示已设定期末日期的科目及倒计时，未设定任何日期时不显示 */
-  @Builder
-  finalExamCard() {
-    Column() {
-      Row() {
-        Text('期末倒计时')
-          .fontSize(15)
-          .fontWeight(FontWeight.Bold)
-          .fontColor($r('sys.color.ohos_id_color_text_primary'))
-        Blank()
-        Text('在课表课程详情中设置')
-          .fontSize(11)
-          .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-      }
-      .width('100%')
-      .padding({ bottom: 4 })
-
-      ForEach(this.sortedFinalExams(), (entry: FinalExamEntry) => {
-        this.finalExamRow(entry)
-      }, (entry: FinalExamEntry) => 'exam' + entry.courseName + entry.examDate)
-    }
-    .width('100%')
-    .alignItems(HorizontalAlign.Start)
-    .padding(16)
-    .borderRadius(16)
-    .backgroundColor($r('app.color.card_background'))
-    .margin({ top: 16 })
-    .geometryTransition('home-final')
-    .transition(TransitionEffect.OPACITY)
-  }
-
   @Builder
   wideContent() {
     Row() {
@@ -582,7 +318,9 @@ export struct HomeView {
       Column() {
         this.scheduleCard()
         if (this.sortedFinalExams().length > 0) {
-          this.finalExamCard()
+          HomeFinalExamCard(this.sortedFinalExams(),
+            (courseName: string): string => this.courseColorOf(courseName),
+            (entry: FinalExamEntry): number => this.examDaysOf(entry))
         }
       }
       .layoutWeight(1)
@@ -598,10 +336,12 @@ export struct HomeView {
   narrowContent() {
     Column() {
       this.infoColumn()
-      this.sectionTitle('我的课表')
+      HomeSectionTitle('我的课表')
       this.scheduleCard()
       if (this.sortedFinalExams().length > 0) {
-        this.finalExamCard()
+        HomeFinalExamCard(this.sortedFinalExams(),
+          (courseName: string): string => this.courseColorOf(courseName),
+          (entry: FinalExamEntry): number => this.examDaysOf(entry))
       }
     }
     .width('100%')
@@ -643,7 +383,9 @@ export struct HomeView {
         Scroll() {
           Column() {
             if (this.dataMode === 'offlineCache') {
-              this.offlineBanner()
+              HomeOfflineBanner((): void => {
+                this.goLogin();
+              })
             }
             if (this.isWide()) {
               this.wideContent()
