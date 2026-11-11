@@ -1,4 +1,7 @@
 import { GradeEntry } from '../model/JwModels';
+import { GRADE_DEFAULT_BG, GRADE_DEFAULT_TEXT, GRADE_EXCELLENT_TEXT, GRADE_GOOD_BG,
+  GRADE_GOOD_TEXT, GRADE_INSPECT_BG, GRADE_INSPECT_TEXT, GRADE_MEDIUM_TEXT, PASS_BG,
+  REVIEW_BG, TAG_DEFAULT_BG } from '../theme/AppColors';
 
 /** 分组内容指纹：课程名+性质+考核+成绩拼接，内容变化时 ForEach key 变化以重建分组 */
 export function gradeSectionFingerprint(items: GradeEntry[]): string {
@@ -12,70 +15,70 @@ export function gradeSectionFingerprint(items: GradeEntry[]): string {
 /** 成绩数字色（优秀绿/良好蓝/中等橙/其他灰） */
 export function gradeScoreColor(score: string): string {
   if (score === '优秀') {
-    return '#2E7D32';
+    return GRADE_EXCELLENT_TEXT;
   }
   if (score === '良好') {
-    return '#1565C0';
+    return GRADE_GOOD_TEXT;
   }
   if (score === '中等') {
-    return '#B26A00';
+    return GRADE_MEDIUM_TEXT;
   }
-  return '#616161';
+  return GRADE_DEFAULT_TEXT;
 }
 
 export function gradeScoreBackground(score: string): string {
   if (score === '优秀') {
-    return '#E8F5E9';
+    return PASS_BG;
   }
   if (score === '良好') {
-    return '#E3F2FD';
+    return GRADE_GOOD_BG;
   }
   if (score === '中等') {
-    return '#FFF3E0';
+    return REVIEW_BG;
   }
-  return '#EEEEEE';
+  return GRADE_DEFAULT_BG;
 }
 
 /** 课程性质标签色（必修蓝/限选橙/选修及其他灰，兼容“必修课”等带后缀文案） */
 export function gradeNatureTagColor(nature: string): string {
   if (nature.startsWith('必修')) {
-    return '#1565C0';
+    return GRADE_GOOD_TEXT;
   }
   if (nature.startsWith('限选')) {
-    return '#B26A00';
+    return GRADE_MEDIUM_TEXT;
   }
-  return '#616161';
+  return GRADE_DEFAULT_TEXT;
 }
 
 export function gradeNatureTagBackground(nature: string): string {
   if (nature.startsWith('必修')) {
-    return '#E3F2FD';
+    return GRADE_GOOD_BG;
   }
   if (nature.startsWith('限选')) {
-    return '#FFF3E0';
+    return REVIEW_BG;
   }
-  return '#F5F5F5';
+  return TAG_DEFAULT_BG;
 }
 
 /** 考核方式标签色（考试绿/考查紫/其他灰） */
 export function gradeExamTagColor(examType: string): string {
   if (examType === '考试') {
-    return '#2E7D32';
+    return GRADE_EXCELLENT_TEXT;
   }
   if (examType === '考查') {
-    return '#6A1B9A';
+    return GRADE_INSPECT_TEXT;
   }
-  return '#616161';
+  return GRADE_DEFAULT_TEXT;
 }
 
 export function gradeExamTagBackground(examType: string): string {
   if (examType === '考试') {
-    return '#E8F5E9';
+    return PASS_BG;
   }
   if (examType === '考查') {
-    return '#F3E5F5';
+    return GRADE_INSPECT_BG;
   }
-  return '#F5F5F5';
+  return TAG_DEFAULT_BG;
 }
 
 /** 汇总卡单元格（自 GradeView 拆出） */

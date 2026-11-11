@@ -1,4 +1,6 @@
-﻿let largeStorage = new LocalStorage();
+﻿import { COURSE_CELL_DEFAULT_BG, TEXT_DARK, TEXT_MEDIUM, WIDGET_SELECTED_COLOR } from '../../theme/AppColors';
+
+let largeStorage = new LocalStorage();
 
 const CARD_DAY_NAMES: string[] = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
 const CARD_CELL_GAP: number = 4;
@@ -190,7 +192,7 @@ struct ScheduleCardLarge {
       .fontSize(10)
       .fontWeight(selected ? FontWeight.Bold : FontWeight.Normal)
       .fontColor(selected ? Color.White : $r('sys.color.ohos_id_color_text_secondary'))
-      .backgroundColor(selected ? '#007DFF' : $r('sys.color.ohos_id_color_button_normal'))
+      .backgroundColor(selected ? WIDGET_SELECTED_COLOR : $r('sys.color.ohos_id_color_button_normal'))
       .borderRadius(9)
       .padding({ left: 8, right: 8, top: 3, bottom: 3 })
       .onClick(() => {
@@ -205,25 +207,25 @@ struct ScheduleCardLarge {
         Text(cell.n)
           .fontSize(10)
           .fontWeight(FontWeight.Bold)
-          .fontColor('#333333')
+          .fontColor(TEXT_DARK)
           .maxLines(2)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
       }, (cell: WeekCourseCell, index: number) => 'stack' + index + cell.s + cell.n)
       Text(startingCells[0].p)
         .fontSize(8)
-        .fontColor('#555555')
+        .fontColor(TEXT_MEDIUM)
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
       Text(startingCells[0].r)
         .fontSize(8)
-        .fontColor('#555555')
+        .fontColor(TEXT_MEDIUM)
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
     }
     .width('100%')
     .layoutWeight(1)
     .padding(3)
-    .backgroundColor(startingCells[0].c.length > 0 ? startingCells[0].c : '#E8F3DB')
+    .backgroundColor(startingCells[0].c.length > 0 ? startingCells[0].c : COURSE_CELL_DEFAULT_BG)
     .borderRadius(6)
     .justifyContent(FlexAlign.Center)
     .alignItems(HorizontalAlign.Center)

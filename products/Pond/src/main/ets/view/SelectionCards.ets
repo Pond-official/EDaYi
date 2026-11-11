@@ -1,7 +1,8 @@
 import { SelectionBatch, SelectedCourse, SelectionCourse } from '../model/SelectionModels';
+import { REVIEW_TEXT } from '../theme/AppColors';
 
 /** 轮次未开始状态色 */
-const PENDING_COLOR: string = '#E88A00';
+const PENDING_COLOR: string = REVIEW_TEXT;
 
 /** 去掉 Error 字符串的 'Error: ' 前缀，便于直接展示（自 SelectionView 拆出） */
 export function plainError(text: string): string {

@@ -10,6 +10,7 @@ import { SelectionView } from '../view/SelectionView';
 import { SettingsEntryButton } from '../view/SettingsEntryButton';
 import { JwxtRepository } from '../data/JwxtRepository';
 import { MaterialUtils } from '../utils/MaterialUtils';
+import { GLOW_CENTER_COLOR, GLOW_MID_COLOR, GLOW_EDGE_COLOR } from '../theme/AppColors';
 
 const TAB_COUNT: number = 4;
 /** 悬浮页签栏最大宽度（宽屏基准），窄屏按屏宽收缩 */
@@ -24,12 +25,6 @@ const BAR_HEIGHT: number = 64;
 const CAPSULE_WIDTH: number = 72;
 /** 液态指示器胶囊高度（vp） */
 const CAPSULE_HEIGHT: number = 40;
-/** 液态指示器光晕中心色（60% 不透明度白） */
-const GLOW_CENTER_COLOR: string = '#99FFFFFF';
-/** 液态指示器光晕过渡色（25% 不透明度白） */
-const GLOW_MID_COLOR: string = '#40FFFFFF';
-/** 液态指示器光晕边缘色（18% 不透明度白）：边缘不淡出为透明，延续白色过渡与胶囊栏自然衔接 */
-const GLOW_EDGE_COLOR: string = '#2EFFFFFF';
 /** 液态指示器光晕半径（vp）：覆盖胶囊对角，边缘淡出为透明 */
 const GLOW_RADIUS: number = 42;
 /** 液态指示器光晕 HDR 提亮倍数：>1 触发 HDR 渲染管线，超出设备上限时按上限处理 */

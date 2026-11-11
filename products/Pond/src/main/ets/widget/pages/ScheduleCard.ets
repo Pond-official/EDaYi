@@ -1,3 +1,5 @@
+import { WIDGET_SELECTED_COLOR } from '../../theme/AppColors';
+
 let storage = new LocalStorage();
 
 class CardCourse {
@@ -107,7 +109,7 @@ struct ScheduleCard {
       .fontSize(10)
       .fontWeight(selected ? FontWeight.Bold : FontWeight.Normal)
       .fontColor(selected ? Color.White : $r('sys.color.ohos_id_color_text_secondary'))
-      .backgroundColor(selected ? '#007DFF' : $r('sys.color.ohos_id_color_button_normal'))
+      .backgroundColor(selected ? WIDGET_SELECTED_COLOR : $r('sys.color.ohos_id_color_button_normal'))
       .borderRadius(9)
       .padding({ left: 8, right: 8, top: 3, bottom: 3 })
       .margin({ left: 4 })

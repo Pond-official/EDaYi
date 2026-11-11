@@ -1,5 +1,6 @@
 import { ZcpDetailItem, ZcpIndicator, ZcpResult } from '../model/ZcpModels';
-import { STATUS_PASS_COLOR, ZcpCtxCard, ZcpRadarCard } from './ZcpCards';
+import { ZcpCtxCard, ZcpRadarCard } from './ZcpCards';
+import { PASS_TEXT } from '../theme/AppColors';
 
 /** 附加项行是否可展开明细（展示展开图标）（自 ZcpView 拆出） */
 function isExpandable(item: ZcpIndicator): boolean {
@@ -30,7 +31,7 @@ function indicatorLabel(item: ZcpIndicator): string {
 /** 指标数值文本颜色：有得分为激活色，附加项已获得为绿色（自 ZcpView 拆出） */
 function indicatorValueColor(item: ZcpIndicator): ResourceColor {
   if (item.category === '附加项' && item.extraGained.length > 0) {
-    return STATUS_PASS_COLOR;
+    return PASS_TEXT;
   }
   if (item.scoreText.length > 0 || item.fixedScore.length > 0) {
     return $r('sys.color.ohos_id_color_text_primary');
@@ -103,7 +104,7 @@ function ZcpDetailArea(detailItems: ZcpDetailItem[], detailLoading: boolean) {
             Text(detail.score)
               .fontSize(13)
               .fontWeight(FontWeight.Bold)
-              .fontColor(STATUS_PASS_COLOR)
+              .fontColor(PASS_TEXT)
               .margin({ left: 8 })
           }
           .width('100%')

@@ -1,9 +1,10 @@
 import { CaptchaData, SelectionCredentials } from '../model/SelectionModels';
 import { SelectionRepository } from '../data/SelectionRepository';
 import { plainError } from './SelectionCards';
+import { REJECT_TEXT } from '../theme/AppColors';
 
 /** 提示语颜色（警示） */
-const WARN_COLOR: string = '#E84026';
+const WARN_COLOR: string = REJECT_TEXT;
 
 /**
  * 选课登录面板（自 SelectionView 整体拆出）：

@@ -1,13 +1,6 @@
 import { ZcpResult } from '../model/ZcpModels';
 import { ZcpRadarChart, RadarEntry } from './ZcpRadarChart';
-
-/** 状态色（测评状态机：已通过/已退回/审核中/其他）（自 ZcpView 拆出） */
-export const STATUS_PASS_COLOR: string = '#0FA958';
-const STATUS_REJECT_COLOR: string = '#E84026';
-const STATUS_REVIEW_COLOR: string = '#E88A00';
-const STATUS_PASS_BG: string = '#E8F5E9';
-const STATUS_REJECT_BG: string = '#FDECEA';
-const STATUS_REVIEW_BG: string = '#FFF3E0';
+import { NEUTRAL_BG, PASS_BG, PASS_TEXT, REJECT_BG, REJECT_TEXT, REVIEW_BG, REVIEW_TEXT } from '../theme/AppColors';
 
 /** 去掉 Error 字符串的 'Error: ' 前缀，便于直接展示（自 ZcpView 拆出） */
 export function plainError(text: string): string {
@@ -19,13 +12,13 @@ function statusTextColor(result: ZcpResult): ResourceColor {
   const state: number = result.process.state;
   const text: string = result.process.statusText;
   if (state === 4 || text.indexOf('通过') >= 0) {
-    return STATUS_PASS_COLOR;
+    return PASS_TEXT;
   }
   if (state === 3 || text.indexOf('退回') >= 0) {
-    return STATUS_REJECT_COLOR;
+    return REJECT_TEXT;
   }
   if (state === 2 || text.indexOf('审核') >= 0) {
-    return STATUS_REVIEW_COLOR;
+    return REVIEW_TEXT;
   }
   return $r('sys.color.ohos_id_color_text_secondary');
 }
@@ -35,15 +28,15 @@ function statusBgColor(result: ZcpResult): string {
   const state: number = result.process.state;
   const text: string = result.process.statusText;
   if (state === 4 || text.indexOf('通过') >= 0) {
-    return STATUS_PASS_BG;
+    return PASS_BG;
   }
   if (state === 3 || text.indexOf('退回') >= 0) {
-    return STATUS_REJECT_BG;
+    return REJECT_BG;
   }
   if (state === 2 || text.indexOf('审核') >= 0) {
-    return STATUS_REVIEW_BG;
+    return REVIEW_BG;
   }
-  return '#F1F1F1';
+  return NEUTRAL_BG;
 }
 
 /** 多维图数据：二级素质维度中得分与满分均可解析的条目（附加项 999 兜底上限排除）。
@@ -205,7 +198,7 @@ export function ZcpCtxCard(result: ZcpResult) {
     if (result.process.state === 3 && result.process.rejectReason.length > 0) {
       Text('退回原因：' + result.process.rejectReason)
         .fontSize(13)
-        .fontColor(STATUS_REJECT_COLOR)
+        .fontColor(REJECT_TEXT)
         .width('100%')
         .padding({ top: 6, bottom: 6 })
     }

@@ -1,6 +1,7 @@
 import { FinalExamEntry, ScheduleCellInfo, TermStatus } from '../model/JwModels';
 import { JwxtRepository } from '../data/JwxtRepository';
 import { ExamDateUtils } from '../utils/ExamDateUtils';
+import { TEXT_DARK, TEXT_MEDIUM } from '../theme/AppColors';
 import { mediaquery } from '@kit.ArkUI';
 
 const DAY_NAMES: string[] = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
@@ -314,18 +315,18 @@ export struct ScheduleBoard {
         Text(cell.courseName)
           .fontSize(10)
           .fontWeight(FontWeight.Bold)
-          .fontColor('#333333')
+          .fontColor(TEXT_DARK)
           .maxLines(2)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
       }, (cell: ScheduleCellInfo) => 'stack' + cell.courseSerialNo + cell.startSection)
       Text(startingCells[0].location)
         .fontSize(9)
-        .fontColor('#555555')
+        .fontColor(TEXT_MEDIUM)
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
       Text(startingCells[0].teacher)
         .fontSize(9)
-        .fontColor('#555555')
+        .fontColor(TEXT_MEDIUM)
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
     }
