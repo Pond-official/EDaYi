@@ -320,7 +320,9 @@ export struct ZcpView {
                 ForEach(this.result.indicators, (root: ZcpIndicator) => {
                   ZcpIndicatorCard(root, this.detailZbdm, this.detailItems, this.detailLoading,
                     (item: ZcpIndicator): Promise<void> => this.toggleDetail(item))
-                }, (root: ZcpIndicator) => root.zbdm + root.name + root.scoreText)
+                }, (root: ZcpIndicator) => root.zbdm + root.name + root.scoreText
+                  // 明细状态并入 key：@Builder 按值传参不随状态刷新，经 key 变化驱动卡片重建（与成绩页同方案）
+                  + ':' + this.detailZbdm + (this.detailLoading ? ':L' : '') + ':' + this.detailItems.length)
                 if (this.result.indicators.length === 0) {
                   Text('暂无测评指标数据')
                     .fontSize(13)

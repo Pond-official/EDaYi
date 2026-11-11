@@ -325,7 +325,9 @@ export function ZcpWideContent(result: ZcpResult, wideRowHeight: Length, bottomI
       Column() {
         ForEach(result.indicators, (root: ZcpIndicator) => {
           ZcpIndicatorCard(root, detailZbdm, detailItems, detailLoading, onToggle)
-        }, (root: ZcpIndicator) => root.zbdm + root.name + root.scoreText)
+        }, (root: ZcpIndicator) => root.zbdm + root.name + root.scoreText
+          // 明细状态并入 key：@Builder 按值传参不随状态刷新，经 key 变化驱动卡片重建（与成绩页同方案）
+          + ':' + detailZbdm + (detailLoading ? ':L' : '') + ':' + detailItems.length)
         if (result.indicators.length === 0) {
           Text('暂无测评指标数据')
             .fontSize(13)
