@@ -300,23 +300,25 @@ export struct ZcpView {
             // 离线横幅恒在外层内容顶部：单列全宽，双列横跨左右两列上方全宽；
             // 宽屏行高按实测横幅块高扣减（wideRowHeight），外层 Scroll 仍恰好不滚
             if (this.result.fromCache || this.dataMode === 'offlineCache') {
-              ZcpOfflineBanner(this.dataMode, (): void => this.goLogin(), (): void => this.retry(),
-                (heightVp: number): void => {
+              ZcpOfflineBanner({ dataMode: this.dataMode, onGoLogin: (): void => this.goLogin(),
+                onRetry: (): void => this.retry(), onBannerHeight: (heightVp: number): void => {
                   this.bannerHeightVp = heightVp;
-                })
+                } })
             }
             if (this.isWide() && this.result.hasContext) {
-              ZcpWideContent(this.result, this.wideRowHeight(), this.bottomInset(), this.detailZbdm,
-                this.detailItems, this.detailLoading, (item: ZcpIndicator): Promise<void> => this.toggleDetail(item))
+              ZcpWideContent({ result: this.result, wideRowHeight: this.wideRowHeight(),
+                bottomInset: this.bottomInset(), detailZbdm: this.detailZbdm, detailItems: this.detailItems,
+                detailLoading: this.detailLoading,
+                onToggle: (item: ZcpIndicator): Promise<void> => this.toggleDetail(item) })
             } else {
-              ZcpCtxCard(this.result)
+              ZcpCtxCard({ result: this.result })
               if (!this.result.hasContext) {
                 Text('当前学期暂无综评批次（未开放或无参评资格）')
                   .fontSize(13)
                   .fontColor($r('sys.color.ohos_id_color_text_secondary'))
                   .padding({ top: 16, bottom: 16 })
               } else {
-                ZcpRadarCard(this.result)
+                ZcpRadarCard({ result: this.result })
                 ForEach(this.result.indicators, (root: ZcpIndicator) => {
                   ZcpIndicatorCard(root, this.detailZbdm, this.detailItems, this.detailLoading,
                     (item: ZcpIndicator): Promise<void> => this.toggleDetail(item))
@@ -340,7 +342,7 @@ export struct ZcpView {
               }
             }
           } else if (this.phase === 'bootstrap' || this.phase === 'loading') {
-            ZcpLoadingCard(this.phase === 'bootstrap' ? '正在建立综评会话…' : '正在获取综评数据…')
+            ZcpLoadingCard({ text: this.phase === 'bootstrap' ? '正在建立综评会话…' : '正在获取综评数据…' })
           } else if (this.phase === 'error') {
             ZcpErrorCard(this.errorText, (): void => this.retry())
           } else {

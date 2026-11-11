@@ -293,6 +293,24 @@ export function ZcpIndicatorCard(root: ZcpIndicator, detailZbdm: string, detailI
   .transition(TransitionEffect.OPACITY)
 }
 
+/** 平板横屏双列布局参数（单参对象按引用传递，避免 @Builder 按值传参冻结） */
+export interface ZcpWideContentParams {
+  /** 综评结果 */
+  result: ZcpResult;
+  /** 双列行高（外层滚动视口扣减横幅块高） */
+  wideRowHeight: Length;
+  /** 右列底部安全区内边距 */
+  bottomInset: number;
+  /** 当前展开明细的指标代码 */
+  detailZbdm: string;
+  /** 附加分明细条目 */
+  detailItems: ZcpDetailItem[];
+  /** 明细加载中 */
+  detailLoading: boolean;
+  /** 点击展开/收起明细回调 */
+  onToggle: (item: ZcpIndicator) => void;
+}
+
 /**
  * 平板横屏双列布局：左列（批次上下文卡 + 雷达图）固定不随滚动，
  * 右列（一级指标明细卡）独立滚动；左右宽度比与首页横屏一致。
@@ -301,14 +319,12 @@ export function ZcpIndicatorCard(root: ZcpIndicator, detailZbdm: string, detailI
  * 内层滚动经 SELF_FIRST 延伸到外层，下拉刷新仍然可用。（自 ZcpView 拆出）
  */
 @Builder
-export function ZcpWideContent(result: ZcpResult, wideRowHeight: Length, bottomInset: number,
-  detailZbdm: string, detailItems: ZcpDetailItem[], detailLoading: boolean,
-  onToggle: (item: ZcpIndicator) => void) {
+export function ZcpWideContent(params: ZcpWideContentParams) {
   Row() {
     Scroll() {
       Column() {
-        ZcpCtxCard(result)
-        ZcpRadarCard(result)
+        ZcpCtxCard({ result: params.result })
+        ZcpRadarCard({ result: params.result })
       }
       .width('100%')
       .alignItems(HorizontalAlign.Start)
@@ -323,12 +339,12 @@ export function ZcpWideContent(result: ZcpResult, wideRowHeight: Length, bottomI
 
     Scroll() {
       Column() {
-        ForEach(result.indicators, (root: ZcpIndicator) => {
-          ZcpIndicatorCard(root, detailZbdm, detailItems, detailLoading, onToggle)
+        ForEach(params.result.indicators, (root: ZcpIndicator) => {
+          ZcpIndicatorCard(root, params.detailZbdm, params.detailItems, params.detailLoading, params.onToggle)
         }, (root: ZcpIndicator) => root.zbdm + root.name + root.scoreText
           // 明细状态并入 key：@Builder 按值传参不随状态刷新，经 key 变化驱动卡片重建（与成绩页同方案）
-          + ':' + detailZbdm + (detailLoading ? ':L' : '') + ':' + detailItems.length)
-        if (result.indicators.length === 0) {
+          + ':' + params.detailZbdm + (params.detailLoading ? ':L' : '') + ':' + params.detailItems.length)
+        if (params.result.indicators.length === 0) {
           Text('暂无测评指标数据')
             .fontSize(13)
             .fontColor($r('sys.color.ohos_id_color_text_secondary'))
@@ -345,7 +361,7 @@ export function ZcpWideContent(result: ZcpResult, wideRowHeight: Length, bottomI
       }
       .width('100%')
       .alignItems(HorizontalAlign.Start)
-      .padding({ bottom: bottomInset })
+      .padding({ bottom: params.bottomInset })
     }
     .layoutWeight(1)
     .height('100%')
@@ -356,7 +372,7 @@ export function ZcpWideContent(result: ZcpResult, wideRowHeight: Length, bottomI
     .nestedScroll({ scrollForward: NestedScrollMode.SELF_FIRST, scrollBackward: NestedScrollMode.SELF_FIRST })
   }
   .width('100%')
-  .height(wideRowHeight)
+  .height(params.wideRowHeight)
   .alignItems(VerticalAlign.Top)
   .constraintSize({ maxWidth: 1200 })
   .alignSelf(ItemAlign.Center)

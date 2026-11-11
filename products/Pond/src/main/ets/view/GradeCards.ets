@@ -3,11 +3,12 @@ import { GRADE_DEFAULT_BG, GRADE_DEFAULT_TEXT, GRADE_EXCELLENT_TEXT, GRADE_GOOD_
   GRADE_GOOD_TEXT, GRADE_INSPECT_BG, GRADE_INSPECT_TEXT, GRADE_MEDIUM_TEXT, PASS_BG,
   REVIEW_BG, TAG_DEFAULT_BG } from '../theme/AppColors';
 
-/** 分组内容指纹：课程名+性质+考核+成绩拼接，内容变化时 ForEach key 变化以重建分组 */
+/** 分组内容指纹：课程名+性质+考核+成绩+学分+绩点拼接，内容变化时 ForEach key 变化以重建分组 */
 export function gradeSectionFingerprint(items: GradeEntry[]): string {
   let fp: string = String(items.length);
   for (const grade of items) {
-    fp += '|' + grade.courseName + grade.natureText + grade.examTypeText + grade.scoreView;
+    fp += '|' + grade.courseName + grade.natureText + grade.examTypeText
+      + grade.scoreView + grade.credit + grade.gpaPoint;
   }
   return fp;
 }
@@ -81,37 +82,61 @@ export function gradeExamTagBackground(examType: string): string {
   return TAG_DEFAULT_BG;
 }
 
-/** 汇总卡单元格（自 GradeView 拆出） */
-@Builder
-export function GradeSummaryCell(label: string, value: string) {
-  Column({ space: 4 }) {
-    Text(value)
-      .fontSize(22)
-      .fontWeight(FontWeight.Bold)
-      .fontColor($r('sys.color.ohos_id_color_text_primary_activated'))
-    Text(label)
-      .fontSize(11)
-      .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-  }
-  .layoutWeight(1)
-  .alignItems(HorizontalAlign.Center)
+/** 汇总卡参数（单参对象按引用传递，避免 @Builder 按值传参冻结） */
+export interface GradeSummaryCardParams {
+  /** 平均绩点文本 */
+  gpaText: string;
+  /** 通过学分文本 */
+  creditText: string;
+  /** 课程门数文本 */
+  countText: string;
 }
 
-/** 学分绩点汇总卡（自 GradeView 拆出） */
+/** 学分绩点汇总卡（自 GradeView 拆出；单元格直接内联，避免嵌套按值子 Builder 冻结） */
 @Builder
-export function GradeSummaryCard(gpaText: string, creditText: string, countText: string) {
+export function GradeSummaryCard(params: GradeSummaryCardParams) {
   Row() {
-    GradeSummaryCell('平均绩点', gpaText)
+    Column({ space: 4 }) {
+      Text(params.gpaText)
+        .fontSize(22)
+        .fontWeight(FontWeight.Bold)
+        .fontColor($r('sys.color.ohos_id_color_text_primary_activated'))
+      Text('平均绩点')
+        .fontSize(11)
+        .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+    }
+    .layoutWeight(1)
+    .alignItems(HorizontalAlign.Center)
     Column()
       .width(1)
       .height(32)
       .backgroundColor($r('sys.color.ohos_id_color_button_normal'))
-    GradeSummaryCell('通过学分', creditText)
+    Column({ space: 4 }) {
+      Text(params.creditText)
+        .fontSize(22)
+        .fontWeight(FontWeight.Bold)
+        .fontColor($r('sys.color.ohos_id_color_text_primary_activated'))
+      Text('通过学分')
+        .fontSize(11)
+        .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+    }
+    .layoutWeight(1)
+    .alignItems(HorizontalAlign.Center)
     Column()
       .width(1)
       .height(32)
       .backgroundColor($r('sys.color.ohos_id_color_button_normal'))
-    GradeSummaryCell('课程门数', countText)
+    Column({ space: 4 }) {
+      Text(params.countText)
+        .fontSize(22)
+        .fontWeight(FontWeight.Bold)
+        .fontColor($r('sys.color.ohos_id_color_text_primary_activated'))
+      Text('课程门数')
+        .fontSize(11)
+        .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+    }
+    .layoutWeight(1)
+    .alignItems(HorizontalAlign.Center)
   }
   .width('100%')
   .justifyContent(FlexAlign.SpaceEvenly)
@@ -226,7 +251,8 @@ export function GradeSection(title: string, items: GradeEntry[]) {
       .padding({ bottom: 4 })
       ForEach(items, (grade: GradeEntry) => {
         GradeRow(grade)
-      }, (grade: GradeEntry) => grade.termCode + grade.courseName + grade.natureText + grade.examTypeText + grade.scoreView)
+      }, (grade: GradeEntry) => grade.termCode + grade.courseName + grade.natureText + grade.examTypeText
+        + grade.scoreView + ':' + grade.credit + ':' + grade.gpaPoint)
     }
     .width('100%')
     .alignItems(HorizontalAlign.Start)
@@ -278,17 +304,28 @@ export function GradeOfflineBanner(onHeight: (vp: number) => void, onLogin: () =
   })
 }
 
+/** 学期筛选行参数（单参对象按引用传递） */
+export interface GradeTermFilterRowParams {
+  /** 学期选项 */
+  options: SelectOption[];
+  /** 当前选中索引 */
+  selectedIndex: number;
+  /** 当前选中展示文本 */
+  selectedLabel: string;
+  /** 选中回调（回传选中的学期索引） */
+  onSelect: (index: number) => void;
+}
+
 /** 学期筛选行（自 GradeView 拆出；onSelect 回传选中的学期索引） */
 @Builder
-export function GradeTermFilterRow(options: SelectOption[], selectedIndex: number,
-  selectedLabel: string, onSelect: (index: number) => void) {
+export function GradeTermFilterRow(params: GradeTermFilterRowParams) {
   Row({ space: 10 }) {
     Text('学期')
       .fontSize(13)
       .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-    Select(options)
-      .selected(selectedIndex)
-      .value(selectedLabel)
+    Select(params.options)
+      .selected(params.selectedIndex)
+      .value(params.selectedLabel)
       .font({ size: 13 })
       .fontColor($r('sys.color.ohos_id_color_text_primary'))
       .optionFont({ size: 13 })
@@ -297,7 +334,7 @@ export function GradeTermFilterRow(options: SelectOption[], selectedIndex: numbe
       .selectedOptionBgColor($r('sys.color.ohos_id_color_button_normal'))
       .optionWidth(232)
       .onSelect((index: number) => {
-        onSelect(index);
+        params.onSelect(index);
       })
   }
   .width('100%')
@@ -307,11 +344,17 @@ export function GradeTermFilterRow(options: SelectOption[], selectedIndex: numbe
   .transition(TransitionEffect.OPACITY)
 }
 
+/** 无成绩空态提示参数（单参对象按引用传递） */
+export interface GradeEmptyTextParams {
+  /** 数据模式（online/offlineCache/其他） */
+  mode: string;
+}
+
 /** 无成绩空态提示（自 GradeView 拆出） */
 @Builder
-export function GradeEmptyText(mode: string) {
-  Text(mode === 'online' ? '暂无成绩数据' :
-    (mode === 'offlineCache' ? '暂无缓存成绩' : '登录教务系统后可查看成绩'))
+export function GradeEmptyText(params: GradeEmptyTextParams) {
+  Text(params.mode === 'online' ? '暂无成绩数据' :
+    (params.mode === 'offlineCache' ? '暂无缓存成绩' : '登录教务系统后可查看成绩'))
     .fontSize(12)
     .fontColor($r('sys.color.ohos_id_color_text_secondary'))
     .padding({ top: 24, bottom: 24 })

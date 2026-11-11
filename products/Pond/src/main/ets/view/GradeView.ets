@@ -320,7 +320,8 @@ export struct GradeView {
     Row() {
       Scroll() {
         Column() {
-          GradeSummaryCard(String(this.averageGpa()), String(this.totalCredit()), String(this.allGrades().length))
+          GradeSummaryCard({ gpaText: String(this.averageGpa()), creditText: String(this.totalCredit()),
+            countText: String(this.allGrades().length) })
           GradeTrainingPlanEntry((): void => {
             this.goTrainingPlan();
           })
@@ -338,18 +339,18 @@ export struct GradeView {
 
       Scroll() {
         Column() {
-          GradeTermFilterRow(this.termOptions(), this.selectedTermIndex(), this.selectedTermLabel(),
-            (index: number): void => {
+          GradeTermFilterRow({ options: this.termOptions(), selectedIndex: this.selectedTermIndex(),
+            selectedLabel: this.selectedTermLabel(), onSelect: (index: number): void => {
               if (index >= 0 && index < this.termChips.length) {
                 this.selectedTerm = this.termChips[index];
                 this.rebuildSections();
               }
-            })
+            } })
           ForEach(this.visibleSections, (section: GradeSectionData) => {
             GradeSection(section.title, section.grades)
           }, (section: GradeSectionData) => section.title + '|' + gradeSectionFingerprint(section.grades))
           if (this.allGrades().length === 0) {
-            GradeEmptyText(this.dataMode)
+            GradeEmptyText({ mode: this.dataMode })
           }
         }
         .width('100%')
@@ -388,22 +389,23 @@ export struct GradeView {
           if (this.isWide()) {
             this.wideContent()
           } else {
-            GradeSummaryCard(String(this.averageGpa()), String(this.totalCredit()), String(this.allGrades().length))
+            GradeSummaryCard({ gpaText: String(this.averageGpa()), creditText: String(this.totalCredit()),
+              countText: String(this.allGrades().length) })
             GradeTrainingPlanEntry((): void => {
               this.goTrainingPlan();
             })
-            GradeTermFilterRow(this.termOptions(), this.selectedTermIndex(), this.selectedTermLabel(),
-              (index: number): void => {
+            GradeTermFilterRow({ options: this.termOptions(), selectedIndex: this.selectedTermIndex(),
+              selectedLabel: this.selectedTermLabel(), onSelect: (index: number): void => {
                 if (index >= 0 && index < this.termChips.length) {
                   this.selectedTerm = this.termChips[index];
                   this.rebuildSections();
                 }
-              })
+              } })
             ForEach(this.visibleSections, (section: GradeSectionData) => {
               GradeSection(section.title, section.grades)
             }, (section: GradeSectionData) => section.title + '|' + gradeSectionFingerprint(section.grades))
             if (this.allGrades().length === 0) {
-              GradeEmptyText(this.dataMode)
+              GradeEmptyText({ mode: this.dataMode })
             }
           }
         }

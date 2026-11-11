@@ -159,7 +159,7 @@ export struct ZcpRadarChart {
           Circle({ width: 8, height: 8 })
             .fill($r('sys.color.ohos_id_color_text_primary_activated'))
             .position(this.vertexPosition(index))
-        }, (entry: RadarEntry, index: number) => `${index}`)
+        }, (entry: RadarEntry, index: number) => 'dot:' + entry.name + ':' + entry.scoreText + ':' + entry.capText)
         ForEach(this.entries, (entry: RadarEntry, index: number) => {
           Column({ space: 2 }) {
             Text(entry.name)
@@ -179,7 +179,7 @@ export struct ZcpRadarChart {
           .alignItems(HorizontalAlign.Center)
           .position(this.labelPosition(index))
           .markAnchor({ x: '50%', y: '50%' })
-        }, (entry: RadarEntry, index: number) => `${index}`)
+        }, (entry: RadarEntry, index: number) => 'label:' + entry.name + ':' + entry.scoreText + ':' + entry.capText)
       }
     }
     .width('100%')
