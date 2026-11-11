@@ -3,15 +3,9 @@ import { display, window } from '@kit.ArkUI';
 import { ZcpDetailItem, ZcpIndicator, ZcpResult } from '../model/ZcpModels';
 import { ZcpRepository, ZCP_SESSION_INVALID_ERROR } from '../data/ZcpRepository';
 import { FrostBand, FROST_BAND_HEIGHT, frostTopInsetVp } from './FrostBand';
-import { ZcpRadarChart, RadarEntry } from './ZcpRadarChart';
+import { plainError, ZcpCtxCard, ZcpErrorCard, ZcpIdleCard, ZcpLoadingCard, ZcpOfflineBanner, ZcpRadarCard } from './ZcpCards';
+import { ZcpIndicatorCard, ZcpWideContent } from './ZcpIndicatorCards';
 
-/** 状态色（测评状态机：已通过/已退回/审核中/其他） */
-const STATUS_PASS_COLOR: string = '#0FA958';
-const STATUS_REJECT_COLOR: string = '#E84026';
-const STATUS_REVIEW_COLOR: string = '#E88A00';
-const STATUS_PASS_BG: string = '#E8F5E9';
-const STATUS_REJECT_BG: string = '#FDECEA';
-const STATUS_REVIEW_BG: string = '#FFF3E0';
 /** 隐藏 Web 单点引导超时（毫秒） */
 const BOOTSTRAP_TIMEOUT: number = 20000;
 
@@ -83,17 +77,12 @@ export struct ZcpView {
 
   /** 内存结果被隐私清理/退出登录清除：回到未加载态，等下次页签激活或手动获取 */
   onResultChanged(): void {
-    if (this.result === null && this.phase === 'loaded') {
-      this.phase = 'idle';
-    }
+    if (this.result === null && this.phase === 'loaded') { this.phase = 'idle'; }
   }
 
   /** 加载入口：页签可见且无在途任务时启动；优先回放本地临时缓存，再在线刷新 */
   private loadIfNeeded(): void {
-    if (!this.zcpTabActive) {
-      return;
-    }
-    if (this.bootstrapRunning || this.phase === 'bootstrap' || this.phase === 'loading') {
+    if (!this.zcpTabActive || this.bootstrapRunning || this.phase === 'bootstrap' || this.phase === 'loading') {
       return;
     }
     if (this.result === null) {
@@ -103,17 +92,13 @@ export struct ZcpView {
         this.phase = 'loaded';
       }
     }
-    if (this.result !== null && !this.result.fromCache) {
-      return;
-    }
+    if (this.result !== null && !this.result.fromCache) { return; }
     this.start();
   }
 
   /** 手动重试（错误卡片/未加载卡片的按钮）：清空错误后重新启动 */
   private retry(): void {
-    if (this.phase === 'bootstrap' || this.phase === 'loading' || this.bootstrapRunning) {
-      return;
-    }
+    if (this.phase === 'bootstrap' || this.phase === 'loading' || this.bootstrapRunning) { return; }
     this.errorText = '';
     this.start();
   }
@@ -128,25 +113,19 @@ export struct ZcpView {
     this.isRefreshing = false;
     if (this.dataMode !== 'online') {
       try {
-        this.getUIContext().getPromptAction()
-          .showToast({ message: '请先登录教务系统后再刷新', duration: 1500 });
+        this.getUIContext().getPromptAction().showToast({ message: '请先登录教务系统后再刷新', duration: 1500 });
       } catch (error) {
       }
       return;
     }
-    if (this.phase === 'bootstrap' || this.phase === 'loading' || this.bootstrapRunning) {
-      return;
-    }
+    if (this.phase === 'bootstrap' || this.phase === 'loading' || this.bootstrapRunning) { return; }
     this.errorText = '';
     this.start();
   }
 
   /** 启动加载：会话已就绪直接拉业务数据，否则先走 Web 单点引导 */
   private start(): void {
-    if (ZcpRepository.isSessionReady()) {
-      this.doLoad();
-      return;
-    }
+    if (ZcpRepository.isSessionReady()) { this.doLoad(); return; }
     this.startBootstrap();
   }
 
@@ -161,9 +140,7 @@ export struct ZcpView {
 
   /** 单点引导超时：终止引导并提示重试 */
   private onBootstrapTimeout(): void {
-    if (!this.bootstrapRunning) {
-      return;
-    }
+    if (!this.bootstrapRunning) { return; }
     this.finishBootstrap();
     this.phase = 'error';
     this.errorText = '网络连接超时，请检查网络后重试';
@@ -176,17 +153,12 @@ export struct ZcpView {
   }
 
   private clearBootstrapTimer(): void {
-    if (this.bootstrapTimer >= 0) {
-      clearTimeout(this.bootstrapTimer);
-      this.bootstrapTimer = -1;
-    }
+    if (this.bootstrapTimer >= 0) { clearTimeout(this.bootstrapTimer); this.bootstrapTimer = -1; }
   }
 
   /** Web 页面加载结束：落在 CAS 登录页 = 教务会话过期；落在 xgfw = 单点成功，进入业务拉取 */
   private onBootstrapPageEnd(): void {
-    if (!this.bootstrapRunning) {
-      return;
-    }
+    if (!this.bootstrapRunning) { return; }
     let endedUrl: string = '';
     try {
       endedUrl = this.webController.getUrl();
@@ -208,10 +180,7 @@ export struct ZcpView {
 
   /** 主文档加载失败（子资源失败不触发）：终止引导并提示重试 */
   private onBootstrapError(event: OnErrorReceiveEvent): void {
-    if (!this.bootstrapRunning) {
-      return;
-    }
-    if (!event.request.isMainFrame()) {
+    if (!this.bootstrapRunning || !event.request.isMainFrame()) {
       return;
     }
     this.finishBootstrap();
@@ -245,20 +214,15 @@ export struct ZcpView {
         this.phase = 'loaded';
         return;
       }
-      if (message.indexOf(ZCP_SESSION_INVALID_ERROR) >= 0) {
-        this.errorText = '登录状态已失效，请重新获取';
-      } else {
-        this.errorText = this.plainError(message);
-      }
+      this.errorText = message.indexOf(ZCP_SESSION_INVALID_ERROR) >= 0 ?
+        '登录状态已失效，请重新获取' : plainError(message);
       this.phase = 'error';
     }
   }
 
   /** 附加项指标点击展开/收起明细（getZbFjfDetail，仅读接口） */
   private async toggleDetail(item: ZcpIndicator): Promise<void> {
-    if (item.category !== '附加项') {
-      return;
-    }
+    if (item.category !== '附加项') { return; }
     if (this.detailZbdm === item.zbdm) {
       this.detailZbdm = '';
       this.detailItems = [];
@@ -276,30 +240,16 @@ export struct ZcpView {
     this.detailLoading = false;
   }
 
-  /** 去掉 Error 字符串的 'Error: ' 前缀，便于直接展示 */
-  private plainError(text: string): string {
-    return text.startsWith('Error: ') ? text.substring(7) : text;
-  }
-
   private contentMaxWidth(): number {
-    if (this.currentBreakpoint === 'sm') {
-      return 600;
-    }
-    if (this.isWide()) {
-      return 1200;
-    }
-    return 1000;
+    if (this.currentBreakpoint === 'sm') { return 600; }
+    return this.isWide() ? 1200 : 1000;
   }
 
   /** 平板/电脑横屏（lg/xl 且窗口为横屏方向）双列布局，切换逻辑与首页保持一致 */
   private isWide(): boolean {
-    if (this.currentBreakpoint !== 'lg' && this.currentBreakpoint !== 'xl') {
-      return false;
-    }
+    if (this.currentBreakpoint !== 'lg' && this.currentBreakpoint !== 'xl') { return false; }
     // 大屏平板竖屏宽度也可能达到 lg（如 13 寸平板竖屏 960vp）：处于竖屏（宽 ≤ 高）时仍用单列纵向排版
-    if (this.winWidthPx > 0 && this.winHeightPx > 0 && this.winWidthPx <= this.winHeightPx) {
-      return false;
-    }
+    if (this.winWidthPx > 0 && this.winHeightPx > 0 && this.winWidthPx <= this.winHeightPx) { return false; }
     return true;
   }
 
@@ -313,19 +263,13 @@ export struct ZcpView {
    */
   /** 离线横幅块高（实测组件高 + 底边距）：宽屏双列时横幅横跨双列上方，行高按其扣减使外层恰好不滚 */
   private bannerBlockVp(): number {
-    if (this.result === null) {
-      return 0;
-    }
-    if (!this.result.fromCache && this.dataMode !== 'offlineCache') {
-      return 0;
-    }
+    if (this.result === null) { return 0; }
+    if (!this.result.fromCache && this.dataMode !== 'offlineCache') { return 0; }
     return this.bannerHeightVp > 0 ? this.bannerHeightVp + 10 : 0;
   }
 
   private wideRowHeight(): Length {
-    if (this.winHeightPx <= 0) {
-      return '100%';
-    }
+    if (this.winHeightPx <= 0) { return '100%'; }
     const viewportVp: number = this.getUIContext().px2vp(this.winHeightPx);
     const insetVp: number = frostTopInsetVp(this.safeTopPx, this.getUIContext());
     return Math.max(viewportVp - insetVp - this.bannerBlockVp(), 0);
@@ -389,652 +333,13 @@ export struct ZcpView {
     });
   }
 
-  /** 测评状态文本颜色 */
-  private statusTextColor(result: ZcpResult): ResourceColor {
-    const state: number = result.process.state;
-    const text: string = result.process.statusText;
-    if (state === 4 || text.indexOf('通过') >= 0) {
-      return STATUS_PASS_COLOR;
-    }
-    if (state === 3 || text.indexOf('退回') >= 0) {
-      return STATUS_REJECT_COLOR;
-    }
-    if (state === 2 || text.indexOf('审核') >= 0) {
-      return STATUS_REVIEW_COLOR;
-    }
-    return $r('sys.color.ohos_id_color_text_secondary');
-  }
-
-  /** 测评状态背景色 */
-  private statusBgColor(result: ZcpResult): string {
-    const state: number = result.process.state;
-    const text: string = result.process.statusText;
-    if (state === 4 || text.indexOf('通过') >= 0) {
-      return STATUS_PASS_BG;
-    }
-    if (state === 3 || text.indexOf('退回') >= 0) {
-      return STATUS_REJECT_BG;
-    }
-    if (state === 2 || text.indexOf('审核') >= 0) {
-      return STATUS_REVIEW_BG;
-    }
-    return '#F1F1F1';
-  }
-
-  /** 指标右侧数值标签（附加项显示已获得，评分/成绩分显示 得分/上限，一级显示占比） */
-  private indicatorLabel(item: ZcpIndicator): string {
-    if (item.category === '附加项') {
-      return '已获得 ' + (item.extraGained.length > 0 ? item.extraGained : '0');
-    }
-    if (item.scoreText.length > 0) {
-      const cap: string = item.capText.length > 0 ? item.capText : '-';
-      return item.scoreText + ' / ' + cap;
-    }
-    if (item.fixedScore.length > 0) {
-      return item.fixedScore + (item.capText.length > 0 ? ' / ' + item.capText : '');
-    }
-    if (item.level === 1 && item.ratioPercent.length > 0) {
-      return '占比 ' + item.ratioPercent + '%';
-    }
-    if (item.capText.length > 0) {
-      return '上限 ' + item.capText;
-    }
-    return '';
-  }
-
-  /** 指标数值文本颜色：有得分为激活色，附加项已获得为绿色 */
-  private indicatorValueColor(item: ZcpIndicator): ResourceColor {
-    if (item.category === '附加项' && item.extraGained.length > 0) {
-      return STATUS_PASS_COLOR;
-    }
-    if (item.scoreText.length > 0 || item.fixedScore.length > 0) {
-      return $r('sys.color.ohos_id_color_text_primary');
-    }
-    return $r('sys.color.ohos_id_color_text_secondary');
-  }
-
-  /** 是否可画得分进度条：有数值得分且上限有效（附加项 999 为兜底值不作分母） */
-  private hasScoreBar(item: ZcpIndicator): boolean {
-    if (item.category === '附加项' || item.scoreText.length === 0) {
-      return false;
-    }
-    const cap: number = Number.parseFloat(item.capText);
-    if (Number.isNaN(cap) || cap <= 0 || cap === 999) {
-      return false;
-    }
-    return true;
-  }
-
-  private scoreBarValue(item: ZcpIndicator): number {
-    const value: number = Number.parseFloat(item.scoreText);
-    return Number.isNaN(value) ? 0 : value;
-  }
-
-  private scoreBarTotal(item: ZcpIndicator): number {
-    const total: number = Number.parseFloat(item.capText);
-    return Number.isNaN(total) || total <= 0 ? 100 : total;
-  }
-
   /** 顶带副标题：状态/无批次/获取中（获取失败时由页面内错误卡片与离线提示条反馈，顶带不显示红字） */
   private bandSubtitle(): string {
-    if (this.phase === 'bootstrap') {
-      return '正在建立综评会话…';
-    }
-    if (this.phase === 'loading') {
-      return '正在获取综评数据…';
-    }
+    if (this.phase === 'bootstrap') { return '正在建立综评会话…'; }
+    if (this.phase === 'loading') { return '正在获取综评数据…'; }
     const loaded: ZcpResult | null = this.result;
-    if (loaded === null) {
-      return '综评成绩查询';
-    }
-    if (!loaded.hasContext) {
-      return '当前无参评批次';
-    }
-    return loaded.process.statusDisplay();
-  }
-
-  @Builder
-  loadingCard(text: string) {
-    Column({ space: 12 }) {
-      LoadingProgress()
-        .width(36)
-        .height(36)
-        .color($r('sys.color.ohos_id_color_text_primary_activated'))
-      Text(text)
-        .fontSize(14)
-        .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-    }
-    .width('100%')
-    .padding({ top: 48, bottom: 48 })
-    .alignItems(HorizontalAlign.Center)
-    .borderRadius(16)
-    .backgroundColor($r('app.color.card_background'))
-  }
-
-  @Builder
-  errorCard() {
-    Column({ space: 12 }) {
-      SymbolGlyph($r('sys.symbol.exclamationmark_circle'))
-        .fontSize(36)
-        .fontColor([$r('sys.color.ohos_id_color_warning')])
-      Text(this.errorText)
-        .fontSize(14)
-        .fontColor($r('sys.color.ohos_id_color_text_primary'))
-        .textAlign(TextAlign.Center)
-      Text('重新获取')
-        .fontSize(15)
-        .fontWeight(FontWeight.Medium)
-        .fontColor(Color.White)
-        .padding({ left: 24, right: 24, top: 10, bottom: 10 })
-        .borderRadius(20)
-        .backgroundColor($r('sys.color.ohos_id_color_text_primary_activated'))
-        .onClick(() => {
-          this.retry();
-        })
-    }
-    .width('100%')
-    .padding({ left: 16, right: 16, top: 36, bottom: 36 })
-    .alignItems(HorizontalAlign.Center)
-    .borderRadius(16)
-    .backgroundColor($r('app.color.card_background'))
-  }
-
-  @Builder
-  idleCard() {
-    Column({ space: 12 }) {
-      Text('综评数据未加载')
-        .fontSize(15)
-        .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-      Text('获取综评成绩')
-        .fontSize(15)
-        .fontWeight(FontWeight.Medium)
-        .fontColor(Color.White)
-        .padding({ left: 24, right: 24, top: 10, bottom: 10 })
-        .borderRadius(20)
-        .backgroundColor($r('sys.color.ohos_id_color_text_primary_activated'))
-        .onClick(() => {
-          this.retry();
-        })
-    }
-    .width('100%')
-    .padding({ top: 36, bottom: 36 })
-    .alignItems(HorizontalAlign.Center)
-    .borderRadius(16)
-    .backgroundColor($r('app.color.card_background'))
-  }
-
-  /** 上下文信息行（label 值为空时不渲染在调用处保证） */
-  @Builder
-  ctxRow(label: string, value: string) {
-    Row() {
-      Text(label)
-        .fontSize(13)
-        .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-      Blank()
-      Text(value)
-        .fontSize(13)
-        .fontColor($r('sys.color.ohos_id_color_text_primary'))
-        .maxLines(1)
-        .textOverflow({ overflow: TextOverflow.Ellipsis })
-        .constraintSize({ maxWidth: '68%' })
-    }
-    .width('100%')
-    .padding({ top: 6, bottom: 6 })
-  }
-
-  @Builder
-  ctxCard(result: ZcpResult) {
-    Column() {
-      Row({ space: 8 }) {
-        Text(result.context.batchName.length > 0 ? result.context.batchName : '当前批次')
-          .fontSize(16)
-          .fontWeight(FontWeight.Bold)
-          .fontColor($r('sys.color.ohos_id_color_text_primary'))
-          .layoutWeight(1)
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-        Text(result.process.statusDisplay())
-          .fontSize(13)
-          .fontWeight(FontWeight.Medium)
-          .fontColor(this.statusTextColor(result))
-          .padding({ left: 10, right: 10, top: 4, bottom: 4 })
-          .borderRadius(12)
-          .backgroundColor(this.statusBgColor(result))
-      }
-      .width('100%')
-      .alignItems(VerticalAlign.Center)
-      if (result.context.termDisplay.length > 0) {
-        this.ctxRow('学年学期', result.context.termDisplay)
-      }
-      if (result.context.targetName.length > 0) {
-        this.ctxRow('参评对象', result.context.targetName)
-      }
-      if (result.context.fillWindow.length > 0) {
-        this.ctxRow('填写时间', result.context.fillWindow)
-      }
-      if (result.context.auditWindow.length > 0) {
-        this.ctxRow('审核时间', result.context.auditWindow)
-      }
-      if (result.process.state === 3 && result.process.rejectReason.length > 0) {
-        Text('退回原因：' + result.process.rejectReason)
-          .fontSize(13)
-          .fontColor(STATUS_REJECT_COLOR)
-          .width('100%')
-          .padding({ top: 6, bottom: 6 })
-      }
-      if (!result.context.windowOpen) {
-        Text('测评填写时间已关闭，以下为当前批次归档数据，仅供参考')
-          .fontSize(12)
-          .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-          .width('100%')
-          .padding({ top: 4 })
-      }
-    }
-    .width('100%')
-    .alignItems(HorizontalAlign.Start)
-    .padding({ left: 16, right: 16, top: 12, bottom: 12 })
-    .borderRadius(16)
-    .backgroundColor($r('app.color.card_background'))
-    .geometryTransition('zcp-ctx')
-    .transition(TransitionEffect.OPACITY)
-  }
-
-  /** 附加项行是否可展开明细（展示展开图标） */
-  private isExpandable(item: ZcpIndicator): boolean {
-    return item.category === '附加项';
-  }
-
-  /** 行左侧展开箭头（展开时旋转 180°） */
-  @Builder
-  expandChevron(item: ZcpIndicator, size: number) {
-    SymbolGlyph($r('sys.symbol.chevron_down'))
-      .fontSize(size)
-      .fontColor([$r('sys.color.ohos_id_color_text_secondary')])
-      .rotate({ angle: this.detailZbdm === item.zbdm ? 180 : 0 })
-      .margin({ right: 4 })
-  }
-
-  /** 附加分明细展开区（挂在被点击的附加项行下方） */
-  @Builder
-  detailArea(item: ZcpIndicator) {
-    Column({ space: 8 }) {
-      if (this.detailLoading) {
-        Row({ space: 8 }) {
-          LoadingProgress()
-            .width(16)
-            .height(16)
-            .color($r('sys.color.ohos_id_color_text_secondary'))
-          Text('正在加载附加分明细…')
-            .fontSize(12)
-            .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-        }
-        .alignItems(VerticalAlign.Center)
-      } else if (this.detailItems.length === 0) {
-        Text('暂无附加分明细')
-          .fontSize(12)
-          .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-      } else {
-        ForEach(this.detailItems, (detail: ZcpDetailItem) => {
-          Column({ space: 3 }) {
-            Row() {
-              Text(detail.name)
-                .fontSize(13)
-                .fontWeight(FontWeight.Medium)
-                .fontColor($r('sys.color.ohos_id_color_text_primary'))
-                .layoutWeight(1)
-                .maxLines(1)
-                .textOverflow({ overflow: TextOverflow.Ellipsis })
-              Text(detail.score)
-                .fontSize(13)
-                .fontWeight(FontWeight.Bold)
-                .fontColor(STATUS_PASS_COLOR)
-                .margin({ left: 8 })
-            }
-            .width('100%')
-            .alignItems(VerticalAlign.Center)
-            Row({ space: 8 }) {
-              if (detail.category.length > 0) {
-                Text(detail.category)
-                  .fontSize(11)
-                  .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-              }
-              if (detail.status.length > 0) {
-                Text(detail.status)
-                  .fontSize(11)
-                  .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-              }
-            }
-            .width('100%')
-            if (detail.note.length > 0) {
-              Text(detail.note)
-                .fontSize(11)
-                .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-                .width('100%')
-            }
-            if (detail.rule.length > 0) {
-              Text(detail.rule)
-                .fontSize(11)
-                .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-                .width('100%')
-            }
-          }
-          .width('100%')
-          .alignItems(HorizontalAlign.Start)
-          .padding({ left: 10, right: 10, top: 6, bottom: 6 })
-          .borderRadius(10)
-          .backgroundColor($r('sys.color.comp_background_tertiary'))
-        }, (detail: ZcpDetailItem) => detail.name + detail.score + detail.status)
-      }
-    }
-    .width('100%')
-    .alignItems(HorizontalAlign.Start)
-    .padding({ left: 26, right: 4, top: 4, bottom: 8 })
-  }
-
-  /** 三级指标行（挂在二级行下，缩进展示） */
-  @Builder
-  level3Row(item: ZcpIndicator) {
-    Column() {
-      Row() {
-        if (this.isExpandable(item)) {
-          this.expandChevron(item, 14)
-        }
-        Text(item.name)
-          .fontSize(13)
-          .fontColor($r('sys.color.ohos_id_color_text_primary'))
-          .layoutWeight(1)
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-        Text(this.indicatorLabel(item))
-          .fontSize(13)
-          .fontColor(this.indicatorValueColor(item))
-          .margin({ left: 8 })
-      }
-      .width('100%')
-      .alignItems(VerticalAlign.Center)
-      .padding({ top: 6, bottom: 6 })
-      if (this.hasScoreBar(item)) {
-        Progress({ value: this.scoreBarValue(item), total: this.scoreBarTotal(item), type: ProgressType.Linear })
-          .width('100%')
-          .height(4)
-          .color($r('sys.color.ohos_id_color_text_primary_activated'))
-          .borderRadius(2)
-          .padding({ bottom: 4 })
-      }
-      if (this.detailZbdm === item.zbdm) {
-        this.detailArea(item)
-      }
-    }
-    .width('100%')
-    .alignItems(HorizontalAlign.Start)
-    .padding({ left: 26 })
-    .onClick(() => {
-      this.toggleDetail(item);
-    })
-  }
-
-  /** 二级指标行（附加项可点击展开明细） */
-  @Builder
-  level2Row(item: ZcpIndicator) {
-    Column() {
-      Row() {
-        if (this.isExpandable(item)) {
-          this.expandChevron(item, 16)
-        }
-        Column({ space: 2 }) {
-          Text(item.name)
-            .fontSize(14)
-            .fontWeight(FontWeight.Medium)
-            .fontColor($r('sys.color.ohos_id_color_text_primary'))
-            .maxLines(1)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
-          if (item.note.length > 0) {
-            Text(item.note)
-              .fontSize(11)
-              .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-              .maxLines(2)
-              .textOverflow({ overflow: TextOverflow.Ellipsis })
-          }
-        }
-        .layoutWeight(1)
-        .alignItems(HorizontalAlign.Start)
-        Text(this.indicatorLabel(item))
-          .fontSize(14)
-          .fontWeight(FontWeight.Bold)
-          .fontColor(this.indicatorValueColor(item))
-          .margin({ left: 8 })
-      }
-      .width('100%')
-      .alignItems(VerticalAlign.Center)
-      .padding({ top: 8, bottom: 4 })
-      if (this.hasScoreBar(item)) {
-        Progress({ value: this.scoreBarValue(item), total: this.scoreBarTotal(item), type: ProgressType.Linear })
-          .width('100%')
-          .height(5)
-          .color($r('sys.color.ohos_id_color_text_primary_activated'))
-          .borderRadius(2.5)
-      }
-      ForEach(item.children, (child: ZcpIndicator) => {
-        this.level3Row(child)
-      }, (child: ZcpIndicator) => child.zbdm + child.name + child.scoreText)
-      if (this.detailZbdm === item.zbdm) {
-        this.detailArea(item)
-      }
-    }
-    .width('100%')
-    .alignItems(HorizontalAlign.Start)
-    .padding({ left: 8 })
-    .onClick(() => {
-      this.toggleDetail(item);
-    })
-  }
-
-  /** 多维图数据：二级素质维度中得分与满分均可解析的条目（附加项 999 兜底上限排除）。
-   * 一级「综合素质」为计算项无得分，雷达轴取其下二级指标（get23zbScore 回填源，实测 8 项）。 */
-  private radarEntries(result: ZcpResult): RadarEntry[] {
-    const list: RadarEntry[] = [];
-    for (const root of result.indicators) {
-      for (const item of root.children) {
-        if (item.category === '附加项') {
-          continue;
-        }
-        const scoreSource: string = item.scoreText.length > 0 ? item.scoreText : item.fixedScore;
-        if (scoreSource.length === 0) {
-          continue;
-        }
-        const score: number = Number.parseFloat(scoreSource);
-        const cap: number = Number.parseFloat(item.capText);
-        if (Number.isNaN(score) || Number.isNaN(cap) || cap <= 0 || cap === 999) {
-          continue;
-        }
-        const entry: RadarEntry = new RadarEntry();
-        entry.name = item.name;
-        entry.scoreText = `${score}`;
-        entry.capText = `${cap}`;
-        const ratio: number = score / cap;
-        entry.value = ratio < 0 ? 0 : (ratio > 1 ? 1 : ratio);
-        list.push(entry);
-      }
-    }
-    return list;
-  }
-
-  /** 素质得分多维图卡片：有效维度 ≥3 时展示雷达图 */
-  @Builder
-  radarCard(result: ZcpResult) {
-    if (this.radarEntries(result).length >= 3) {
-      Column() {
-        Text('素质得分多维图')
-          .fontSize(16)
-          .fontWeight(FontWeight.Bold)
-          .fontColor($r('sys.color.ohos_id_color_text_primary'))
-          .width('100%')
-          .padding({ bottom: 4 })
-        ZcpRadarChart({ entries: this.radarEntries(result) })
-      }
-      .width('100%')
-      .alignItems(HorizontalAlign.Start)
-      .margin({ top: 12 })
-      .padding({ left: 16, right: 16, top: 12, bottom: 8 })
-      .borderRadius(16)
-      .backgroundColor($r('app.color.card_background'))
-      .geometryTransition('zcp-radar')
-      .transition(TransitionEffect.OPACITY)
-    }
-  }
-
-  /** 一级指标卡片：指标名 + 占比 + 二级明细 */
-  @Builder
-  indicatorCard(root: ZcpIndicator) {
-    Column() {
-      Row() {
-        Text(root.name)
-          .fontSize(16)
-          .fontWeight(FontWeight.Bold)
-          .fontColor($r('sys.color.ohos_id_color_text_primary'))
-          .layoutWeight(1)
-          .maxLines(1)
-          .textOverflow({ overflow: TextOverflow.Ellipsis })
-        Text(this.indicatorLabel(root))
-          .fontSize(13)
-          .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-          .margin({ left: 8 })
-      }
-      .width('100%')
-      .alignItems(VerticalAlign.Center)
-      .padding({ bottom: 4 })
-      Divider()
-        .color($r('sys.color.ohos_id_color_button_normal'))
-        .strokeWidth(1)
-        .margin({ bottom: 2 })
-      ForEach(root.children, (child: ZcpIndicator) => {
-        this.level2Row(child)
-      }, (child: ZcpIndicator) => child.zbdm + child.name + child.scoreText)
-      if (root.children.length === 0) {
-        Text('暂无子指标')
-          .fontSize(12)
-          .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-          .padding({ top: 6, bottom: 6 })
-      }
-    }
-    .width('100%')
-    .alignItems(HorizontalAlign.Start)
-    .margin({ top: 12 })
-    .padding({ left: 16, right: 16, top: 12, bottom: 10 })
-    .borderRadius(16)
-    .backgroundColor($r('app.color.card_background'))
-    .geometryTransition('zcp-ind-' + root.zbdm)
-    .transition(TransitionEffect.OPACITY)
-  }
-
-  /** 离线数据提示条：当前展示本地缓存数据时置顶提示，点击重试在线刷新 */
-  @Builder
-  offlineBanner() {
-    Row({ space: 10 }) {
-      SymbolGlyph($r('sys.symbol.exclamationmark_circle'))
-        .fontSize(20)
-        .fontColor([$r('sys.color.ohos_id_color_warning')])
-      Column({ space: 2 }) {
-        Text('正在使用离线数据')
-          .fontSize(14)
-          .fontWeight(FontWeight.Medium)
-          .fontColor($r('sys.color.ohos_id_color_text_primary'))
-        Text(this.dataMode === 'offlineCache' ?
-          '当前展示本地缓存，重新登录后自动更新' :
-          '当前展示本地缓存，联网刷新成功后自动更新')
-          .fontSize(11)
-          .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-      }
-      .alignItems(HorizontalAlign.Start)
-      .layoutWeight(1)
-      Text(this.dataMode === 'offlineCache' ? '去登录' : '重试')
-        .fontSize(13)
-        .fontWeight(FontWeight.Medium)
-        .fontColor($r('sys.color.ohos_id_color_text_primary_activated'))
-    }
-    .width('100%')
-    .alignItems(VerticalAlign.Center)
-    .padding({ left: 14, right: 14, top: 10, bottom: 10 })
-    .borderRadius(12)
-    .backgroundColor($r('sys.color.comp_background_tertiary'))
-    .margin({ bottom: 10 })
-    .geometryTransition('zcp-banner')
-    .transition(TransitionEffect.OPACITY)
-    .onAreaChange((oldArea: Area, newArea: Area) => {
-      this.bannerHeightVp = typeof newArea.height === 'number' ? newArea.height : 0;
-    })
-    .onClick(() => {
-      if (this.dataMode === 'offlineCache') {
-        this.goLogin();
-      } else {
-        this.retry();
-      }
-    })
-  }
-
-  /**
-   * 平板横屏双列布局：左列（批次上下文卡 + 雷达图）固定不随滚动，
-   * 右列（一级指标明细卡）独立滚动；左右宽度比与首页横屏一致。
-   * 离线横幅不在此处渲染，由外层内容顶部横跨双列全宽展示。
-   * 双列行高按外层滚动视口与横幅块高精确计算，使外层 Scroll 恰好不滚（左列保持不动），
-   * 内层滚动经 SELF_FIRST 延伸到外层，下拉刷新仍然可用。
-   */
-  @Builder
-  wideContent(result: ZcpResult) {
-    Row() {
-      Scroll() {
-        Column() {
-          this.ctxCard(result)
-          this.radarCard(result)
-        }
-        .width('100%')
-        .alignItems(HorizontalAlign.Start)
-        .padding({ bottom: 16 })
-      }
-      .width(360)
-      .height('100%')
-      .align(Alignment.Top)
-      .scrollBar(BarState.Off)
-      .edgeEffect(EdgeEffect.Spring)
-      .nestedScroll({ scrollForward: NestedScrollMode.SELF_FIRST, scrollBackward: NestedScrollMode.SELF_FIRST })
-
-      Scroll() {
-        Column() {
-          ForEach(result.indicators, (root: ZcpIndicator) => {
-            this.indicatorCard(root)
-          }, (root: ZcpIndicator) => root.zbdm + root.name + root.scoreText)
-          if (result.indicators.length === 0) {
-            Text('暂无测评指标数据')
-              .fontSize(13)
-              .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-              .padding({ top: 16, bottom: 16 })
-              .geometryTransition('zcp-empty')
-              .transition(TransitionEffect.OPACITY)
-          }
-          Text('以上为当前批次数据，最终成绩以学校系统为准')
-            .fontSize(12)
-            .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-            .padding({ top: 12, bottom: 12 })
-            .geometryTransition('zcp-footer')
-            .transition(TransitionEffect.OPACITY)
-        }
-        .width('100%')
-        .alignItems(HorizontalAlign.Start)
-        .padding({ bottom: this.bottomInset() })
-      }
-      .layoutWeight(1)
-      .height('100%')
-      .align(Alignment.Top)
-      .padding({ left: 16 })
-      .scrollBar(BarState.Off)
-      .edgeEffect(EdgeEffect.Spring)
-      .nestedScroll({ scrollForward: NestedScrollMode.SELF_FIRST, scrollBackward: NestedScrollMode.SELF_FIRST })
-    }
-    .width('100%')
-    .height(this.wideRowHeight())
-    .alignItems(VerticalAlign.Top)
-    .constraintSize({ maxWidth: 1200 })
-    .alignSelf(ItemAlign.Center)
+    if (loaded === null) { return '综评成绩查询'; }
+    return loaded.hasContext ? loaded.process.statusDisplay() : '当前无参评批次';
   }
 
   build() {
@@ -1046,21 +351,26 @@ export struct ZcpView {
             // 离线横幅恒在外层内容顶部：单列全宽，双列横跨左右两列上方全宽；
             // 宽屏行高按实测横幅块高扣减（wideRowHeight），外层 Scroll 仍恰好不滚
             if (this.result.fromCache || this.dataMode === 'offlineCache') {
-              this.offlineBanner()
+              ZcpOfflineBanner(this.dataMode, (): void => this.goLogin(), (): void => this.retry(),
+                (heightVp: number): void => {
+                  this.bannerHeightVp = heightVp;
+                })
             }
             if (this.isWide() && this.result.hasContext) {
-              this.wideContent(this.result)
+              ZcpWideContent(this.result, this.wideRowHeight(), this.bottomInset(), this.detailZbdm,
+                this.detailItems, this.detailLoading, (item: ZcpIndicator): Promise<void> => this.toggleDetail(item))
             } else {
-              this.ctxCard(this.result)
+              ZcpCtxCard(this.result)
               if (!this.result.hasContext) {
                 Text('当前学期暂无综评批次（未开放或无参评资格）')
                   .fontSize(13)
                   .fontColor($r('sys.color.ohos_id_color_text_secondary'))
                   .padding({ top: 16, bottom: 16 })
               } else {
-                this.radarCard(this.result)
+                ZcpRadarCard(this.result)
                 ForEach(this.result.indicators, (root: ZcpIndicator) => {
-                  this.indicatorCard(root)
+                  ZcpIndicatorCard(root, this.detailZbdm, this.detailItems, this.detailLoading,
+                    (item: ZcpIndicator): Promise<void> => this.toggleDetail(item))
                 }, (root: ZcpIndicator) => root.zbdm + root.name + root.scoreText)
                 if (this.result.indicators.length === 0) {
                   Text('暂无测评指标数据')
@@ -1079,11 +389,11 @@ export struct ZcpView {
               }
             }
           } else if (this.phase === 'bootstrap' || this.phase === 'loading') {
-            this.loadingCard(this.phase === 'bootstrap' ? '正在建立综评会话…' : '正在获取综评数据…')
+            ZcpLoadingCard(this.phase === 'bootstrap' ? '正在建立综评会话…' : '正在获取综评数据…')
           } else if (this.phase === 'error') {
-            this.errorCard()
+            ZcpErrorCard(this.errorText, (): void => this.retry())
           } else {
-            this.idleCard()
+            ZcpIdleCard((): void => this.retry())
           }
         }
         .padding({
@@ -1128,12 +438,8 @@ export struct ZcpView {
           .opacity(0)
           .javaScriptAccess(true)
           .domStorageAccess(true)
-          .onPageEnd(() => {
-            this.onBootstrapPageEnd();
-          })
-          .onErrorReceive((event: OnErrorReceiveEvent) => {
-            this.onBootstrapError(event);
-          })
+          .onPageEnd((): void => this.onBootstrapPageEnd())
+          .onErrorReceive((event: OnErrorReceiveEvent): void => this.onBootstrapError(event))
       }
     }
     .width('100%')
