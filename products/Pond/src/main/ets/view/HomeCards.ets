@@ -288,7 +288,7 @@ export function HomeFinalExamCard(params: HomeFinalExamCardParams) {
 
     ForEach(params.exams, (entry: FinalExamEntry) => {
       HomeFinalExamRow(entry, params.colorOf(entry.courseName), params.daysOf(entry))
-    }, (entry: FinalExamEntry) => 'exam' + entry.courseName + entry.examDate)
+    }, (entry: FinalExamEntry) => 'exam' + entry.courseName + entry.examDate + ':' + params.daysOf(entry))
   }
   .width('100%')
   .alignItems(HorizontalAlign.Start)

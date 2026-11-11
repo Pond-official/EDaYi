@@ -51,7 +51,8 @@ export struct AppLogCard {
             AppLog.clear();
           })
         Blank()
-        Text(`共 ${AppLog.count()} 条`)
+        // 显式引用 appLogRevision 建立状态依赖，写入/清空后计数随版本号刷新
+        Text(`共 ${this.appLogRevision >= 0 ? AppLog.count() : 0} 条`)
           .fontSize(11)
           .fontColor($r('sys.color.ohos_id_color_text_secondary'))
       }
