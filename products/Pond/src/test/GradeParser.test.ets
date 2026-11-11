@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@ohos/hypium';
-import { parseGrades, parseGradeRow, parseGradeCategories, isPassedScore, rawNumber } from '../main/ets/jwxt/parsers/GradeParser';
+import { parseGrades, parseGradeRow, parseGradeCategories, isPassedScore, rawNumber, stripCourseCodeSuffix } from '../main/ets/jwxt/parsers/GradeParser';
 import { GradeEntry } from '../main/ets/model/JwModels';
 import { FanTreeRaw, GradeItemRaw } from '../main/ets/model/JwRawModels';
 
@@ -94,6 +94,53 @@ export default function gradeParserTest() {
         expect(grade.courseName).assertEqual('库视图课');
         expect(grade.scoreView).assertEqual('80');
       }
+    });
+    it('stripCourseCodeSuffix_removes_trailing_code', 0, () => {
+      expect(stripCourseCodeSuffix('医用高等数学[w1800033]')).assertEqual('医用高等数学');
+      expect(stripCourseCodeSuffix('医学导论（限）[w3210652]')).assertEqual('医学导论（限）');
+      expect(stripCourseCodeSuffix('无括号课程')).assertEqual('无括号课程');
+      expect(stripCourseCodeSuffix('[w1800033]')).assertEqual('[w1800033]');
+      expect(stripCourseCodeSuffix('')).assertEqual('');
+    });
+    it('parseGradeRow_tdkcm_fallback_when_kcm_null', 0, () => {
+      const item: GradeItemRaw = {
+        TDKCM: '人体系统解剖学[w1100051]',
+        CJ: '61.6',
+        JD: 1.16,
+        XF: 4,
+        XKXNXQDM: '2025-2026-1',
+        KCXZDM_DISPLAY: '必修课',
+        KSLXDM_DISPLAY: '考试'
+      };
+      const grade: GradeEntry | null = parseGradeRow(item);
+      expect(grade === null).assertFalse();
+      if (grade !== null) {
+        expect(grade.courseName).assertEqual('人体系统解剖学');
+        expect(grade.scoreView).assertEqual('61.6');
+        expect(grade.credit).assertEqual(4);
+        expect(grade.termCode).assertEqual('2025-2026-1');
+        expect(grade.passed).assertTrue();
+      }
+    });
+    it('parseGradeRow_kcm_priority_over_tdkcm', 0, () => {
+      const item: GradeItemRaw = { KCM: '库视图课', TDKCM: '替代课[w1]', CJ: '80' };
+      const grade: GradeEntry | null = parseGradeRow(item);
+      expect(grade === null).assertFalse();
+      if (grade !== null) {
+        expect(grade.courseName).assertEqual('库视图课');
+      }
+    });
+    it('parseGrades_substitution_rows_parsed', 0, () => {
+      const items: GradeItemRaw[] = [
+        { TDKCM: '医用高等数学[w1800033]', CJ: '不及格', XKXNXQDM: '2025-2026-1' },
+        { TDKCM: '大学英语Ⅱ[w4410221]', CJ: '77', XKXNXQDM: '2025-2026-2' }
+      ];
+      const result: GradeEntry[] = parseGrades(items);
+      expect(result.length).assertEqual(2);
+      expect(result[0].courseName).assertEqual('医用高等数学');
+      expect(result[0].passed).assertFalse();
+      expect(result[1].courseName).assertEqual('大学英语Ⅱ');
+      expect(result[1].scoreView).assertEqual('77');
     });
     it('parseGrades_empty_for_null_or_undefined', 0, () => {
       expect(parseGrades(undefined).length).assertEqual(0);

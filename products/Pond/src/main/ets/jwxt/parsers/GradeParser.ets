@@ -30,13 +30,32 @@ export function isPassedScore(scoreView: string): boolean {
 }
 
 /**
+ * 成绩替代行课程名形如「课程名[课程号]」，去掉尾部课程号括号段后返回；
+ * 非该形态（无尾括号、括号在首位或空串）原样返回。
+ */
+export function stripCourseCodeSuffix(name: string): string {
+  if (!name.endsWith(']')) {
+    return name;
+  }
+  const open: number = name.lastIndexOf('[');
+  if (open <= 0) {
+    return name;
+  }
+  return name.substring(0, open);
+}
+
+/**
  * 单行成绩解析，兼容两套视图：
  * - 40 字段库视图（KCM/CJ/JD/XF/XKXNXQDM/KCXZDM_DISPLAY）优先；
+ * - 成绩替代行 KCM 为空时回退 TDKCM（替代课程名，去尾部课程号括号）；
  * - 驼峰视图（courseName/scoreView/gpa/credit/courseSelectionSchoolYearTermCode）兜底。
  * 未出分（空）与成绩为 0 的行丢弃；行内无课程名返回 null。
  */
 export function parseGradeRow(item: GradeItemRaw): GradeEntry | null {
-  const name40: string = item.KCM ?? '';
+  let name40: string = item.KCM ?? '';
+  if (name40.length === 0) {
+    name40 = stripCourseCodeSuffix(item.TDKCM ?? '');
+  }
   if (name40.length > 0) {
     const scoreView: string = item.CJ ?? '';
     if (scoreView.length === 0 || scoreView === '0') {

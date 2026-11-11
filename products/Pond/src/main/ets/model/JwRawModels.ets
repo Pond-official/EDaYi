@@ -113,6 +113,10 @@ export interface FanCategoryRaw {
 export interface GradeItemRaw {
   KCH?: string;
   KCM?: string;
+  /** 成绩替代行的替代课程名（形如「课程名[课程号]」，KCM 为空时回退使用） */
+  TDKCM?: string;
+  /** 成绩替代行的替代课程号 */
+  TDKCH?: string;
   XF?: string | number;
   CJ?: string;
   FSCJ?: string;
