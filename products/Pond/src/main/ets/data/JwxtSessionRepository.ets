@@ -14,6 +14,7 @@ import { ZcpRepository } from './ZcpRepository';
 import { PrivacyController } from './PrivacyController';
 import { JwxtCacheStore } from './JwxtCacheStore';
 import { JW_APP_ROOT, postForm, getForm, getContext, attachContext as transportAttachContext, clearLastCookie } from '../net/JwTransport';
+import { CrossDomainSession } from '../net/CrossDomainSession';
 
 const JW_LOGIN_URL: string = JW_APP_ROOT + '/sys/homeapp/index.do';
 const JW_CURRENT_USER: string = '/sys/homeapp/api/home/currentUser.do';
@@ -227,6 +228,8 @@ export class JwxtSessionRepository {
       const err: BusinessError = error as BusinessError;
       AppLog.error(DOMAIN, TAG, "clearAllCookiesSync failed: %{public}s %{public}s", `${err.code}`, `${err.message}`);
     }
+    // Cookie 已清空，跨域换票就绪集必须同步失效，否则下次进综评会跳过引导直接撞 401
+    CrossDomainSession.reset();
     clearLastCookie();
     const mode: string = PrivacyController.privacyMode();
     if (mode === 'standard') {

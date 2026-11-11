@@ -1,19 +1,18 @@
-import { webview } from '@kit.ArkWeb';
 import { display, window } from '@kit.ArkUI';
 import { ZcpDetailItem, ZcpIndicator, ZcpResult } from '../model/ZcpModels';
 import { ZcpRepository, ZCP_SESSION_INVALID_ERROR } from '../data/ZcpRepository';
 import { FrostBand, FROST_BAND_HEIGHT, frostTopInsetVp } from './FrostBand';
 import { plainError, ZcpCtxCard, ZcpErrorCard, ZcpIdleCard, ZcpLoadingCard, ZcpOfflineBanner, ZcpRadarCard } from './ZcpCards';
 import { ZcpIndicatorCard, ZcpWideContent } from './ZcpIndicatorCards';
-
-/** 隐藏 Web 单点引导超时（毫秒） */
-const BOOTSTRAP_TIMEOUT: number = 20000;
+import { CrossDomainSession } from '../net/CrossDomainSession';
+import { DOMAIN_XGFW } from '../net/DomainSpec';
 
 /**
  * 综评页：综合测评成绩查询（学生综合服务系统 xgfw.dmu.edu.cn）。
- * 会话建立（Web 单点引导）：综评不在教务（jwxt）域而在 xgfw 域，
+ * 会话建立（跨域换票）：综评不在教务（jwxt）域而在 xgfw 域，
  * 教务登录仅持有 CAS 的 CASTGC，xgfw 会话从未建立，
- * 首次进入时以 1×1 隐藏 Web 组件加载综评页面入口，
+ * 首次进入时经全 App 唯一的跨域会话服务（net/CrossDomainSession，
+ * 由根页面 pages/Index 常驻的 1×1 隐藏 Web 承载）加载综评页面入口，
  * 由 WebView 完成 CAS→xgfw 的单点重定向链并把 _WEU/JSESSIONID 落入 Cookie 存储，
  * 落在 CAS 登录页说明教务会话已过期，引导用户先去「首页」登录；
  * 会话建立后由原生 HTTP（ZcpRepository）完成两步角色切换与只读业务查询。
@@ -29,20 +28,16 @@ export struct ZcpView {
   @StorageProp('jwZcpTabActive') @Watch('onTabActive') zcpTabActive: boolean = false;
   /** 综评查询结果（仅内存态，隐私清理/退出登录时置空） */
   @StorageProp('jwZcpResult') @Watch('onResultChanged') result: ZcpResult | null = null;
-  /** idle=未加载 bootstrap=Web 单点引导中 loading=业务拉取中 error=失败 */
+  /** idle=未加载 bootstrap=跨域换票中 loading=业务拉取中 error=失败 */
   @State phase: string = 'idle';
   @State errorText: string = '';
   @State isRefreshing: boolean = false;
   /** 状态栏避让区高度（px）：沉浸式全屏下内容顶部让位计算用 */
   @StorageProp('jwSafeTopPx') safeTopPx: number = 0;
-  /** 隐藏 Web 单点引导是否进行中（条件渲染隐藏 Web 的开关） */
-  @State bootstrapRunning: boolean = false;
   /** 展开附加分明细的指标代码（空串 = 无展开） */
   @State detailZbdm: string = '';
   @State detailItems: ZcpDetailItem[] = [];
   @State detailLoading: boolean = false;
-  private webController: webview.WebviewController = new webview.WebviewController();
-  private bootstrapTimer: number = -1;
   /** Refresh 布局高度：初始取屏幕高度，旋转后由窗口尺寸事件刷新（display 快照在旋转瞬间滞后） */
   @State refreshHeight: Length = '100%';
   /** 窗口宽高（px）：横竖屏方向判定；启动时取 display 快照，旋转后由窗口尺寸事件刷新 */
@@ -66,7 +61,6 @@ export struct ZcpView {
   }
 
   aboutToDisappear(): void {
-    this.clearBootstrapTimer();
     this.unbindWindowHeight();
   }
 
@@ -82,7 +76,7 @@ export struct ZcpView {
 
   /** 加载入口：页签可见且无在途任务时启动；优先回放本地临时缓存，再在线刷新 */
   private loadIfNeeded(): void {
-    if (!this.zcpTabActive || this.bootstrapRunning || this.phase === 'bootstrap' || this.phase === 'loading') {
+    if (!this.zcpTabActive || this.phase === 'bootstrap' || this.phase === 'loading') {
       return;
     }
     if (this.result === null) {
@@ -98,7 +92,7 @@ export struct ZcpView {
 
   /** 手动重试（错误卡片/未加载卡片的按钮）：清空错误后重新启动 */
   private retry(): void {
-    if (this.phase === 'bootstrap' || this.phase === 'loading' || this.bootstrapRunning) { return; }
+    if (this.phase === 'bootstrap' || this.phase === 'loading') { return; }
     this.errorText = '';
     this.start();
   }
@@ -118,74 +112,28 @@ export struct ZcpView {
       }
       return;
     }
-    if (this.phase === 'bootstrap' || this.phase === 'loading' || this.bootstrapRunning) { return; }
+    if (this.phase === 'bootstrap' || this.phase === 'loading') { return; }
     this.errorText = '';
     this.start();
   }
 
-  /** 启动加载：会话已就绪直接拉业务数据，否则先走 Web 单点引导 */
+  /** 启动加载：会话已就绪直接拉业务数据，否则先走跨域换票（隐藏 Web 由根页面常驻承载） */
   private start(): void {
     if (ZcpRepository.isSessionReady()) { this.doLoad(); return; }
-    this.startBootstrap();
+    this.beginLoad();
   }
 
-  /** 开始 Web 单点引导：条件渲染隐藏 Web 加载页面入口，超时兜底 */
-  private startBootstrap(): void {
+  /** 跨域换票后拉业务数据：换票失败（落在 CAS 登录页/超时/加载失败）提示先登录 */
+  private async beginLoad(): Promise<void> {
     this.phase = 'bootstrap';
-    this.bootstrapRunning = true;
-    this.bootstrapTimer = setTimeout(() => {
-      this.onBootstrapTimeout();
-    }, BOOTSTRAP_TIMEOUT);
-  }
-
-  /** 单点引导超时：终止引导并提示重试 */
-  private onBootstrapTimeout(): void {
-    if (!this.bootstrapRunning) { return; }
-    this.finishBootstrap();
-    this.phase = 'error';
-    this.errorText = '网络连接超时，请检查网络后重试';
-  }
-
-  /** 结束单点引导：关闭隐藏 Web 并清理超时定时器 */
-  private finishBootstrap(): void {
-    this.bootstrapRunning = false;
-    this.clearBootstrapTimer();
-  }
-
-  private clearBootstrapTimer(): void {
-    if (this.bootstrapTimer >= 0) { clearTimeout(this.bootstrapTimer); this.bootstrapTimer = -1; }
-  }
-
-  /** Web 页面加载结束：落在 CAS 登录页 = 教务会话过期；落在 xgfw = 单点成功，进入业务拉取 */
-  private onBootstrapPageEnd(): void {
-    if (!this.bootstrapRunning) { return; }
-    let endedUrl: string = '';
-    try {
-      endedUrl = this.webController.getUrl();
-    } catch (error) {
-      endedUrl = '';
-    }
-    if (endedUrl.indexOf('authserver') >= 0) {
-      this.finishBootstrap();
+    const ok: boolean = await CrossDomainSession.ensure(DOMAIN_XGFW);
+    if (!ok) {
       this.phase = 'error';
       this.errorText = '请先在「首页」登录教务系统，再查看综评';
       return;
     }
-    if (endedUrl.indexOf('xgfw.dmu.edu.cn') >= 0) {
-      this.finishBootstrap();
-      ZcpRepository.markSessionReady();
-      this.doLoad();
-    }
-  }
-
-  /** 主文档加载失败（子资源失败不触发）：终止引导并提示重试 */
-  private onBootstrapError(event: OnErrorReceiveEvent): void {
-    if (!this.bootstrapRunning || !event.request.isMainFrame()) {
-      return;
-    }
-    this.finishBootstrap();
-    this.phase = 'error';
-    this.errorText = '网络连接失败，请检查网络后重试';
+    ZcpRepository.markSessionReady();
+    this.doLoad();
   }
 
   /** 业务拉取：角色切换 + 批次上下文 + 状态 + 指标树 + 得分回填；成功写临时缓存，失败回放缓存 */
@@ -200,8 +148,9 @@ export struct ZcpView {
       const err: Error = error as Error;
       const message: string = err.message ?? `${err}`;
       if (message.indexOf(ZCP_SESSION_INVALID_ERROR) >= 0) {
-        // CAS 会话已过期：清除会话标记，下次获取重新走 Web 单点引导
+        // CAS 会话已过期：清除会话标记与跨域就绪集，下次获取重新走隐藏 Web 换票
         ZcpRepository.clearSession();
+        CrossDomainSession.reset();
       }
       if (this.result !== null) {
         // 已在展示数据（缓存回放）时刷新失败保持现状
@@ -429,17 +378,6 @@ export struct ZcpView {
         .height(FROST_BAND_HEIGHT)
         .alignItems(VerticalAlign.Center)
         .padding({ left: 16, right: 16 })
-      }
-
-      if (this.bootstrapRunning) {
-        Web({ src: ZcpRepository.indexUrl(), controller: this.webController })
-          .width(1)
-          .height(1)
-          .opacity(0)
-          .javaScriptAccess(true)
-          .domStorageAccess(true)
-          .onPageEnd((): void => this.onBootstrapPageEnd())
-          .onErrorReceive((event: OnErrorReceiveEvent): void => this.onBootstrapError(event))
       }
     }
     .width('100%')

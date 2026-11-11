@@ -2,6 +2,7 @@ import { BreakpointSystem } from '@ohos/common';
 import { curves, display, SymbolGlyphModifier, uiMaterial } from '@kit.ArkUI';
 import { uiEffect } from '@kit.ArkGraphics2D';
 import { deviceInfo } from '@kit.BasicServicesKit';
+import { webview } from '@kit.ArkWeb';
 import { HdsNavigation, HdsTabs, HdsTabsController, hdsMaterial, SystemMaterialParams } from '@kit.UIDesignKit';
 import { HomeView } from '../view/HomeView';
 import { GradeView } from '../view/GradeView';
@@ -10,6 +11,7 @@ import { SelectionView } from '../view/SelectionView';
 import { SettingsEntryButton } from '../view/SettingsEntryButton';
 import { JwxtRepository } from '../data/JwxtRepository';
 import { MaterialUtils } from '../utils/MaterialUtils';
+import { CrossDomainSession } from '../net/CrossDomainSession';
 import { GLOW_CENTER_COLOR, GLOW_MID_COLOR, GLOW_EDGE_COLOR } from '../theme/AppColors';
 
 const TAB_COUNT: number = 4;
@@ -85,6 +87,8 @@ struct Index {
   private readonly hdsTabsController: HdsTabsController = new HdsTabsController();
   private readonly tabsController: TabsController = new TabsController();
   private readonly breakpointSystem: BreakpointSystem = new BreakpointSystem('mainBreakpoint');
+  /** 跨域会话换票用常驻隐藏 Web 的控制器（CrossDomainSession 全 App 唯一宿主） */
+  private readonly cross: webview.WebviewController = new webview.WebviewController();
 
   aboutToAppear(): void {
     this.breakpointSystem.register(this.getUIContext());
@@ -307,6 +311,33 @@ struct Index {
 
   build() {
     Stack({ alignContent: Alignment.Bottom }) {
+      // 跨域会话换票用 1×1 隐藏 Web（任务 14）：全 App 唯一宿主，常驻整个主框架生命周期。
+      // 必须用 opacity(0.01) 隐藏（Visibility.None 可能导致 Web 不真正加载、onPageEnd 不触发），
+      // 也不能条件渲染（会产生新 controller 使 CrossDomainSession.attach 失效）。
+      Web({ src: 'about:blank', controller: this.cross })
+        .width(1)
+        .height(1)
+        .opacity(0.01)
+        .javaScriptAccess(true)
+        .domStorageAccess(true)
+        .onControllerAttached(() => {
+          CrossDomainSession.attach(this.cross);
+        })
+        .onPageEnd(() => {
+          let endedUrl: string = '';
+          try {
+            endedUrl = this.cross.getUrl();
+          } catch (error) {
+            endedUrl = '';
+          }
+          CrossDomainSession.onPageEnd(endedUrl);
+        })
+        .onErrorReceive((event: OnErrorReceiveEvent) => {
+          if (event.request.isMainFrame()) {
+            CrossDomainSession.onError();
+          }
+        })
+
       if (this.hdsSupported) {
         HdsNavigation() {
           HdsTabs({ controller: this.hdsTabsController }) {
