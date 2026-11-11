@@ -12,3 +12,5 @@
 /.appanalyzer
 build-profile.json5
 .codegenie/
+/.cache
+/.tmp-ui
