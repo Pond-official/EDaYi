@@ -7,7 +7,11 @@ import { CardCellItem, CardDataStore, ReminderSettings } from './CardDataStore';
 import { ReminderScheduler } from './ReminderScheduler';
 import { CacheManager } from './CacheManager';
 import { FinalExamEntry, GradeCategory, GradeEntry, PlanCategory, PlanCourse, ScheduleCellInfo, SectionTimeInfo, StudentProfile, TermStatus } from '../model/JwModels';
-import { AppCacheRaw, CategoryCacheRaw, CellCacheRaw, CurrentUserRaw, FanCategoryRaw, FanTreeRaw, GradeCacheRaw, GradeEnvelopeRaw, GradeItemRaw, GradeReportRaw, PlanCategoryCacheRaw, PlanCourseCacheRaw, ScheduleEnvelopeRaw, ScheduleItemRaw, SectionCacheRaw, SectionItemRaw, StudentBasicRaw, StudentCacheRaw, StudentEnvelopeRaw, StudentFaRaw, TermCacheRaw, TermQueryRaw, TermRowRaw } from '../model/JwRawModels';
+import { AppCacheRaw, CategoryCacheRaw, CellCacheRaw, CurrentUserRaw, GradeCacheRaw, GradeEnvelopeRaw, GradeReportRaw, PlanCategoryCacheRaw, PlanCourseCacheRaw, ScheduleEnvelopeRaw, SectionCacheRaw, StudentCacheRaw, StudentEnvelopeRaw, TermCacheRaw, TermQueryRaw, TermRowRaw } from '../model/JwRawModels';
+import { parseScheduleCells, parseSections, filterCurrentAndNextWeek } from '../jwxt/parsers/ScheduleParser';
+import { parseGrades, parseGradeCategories } from '../jwxt/parsers/GradeParser';
+import { parseTrainingPlan, extractPyfadm } from '../jwxt/parsers/TrainingPlanParser';
+import { parseStudent } from '../jwxt/parsers/StudentParser';
 import { SelectionRepository } from './SelectionRepository';
 import { ZcpRepository } from './ZcpRepository';
 
@@ -764,8 +768,8 @@ export class JwxtRepository {
 
       const studentText: string = await JwxtRepository.postForm(JW_QUERY_STUDENT, '');
       const studentEnvelope: StudentEnvelopeRaw = JSON.parse(studentText) as StudentEnvelopeRaw;
-      const student: StudentProfile = JwxtRepository.parseStudent(studentEnvelope.datas?.queryXsjbxx?.jbxx);
-      const pyfadm: string = JwxtRepository.extractPyfadm(studentEnvelope.datas?.queryXsjbxx?.faArr);
+      const student: StudentProfile = parseStudent(studentEnvelope.datas?.queryXsjbxx?.jbxx);
+      const pyfadm: string = extractPyfadm(studentEnvelope.datas?.queryXsjbxx?.faArr);
       if (userRaw.datas?.userName !== undefined && student.name.length === 0) {
         student.name = userRaw.datas.userName;
       }
@@ -777,14 +781,14 @@ export class JwxtRepository {
         await JwxtRepository.postForm(JW_SCHEDULE_SECTIONS, 'XNXQDM=' + termCode + '&XQDM=1');
       const scheduleEnvelope: ScheduleEnvelopeRaw = JSON.parse(scheduleText) as ScheduleEnvelopeRaw;
       const scheduleCells: ScheduleCellInfo[] =
-        JwxtRepository.parseScheduleCells(scheduleEnvelope.datas?.getMyScheduleDetail?.arrangedList);
+        parseScheduleCells(scheduleEnvelope.datas?.getMyScheduleDetail?.arrangedList);
 
       const sectionsEnvelope: ScheduleEnvelopeRaw = JSON.parse(sectionsText) as ScheduleEnvelopeRaw;
       const sections: SectionTimeInfo[] =
-        JwxtRepository.parseSections(scheduleCells, sectionsEnvelope.datas?.getMySectionList);
+        parseSections(scheduleCells, sectionsEnvelope.datas?.getMySectionList);
       // 仅保留当前周与下一周的课程，不保存整学期课表
       const weeklyCells: ScheduleCellInfo[] =
-        JwxtRepository.filterCurrentAndNextWeek(scheduleCells, currentWeek);
+        filterCurrentAndNextWeek(scheduleCells, currentWeek);
       AppLog.info(DOMAIN, TAG,
         'step: schedule %{public}s -> weekly %{public}s (week %{public}d-%{public}d) sections %{public}s',
         `${scheduleCells.length}`, `${weeklyCells.length}`, `${currentWeek}`, `${currentWeek + 1}`,
@@ -798,9 +802,9 @@ export class JwxtRepository {
           'fromPage=grxyjcbg&PYFADM=' + pyfadm + '&SCLX=04&XDLX=01');
         const gradeEnvelope: GradeEnvelopeRaw = JSON.parse(gradesText) as GradeEnvelopeRaw;
         const report: GradeReportRaw | null | undefined = gradeEnvelope.datas?.queryXyzhbx;
-        grades = JwxtRepository.parseGrades(report?.fawbxMap ?? report?.fawbx);
-        gradeCategories = JwxtRepository.parseGradeCategories(report?.fanbx);
-        trainingPlan = JwxtRepository.parseTrainingPlan(report?.fanbx);
+        grades = parseGrades(report?.fawbxMap ?? report?.fawbx);
+        gradeCategories = parseGradeCategories(report?.fanbx);
+        trainingPlan = parseTrainingPlan(report?.fanbx);
       } else {
         AppLog.error(DOMAIN, TAG, 'faArr empty, skip grades query');
       }
@@ -883,310 +887,5 @@ export class JwxtRepository {
     ZcpRepository.clearSession();
     ZcpRepository.clearCache();
     JwxtRepository.applyEmpty('offline');
-  }
-
-  private static extractPyfadm(faArr?: StudentFaRaw[]): string {
-    if (faArr === undefined || faArr.length === 0) {
-      return '';
-    }
-    for (const fa of faArr) {
-      if (fa.PYFADM !== undefined && fa.PYFADM.length > 0) {
-        return fa.PYFADM;
-      }
-    }
-    return '';
-  }
-
-  /**
-   * 只保留当前周（currentWeek）与下一周（currentWeek+1）有课的课程。
-   * 接口仅支持整学期拉取，此处在客户端按周位图过滤，
-   * 保存与应用内流转的数据仅覆盖这两周；周次未知时保留全部。
-   */
-  private static filterCurrentAndNextWeek(cells: ScheduleCellInfo[], currentWeek: number): ScheduleCellInfo[] {
-    if (currentWeek <= 0) {
-      AppLog.warn(DOMAIN, TAG, 'week filter skipped: unknown current week');
-      return cells;
-    }
-    return cells.filter((cell: ScheduleCellInfo): boolean =>
-      cell.activeInWeek(currentWeek) || cell.activeInWeek(currentWeek + 1));
-  }
-
-  private static parseScheduleCells(items?: ScheduleItemRaw[]): ScheduleCellInfo[] {
-    const list: ScheduleCellInfo[] = [];
-    if (items === undefined) {
-      return list;
-    }
-    for (const item of items) {
-      if (item.courseName === undefined || item.dayOfWeek === undefined || item.beginSection === undefined) {
-        continue;
-      }
-      const cell: ScheduleCellInfo = new ScheduleCellInfo();
-      cell.courseName = item.courseName;
-      cell.dayOfWeek = item.dayOfWeek;
-      cell.startSection = item.beginSection;
-      cell.endSection = item.endSection ?? item.beginSection;
-      cell.weekBitmap = item.week ?? '';
-      cell.startTime = item.beginTime ?? '';
-      cell.endTime = item.endTime ?? '';
-      cell.location = JwxtRepository.firstSegment(item.placeName ?? '', ';');
-      cell.colorHex = item.color ?? '#E8F3DB';
-      cell.courseSerialNo = item.courseSerialNo ?? '';
-      const wt: string = item.weeksAndTeachers ?? '';
-      cell.weeksText = JwxtRepository.weeksPart(wt);
-      cell.teacher = JwxtRepository.teacherPart(wt);
-      list.push(cell);
-    }
-    return list;
-  }
-
-  /** 库视图数值字段（XF/JD 可能是字符串或数字）转数字，非法返回 0 */
-  private static rawNumber(value: string | number | undefined): number {
-    if (typeof value === 'number') {
-      return value;
-    }
-    if (value === undefined || value.length === 0) {
-      return 0;
-    }
-    const parsed: number = Number(value);
-    return Number.isNaN(parsed) ? 0 : parsed;
-  }
-
-  /** 成绩展示值推断是否通过：等级制含"不及格/不合格/未通过"为未过；百分制 >=60 为过；其余等级默认通过 */
-  private static isPassedScore(scoreView: string): boolean {
-    if (scoreView.length === 0) {
-      return false;
-    }
-    if (scoreView.indexOf('不及格') >= 0 || scoreView.indexOf('不合格') >= 0
-      || scoreView.indexOf('未通过') >= 0) {
-      return false;
-    }
-    const numeric: number = Number(scoreView);
-    if (!Number.isNaN(numeric)) {
-      return numeric >= 60;
-    }
-    return true;
-  }
-
-  /**
-   * 单行成绩解析，兼容两套视图：
-   * - 40 字段库视图（KCM/CJ/JD/XF/XKXNXQDM/KCXZDM_DISPLAY）优先；
-   * - 驼峰视图（courseName/scoreView/gpa/credit/courseSelectionSchoolYearTermCode）兜底。
-   * 未出分（空）与成绩为 0 的行丢弃；行内无课程名返回 null。
-   */
-  private static parseGradeRow(item: GradeItemRaw): GradeEntry | null {
-    const name40: string = item.KCM ?? '';
-    if (name40.length > 0) {
-      const scoreView: string = item.CJ ?? '';
-      if (scoreView.length === 0 || scoreView === '0') {
-        return null;
-      }
-      const grade: GradeEntry = new GradeEntry();
-      grade.courseName = name40;
-      grade.scoreView = scoreView;
-      grade.gpaPoint = JwxtRepository.rawNumber(item.JD);
-      grade.credit = JwxtRepository.rawNumber(item.XF);
-      let termCode: string = item.XKXNXQDM ?? '';
-      if (termCode.length === 0) {
-        termCode = item.CJXNXQDM ?? '';
-      }
-      grade.termCode = termCode;
-      grade.natureText = item.KCXZDM_DISPLAY ?? '';
-      grade.examTypeText = item.KSLXDM_DISPLAY ?? '';
-      grade.passed = JwxtRepository.isPassedScore(scoreView);
-      return grade;
-    }
-    const nameCc: string = item.courseName ?? '';
-    if (nameCc.length === 0) {
-      return null;
-    }
-    const scoreCc: string = item.scoreView ?? '';
-    if (scoreCc.length === 0 || scoreCc === '0') {
-      return null;
-    }
-    const grade: GradeEntry = new GradeEntry();
-    grade.courseName = nameCc;
-    grade.scoreView = scoreCc;
-    grade.gpaPoint = item.gpa ?? 0;
-    grade.credit = item.credit ?? 0;
-    grade.termCode = item.courseSelectionSchoolYearTermCode ?? '';
-    grade.natureText = item.courseNature === '01' ? '必修' : '选修';
-    grade.passed = item.passed ?? true;
-    return grade;
-  }
-
-  private static parseGrades(items?: GradeItemRaw[] | null): GradeEntry[] {
-    const list: GradeEntry[] = [];
-    if (items === undefined || items === null) {
-      return list;
-    }
-    for (const item of items) {
-      const grade: GradeEntry | null = JwxtRepository.parseGradeRow(item);
-      if (grade !== null) {
-        list.push(grade);
-      }
-    }
-    return list;
-  }
-
-  /**
-   * 培养方案分类成绩（专业基础课/专业课/公共课/实习等）：
-   * 仅保留已有成绩的科目，未出分（空）与成绩为 0 的科目自动隐藏。
-   */
-  private static parseGradeCategories(fan?: FanTreeRaw | null): GradeCategory[] {
-    const list: GradeCategory[] = [];
-    const children: FanCategoryRaw[] | undefined = fan?.children ?? undefined;
-    if (children === undefined) {
-      return list;
-    }
-    for (const child of children) {
-      let name: string = child.name ?? '';
-      if (name.length === 0) {
-        name = child.courseCategoryName ?? '';
-      }
-      if (name.length === 0) {
-        continue;
-      }
-      const category: GradeCategory = new GradeCategory();
-      category.name = name;
-      category.grades = JwxtRepository.parseGrades(child.data ?? child.checkCourseVOS);
-      if (category.grades.length > 0) {
-        list.push(category);
-      }
-    }
-    return list;
-  }
-
-  /**
-   * 培养计划（方案内全部课程，含未修读）：
-   * 分组与顺序保持服务端返回（专业基础课/专业课/公共课/实习），
-   * 开课学期取 JHXNXQDM，已修读课程带成绩展示值；空分组保留（界面空态）。
-   */
-  private static parseTrainingPlan(fan?: FanTreeRaw | null): PlanCategory[] {
-    const list: PlanCategory[] = [];
-    const children: FanCategoryRaw[] | undefined = fan?.children ?? undefined;
-    if (children === undefined) {
-      return list;
-    }
-    for (const child of children) {
-      let name: string = child.name ?? '';
-      if (name.length === 0) {
-        name = child.courseCategoryName ?? '';
-      }
-      if (name.length === 0) {
-        continue;
-      }
-      const category: PlanCategory = new PlanCategory();
-      category.name = name;
-      const rows: GradeItemRaw[] | null | undefined = child.data ?? child.checkCourseVOS;
-      if (rows !== undefined && rows !== null) {
-        for (const row of rows) {
-          let courseName: string = row.KCM ?? '';
-          if (courseName.length === 0) {
-            courseName = row.courseName ?? '';
-          }
-          if (courseName.length === 0) {
-            continue;
-          }
-          const course: PlanCourse = new PlanCourse();
-          course.courseName = courseName;
-          course.credit = JwxtRepository.rawNumber(row.XF ?? row.credit);
-          course.natureText = row.KCXZDM_DISPLAY ?? '';
-          if (course.natureText.length === 0 && row.courseNature !== undefined) {
-            course.natureText = row.courseNature === '01' ? '必修' : '选修';
-          }
-          course.examTypeText = row.KSLXDM_DISPLAY ?? '';
-          course.plannedTerm = row.JHXNXQDM ?? '';
-          course.scoreView = row.CJ ?? row.scoreView ?? '';
-          category.courses.push(course);
-        }
-      }
-      list.push(category);
-    }
-    return list;
-  }
-
-  private static parseStudent(basic?: StudentBasicRaw): StudentProfile {
-    const p: StudentProfile = new StudentProfile();
-    if (basic !== undefined) {
-      p.name = basic.XM ?? '';
-      p.studentId = basic.XH ?? '';
-      p.className = basic.BJDM_DISPLAY ?? '';
-      p.majorName = basic.ZYDM_DISPLAY ?? '';
-      p.collegeName = basic.YXDM_DISPLAY ?? '';
-      p.grade = basic.XZNJ_DISPLAY ?? '';
-    }
-    return p;
-  }
-
-  /**
-   * 节次列表：优先取接口 getMySectionList；接口缺失时按课表节次范围推导。
-   * 时间文本取该节次第一节课的开始时间（来自课表接口）。
-   */
-  private static parseSections(cells: ScheduleCellInfo[], items?: SectionItemRaw[]): SectionTimeInfo[] {
-    const list: SectionTimeInfo[] = [];
-    if (items !== undefined && items.length > 0) {
-      for (const item of items) {
-        const s: SectionTimeInfo = new SectionTimeInfo();
-        s.section = item.code ?? 0;
-        s.name = item.name ?? '';
-        s.timeText = JwxtRepository.sectionStartTime(cells, s.section);
-        list.push(s);
-      }
-      return list;
-    }
-    let maxSection: number = 0;
-    for (const cell of cells) {
-      if (cell.endSection > maxSection) {
-        maxSection = cell.endSection;
-      }
-    }
-    for (let i: number = 1; i <= maxSection; i++) {
-      const s: SectionTimeInfo = new SectionTimeInfo();
-      s.section = i;
-      s.name = '第' + i + '节';
-      s.timeText = JwxtRepository.sectionStartTime(cells, i);
-      list.push(s);
-    }
-    return list;
-  }
-
-  private static sectionStartTime(cells: ScheduleCellInfo[], section: number): string {
-    for (const cell of cells) {
-      if (cell.startSection === section && cell.startTime.length > 0) {
-        return cell.startTime;
-      }
-    }
-    return '';
-  }
-
-  private static firstSegment(text: string, separator: string): string {
-    const idx: number = text.indexOf(separator);
-    if (idx < 0) {
-      return text;
-    }
-    return text.substring(0, idx).trim();
-  }
-
-  private static weeksPart(weeksAndTeachers: string): string {
-    const idx: number = weeksAndTeachers.indexOf('[讲授]');
-    const head: string = idx >= 0 ? weeksAndTeachers.substring(0, idx) : weeksAndTeachers;
-    return head;
-  }
-
-  private static teacherPart(weeksAndTeachers: string): string {
-    const slash: number = weeksAndTeachers.indexOf('/');
-    if (slash < 0) {
-      return '';
-    }
-    let rest: string = weeksAndTeachers.substring(slash + 1);
-    const semicolon: number = rest.indexOf(';');
-    if (semicolon >= 0) {
-      rest = rest.substring(0, semicolon);
-    }
-    const bracket: number = rest.indexOf('[主讲]');
-    if (bracket >= 0) {
-      rest = rest.substring(0, bracket);
-    }
-    return rest.trim();
   }
 }
