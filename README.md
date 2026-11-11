@@ -9,19 +9,27 @@
 
 | 模块 | 说明 |
 |---|---|
-| 首页 | 今日课程、周课表切换（左右滑动/周 chip）、学生信息、期末倒计时、应用日志（开发者选项） |
+| 首页 | 今日课程、周课表切换（左右滑动 / 周 chip）、学生信息、期末倒计时、应用日志（开发者选项） |
 | 成绩 | 学分绩点汇总卡、学期筛选、分类成绩分组、培养计划入口、成绩替代行解析（TDKCM） |
 | 综评 | 批次上下文卡、素质得分多维图（雷达图）、指标分级展开、附加分明细、平板横屏双列布局 |
-| 选课 | 独立选课系统账号、轮次 chip 切换、课程检索、选退课、已选管理、凭据加密存储 |
+| 选课 | 独立选课系统账号、轮次 chip 切换、课程检索、提交选课、已选课程查询、凭据加密存储 |
 | 设置 | 上课提醒（系统通知 + 日历代理可选）、隐私三档模式（标准/限制/严格）、缓存清理、关于 |
-| 桌面卡片 | 课表卡片（今天/明天、单双日）、期末倒计时卡片，无需打开应用即可查看 |
+| 桌面卡片 | 课表卡片（今天/明天、单周/双周）、期末倒计时卡片，无需打开应用即可查看 |
 
 ## 技术栈
 
 - **HarmonyOS** / ArkTS / ArkUI（Stage 模型）
 - **hvigor** 构建体系，**hypium** 单元测试（52 用例）
-- 原生能力：Asset 凭据存储、通知/代理提醒、日历读写、卡片 Form、Web 网页登录
+- 原生能力：Asset 凭据存储、通知 / 代理提醒、日历读写、服务卡片 Form、Web 网页登录
 - 适配手机 / 折叠屏 / 平板，横屏双列布局，深浅色主题跟随系统
+
+## 环境要求
+
+| 项目 | 要求 |
+|---|---|
+| 开发工具 | DevEco Studio（支持 API 26 的版本） |
+| SDK | HarmonyOS 7.0.0（API 26） |
+| 运行设备 | 真机或模拟器，HarmonyOS 7.0.0 及以上 |
 
 ## 项目结构
 
@@ -29,16 +37,17 @@
 AppScope/                     应用级配置（版本号、图标）
 products/Pond/                主应用模块
   src/main/ets/
-    pages/                    页面入口（Navigation 宿主）
+    pages/                    页面入口：Index（Navigation 宿主）、LoginIndex、SettingsIndex、TrainingPlanIndex
     view/                     视图层（View + Cards 拆分，单参对象 Builder）
-    viewmodel/                目录视图模型
-    data/                     数据层（Repository、缓存、提醒调度、隐私控制）
+    data/                     数据层：会话/缓存/隐私/提醒/选课/综评仓库
     jwxt/parsers/             教务系统 HTML 解析器（成绩/课表/学生/培养计划）
     net/                      网络层（教务/选课/学工跨域会话）
     model/                    数据模型
-    widget/pages/             桌面卡片
+    utils/                    日期与材质工具
+    widget/pages/             桌面卡片 UI
+    *formability/             各卡片 FormAbility（课表 / 期末倒计时）
     theme/                    具名颜色常量（视图层禁硬编码 hex）
-    constants/                路由/常量/状态键登记
+    constants/                路由 / 常量 / 状态键登记
   src/test/                   单元测试（52 用例）
 common/                       公共 HAR 模块（断点系统）
 scripts/verify.ps1            提交前三关卡校验脚本
@@ -62,6 +71,8 @@ devecocli run --skip-build --device <deviceId>
 
 首次使用需在应用内登录学校统一认证，之后凭据按隐私模式本地加密存储。
 
+> 仓库不含本地签名配置（`build-profile.json5` 中的 signingConfigs），克隆后需在 DevEco Studio 的 Project Structure → Signing Configs 中自行配置签名才能安装到设备。
+
 ## 构建与测试（提交前三关卡）
 
 ```powershell
@@ -74,14 +85,49 @@ powershell -ExecutionPolicy Bypass -File scripts\verify.ps1
 2. **Code Linter**：Error 级问题拦截，Warning 仅报告；
 3. **单元测试**：hypium 52 用例全过。
 
+## 权限说明
+
+| 权限 | 用途 |
+|---|---|
+| `ohos.permission.INTERNET` | 访问教务、选课、学工系统接口 |
+| `ohos.permission.PUBLISH_AGENT_REMINDER` | 发布后台代理提醒，应用退出后仍能按时通知上课 |
+| `ohos.permission.HDR_BRIGHTNESS` | 顶部沉浸光感材质的亮度调制 |
+| `ohos.permission.READ_CALENDAR` / `WRITE_CALENDAR` | 仅在用户开启「日历代理提醒」时写入课程日程，或清理历史遗留的日历账户 |
+
 ## 隐私与安全设计
 
 - **隐私三档模式**：标准（全量离线缓存）/ 限制（仅课表缓存）/ 严格（不缓存任何信息，退出即清理并登出）；
 - 选课凭据使用系统 **Asset** 加密存储，登录 token 仅保留在内存、永不持久化；
 - 离线数据在页面上以醒目横幅提示，可一键重登或重试刷新；
-- 应用内行为日志仅存内存环形缓冲，随进程销毁。
+- 应用内行为日志仅存内存环形缓冲，随进程销毁，不写入磁盘。
+
+## 下载与安装
+
+各版本的未签名 HAP 与邀请测试入口见 [Releases](https://github.com/Pond-official/EDaYi/releases) 页面。
+
+未签名 HAP 需自行签名后安装：
+
+1. DevEco Studio：File → Project Structure → Signing Configs，自动生成调试签名后安装；
+2. 或使用 `hapsigntool` 签名后通过 `hdc install` 安装。
+
+## 版本记录
+
+- **3.0.0**：可维护性重构——拆分解析器 / 网络层 / 缓存 / 隐私控制 / 会话仓库，视图层按页拆分为 Cards 构建器；新增状态键契约校验脚本与 52 个单元测试；页面支持左右滑动切换；成绩替代行解析适配新格式。
+- **2.2.1**：新增应用内日志与开发者选项日志卡片；设置页补充开发者模式、代理提醒开关与下次提醒预览。
+- **2.1.5**：新增「综评」页签，展示综合测评得分、指标明细与雷达图。
+- **2.0.0**：选课系统改为原生登录（AES 加密密码 + 图形验证码），选课页重写；设置改为独立页面。
+- **1.6.0**：新增期末倒计时卡片、隐私模式、前后台切换处理。
+- **1.5.0**：新增上课提醒（后台代理提醒）、设置页、离线缓存。
 
 ## 相关文档
 
 - [docs/开发规范.md](docs/开发规范.md) —— 提交规范、@Builder 传参规则、颜色与状态键契约
 - 仓库：<https://github.com/Pond-official/EDaYi>
+
+## 许可
+
+本项目基于 [MIT License](LICENSE) 开源。Copyright (c) 2026 Pond-official。
+
+## 免责声明
+
+本项目为第三方非官方客户端，与大连医科大学及各系统服务方无隶属关系。仅用于个人便捷访问本人有权访问的校园数据，请合理使用，因使用不当造成的后果由使用者自行承担。
