@@ -1,6 +1,8 @@
 import { JwxtRepository } from '../data/JwxtRepository';
 import { CacheManager } from '../data/CacheManager';
 import { AppLog } from '../data/AppLog';
+import { ReminderScheduler } from '../data/ReminderScheduler';
+import { getContext } from '../net/JwTransport';
 import { AppLogCard } from './AppLogCard';
 import { FROST_BAND_HEIGHT, frostTopInsetVp } from './FrostBand';
 import { bundleManager, common } from '@kit.AbilityKit';
@@ -494,7 +496,7 @@ export struct SettingsView {
         .height(36)
         .padding({ left: 16, right: 16 })
         .onClick(() => {
-          JwxtRepository.sendTestReminder();
+          ReminderScheduler.publishTest(getContext());
         })
 
       Text('立即发送一条测试通知，并在60秒后送达一条代理提醒，验证通知与后台代理链路。')

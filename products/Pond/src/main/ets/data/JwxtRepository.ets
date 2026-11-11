@@ -1,6 +1,5 @@
 import { common } from '@kit.AbilityKit';
 import { CardDataStore } from './CardDataStore';
-import { ReminderScheduler } from './ReminderScheduler';
 import { FinalExamEntry } from '../model/JwModels';
 import { PrivacyController } from './PrivacyController';
 import { JwxtCacheStore } from './JwxtCacheStore';
@@ -89,11 +88,6 @@ export class JwxtRepository {
   /** 更新单节课的上课提醒开关（按会话键：课程名|星期|起始节次），写入 AppStorage、持久化并立即重新调度 */
   static updateSessionReminder(sessionKey: string, enabled: boolean): void {
     JwxtSessionRepository.updateSessionReminder(sessionKey, enabled);
-  }
-
-  /** 发送一条测试通知（设置页验证通知链路） */
-  static sendTestReminder(): void {
-    ReminderScheduler.publishTest(getContext());
   }
 
   // ---------- 隐私与开发者选项（转发 PrivacyController） ----------
