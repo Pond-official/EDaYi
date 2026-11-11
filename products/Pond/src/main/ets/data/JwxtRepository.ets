@@ -1,4 +1,3 @@
-import { http } from '@kit.NetworkKit';
 import { webview } from '@kit.ArkWeb';
 import { AppLog } from './AppLog';
 import { BusinessError } from '@kit.BasicServicesKit';
@@ -14,9 +13,8 @@ import { parseTrainingPlan, extractPyfadm } from '../jwxt/parsers/TrainingPlanPa
 import { parseStudent } from '../jwxt/parsers/StudentParser';
 import { SelectionRepository } from './SelectionRepository';
 import { ZcpRepository } from './ZcpRepository';
+import { JW_APP_ROOT, postForm, getForm, getContext, attachContext as transportAttachContext, clearLastCookie } from '../net/JwTransport';
 
-const JW_DOMAIN: string = 'https://jwxt.dmu.edu.cn';
-const JW_APP_ROOT: string = JW_DOMAIN + '/jwapp';
 const JW_LOGIN_URL: string = JW_APP_ROOT + '/sys/homeapp/index.do';
 const JW_CURRENT_USER: string = '/sys/homeapp/api/home/currentUser.do';
 const JW_ROLE_ID: string = '211f2678b90149c395a84fe610a3f9cd';
@@ -38,12 +36,10 @@ export class JwxtRepository {
   private static currentLoad: Promise<boolean> | null = null;
   private static loadedOnce: boolean = false;
   private static pendingReload: boolean = false;
-  private static lastCookie: string = '';
-  private static appContext: common.UIAbilityContext | null = null;
 
   /** 供 UI 层获取主 Ability 上下文（如 openLink 拉起浏览器）；未注入时返回 null */
   static getUiAbilityContext(): common.UIAbilityContext | null {
-    return JwxtRepository.appContext;
+    return getContext();
   }
 
   /**
@@ -52,7 +48,7 @@ export class JwxtRepository {
    * 同时把持久化的上课提醒设置载入 AppStorage。
    */
   static attachContext(context: common.UIAbilityContext): void {
-    JwxtRepository.appContext = context;
+    transportAttachContext(context);
     const settings: ReminderSettings = CardDataStore.loadReminderSettings(context);
     AppStorage.setOrCreate('jwReminderEnabled', settings.enabled);
     AppStorage.setOrCreate('jwReminderAdvance', settings.advanceMinutes);
@@ -72,70 +68,13 @@ export class JwxtRepository {
     return cookie;
   }
 
-  private static syncCookie(): string {
-    let cookie: string = '';
-    try {
-      cookie = webview.WebCookieManager.fetchCookieSync(JW_APP_ROOT + '/');
-      JwxtRepository.lastCookie = cookie;
-    } catch (error) {
-      const err: BusinessError = error as BusinessError;
-      AppLog.error(DOMAIN, TAG, 'fetchCookieSync failed: %{public}s %{public}s', `${err.code}`, `${err.message}`);
-      cookie = JwxtRepository.lastCookie;
-    }
-    return cookie;
-  }
-
-  private static async request(path: string, form: string, method: http.RequestMethod): Promise<string> {
-    const client: http.HttpRequest = http.createHttp();
-    try {
-      const header: Record<string, string> = {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Accept': 'application/json'
-      };
-      const cookie: string = JwxtRepository.syncCookie();
-      if (cookie.length > 0) {
-        header['Cookie'] = cookie;
-      }
-      const options: http.HttpRequestOptions = {
-        method: method,
-        header: header,
-        connectTimeout: 8000,
-        readTimeout: 8000,
-        expectDataType: http.HttpDataType.STRING
-      };
-      if (form.length > 0) {
-        options.extraData = form;
-      }
-      const response: http.HttpResponse = await client.request(JW_APP_ROOT + path, options);
-      if (response.responseCode !== 200) {
-        AppLog.error(DOMAIN, TAG, 'HTTP %{public}s on %{public}s', `${response.responseCode}`, path);
-        throw new Error('HTTP ' + response.responseCode);
-      }
-      let text: string = '';
-      if (typeof response.result === 'string') {
-        text = response.result;
-      }
-      return text;
-    } finally {
-      client.destroy();
-    }
-  }
-
-  private static async postForm(path: string, form: string): Promise<string> {
-    return JwxtRepository.request(path, form, http.RequestMethod.POST);
-  }
-
-  private static async getForm(path: string): Promise<string> {
-    return JwxtRepository.request(path, '', http.RequestMethod.GET);
-  }
-
   /**
    * 会话有效性探针（currentUser.do，code=="0" 即有效）。
    * 记录返回码/长度/解析失败片段，用于诊断登录探测不生效的设备差异。
    */
   static async probeSession(): Promise<boolean> {
     try {
-      const text: string = await JwxtRepository.getForm(JW_CURRENT_USER);
+      const text: string = await getForm(JW_CURRENT_USER);
       let code: string = '';
       let ok: boolean = false;
       try {
@@ -221,7 +160,7 @@ export class JwxtRepository {
     ReminderScheduler.schedule(
       AppStorage.get<ScheduleCellInfo[]>('jwSchedule') ?? [],
       AppStorage.get<TermStatus>('jwTerm') ?? new TermStatus(),
-      JwxtRepository.appContext
+      getContext()
     );
   }
 
@@ -230,7 +169,7 @@ export class JwxtRepository {
     AppStorage.setOrCreate('jwReminderEnabled', enabled);
     AppStorage.setOrCreate('jwReminderAdvance', advanceMinutes);
     AppStorage.setOrCreate('jwReminderAgentEnabled', agentEnabled);
-    const context: common.UIAbilityContext | null = JwxtRepository.appContext;
+    const context: common.UIAbilityContext | null = getContext();
     if (context !== null) {
       CardDataStore.saveReminderSettings(context, enabled, advanceMinutes, agentEnabled);
     }
@@ -239,7 +178,7 @@ export class JwxtRepository {
 
   /** 发送一条测试通知（设置页验证通知链路） */
   static sendTestReminder(): void {
-    ReminderScheduler.publishTest(JwxtRepository.appContext);
+    ReminderScheduler.publishTest(getContext());
   }
 
   /** 当前隐私模式：standard=缓存全部 / restricted=仅课表卡片 / strict=不缓存 */
@@ -250,7 +189,7 @@ export class JwxtRepository {
   /** 切换开发者选项开关：开启（关于应用内连续点击版本号 5 次）或关闭（开发者页开关），立即生效并持久化 */
   static updateDeveloperMode(enabled: boolean): void {
     AppStorage.setOrCreate('jwDeveloperMode', enabled);
-    const context: common.UIAbilityContext | null = JwxtRepository.appContext;
+    const context: common.UIAbilityContext | null = getContext();
     if (context !== null) {
       CardDataStore.saveDeveloperMode(context, enabled);
     }
@@ -264,7 +203,7 @@ export class JwxtRepository {
    */
   static updatePrivacyMode(mode: string): void {
     AppStorage.setOrCreate('jwPrivacyMode', mode);
-    const context: common.UIAbilityContext | null = JwxtRepository.appContext;
+    const context: common.UIAbilityContext | null = getContext();
     if (context !== null) {
       CardDataStore.savePrivacyMode(context, mode);
     }
@@ -300,7 +239,7 @@ export class JwxtRepository {
     // 综评为个人测评数据，严格模式连同 xgfw 会话标记与临时缓存一并清除
     ZcpRepository.clearSession();
     ZcpRepository.clearCache();
-    const context: common.UIAbilityContext | null = JwxtRepository.appContext;
+    const context: common.UIAbilityContext | null = getContext();
     if (context === null) {
       return;
     }
@@ -353,7 +292,7 @@ export class JwxtRepository {
       }
     }
     AppStorage.setOrCreate('jwFinalExams', exams);
-    const context: common.UIAbilityContext | null = JwxtRepository.appContext;
+    const context: common.UIAbilityContext | null = getContext();
     if (context !== null && JwxtRepository.privacyMode() === 'standard') {
       CardDataStore.saveFinalExams(context, exams);
       CardDataStore.refreshExamCards(context);
@@ -362,7 +301,7 @@ export class JwxtRepository {
 
   /** 查询本地缓存大小（字节，应用级+模块级 cacheDir 与综评本地缓存文件），无上下文时返回 0 */
   static getCacheSizeBytes(): number {
-    const context: common.UIAbilityContext | null = JwxtRepository.appContext;
+    const context: common.UIAbilityContext | null = getContext();
     if (context === null) {
       return 0;
     }
@@ -383,7 +322,7 @@ export class JwxtRepository {
    * 同步清空内存中的成绩数据（成绩页立即回到空态，可经主页"刷新"重新在线同步）；
    * 卡片数据与 Cookie 不受影响 */
   static clearLocalCaches(): void {
-    const context: common.UIAbilityContext | null = JwxtRepository.appContext;
+    const context: common.UIAbilityContext | null = getContext();
     if (context === null) {
       return;
     }
@@ -417,7 +356,7 @@ export class JwxtRepository {
       }
     }
     AppStorage.setOrCreate('jwReminderDisabledSessions', disabled);
-    const context: common.UIAbilityContext | null = JwxtRepository.appContext;
+    const context: common.UIAbilityContext | null = getContext();
     if (context !== null && JwxtRepository.privacyMode() === 'standard') {
       CardDataStore.saveDisabledSessions(context, disabled);
     }
@@ -430,7 +369,7 @@ export class JwxtRepository {
    * 退出登录或离线失败时不清除，卡片继续显示最近一次课表。
    */
   private static persistCardData(): void {
-    const context: common.Context | null = JwxtRepository.appContext;
+    const context: common.Context | null = getContext();
     if (context === null) {
       return;
     }
@@ -470,7 +409,7 @@ export class JwxtRepository {
    * 会话过期或冷启动同步失败时回显，界面提示"离线数据，请重新登录"。
    */
   private static persistAppCache(): void {
-    const context: common.Context | null = JwxtRepository.appContext;
+    const context: common.Context | null = getContext();
     if (context === null) {
       return;
     }
@@ -586,7 +525,7 @@ export class JwxtRepository {
    * 同步失败时尝试回放离线缓存；无缓存或解析失败返回 false（调用方退回空态）。
    */
   private static applyAppCache(): boolean {
-    const context: common.Context | null = JwxtRepository.appContext;
+    const context: common.Context | null = getContext();
     if (context === null) {
       return false;
     }
@@ -731,10 +670,10 @@ export class JwxtRepository {
       return false;
     }
     try {
-      await JwxtRepository.postForm(JW_SET_APP_ROLE, 'ROLEID=' + JW_ROLE_ID);
+      await postForm(JW_SET_APP_ROLE, 'ROLEID=' + JW_ROLE_ID);
       AppLog.info(DOMAIN, TAG, 'step: role set');
 
-      const userText: string = await JwxtRepository.getForm(JW_CURRENT_USER);
+      const userText: string = await getForm(JW_CURRENT_USER);
       const userRaw: CurrentUserRaw = JSON.parse(userText) as CurrentUserRaw;
       const currentWeek: number = userRaw.datas?.welcomeInfo?.classWeek ?? 0;
       let termCode: string = userRaw.datas?.welcomeInfo?.xnxqdm ?? '';
@@ -745,7 +684,7 @@ export class JwxtRepository {
 
       try {
         const termText: string =
-          await JwxtRepository.postForm(JW_QUERY_CURRENT_TERM, 'CSDM=SYS&ZCSDM=DQXNXQDM&SFSY=1');
+          await postForm(JW_QUERY_CURRENT_TERM, 'CSDM=SYS&ZCSDM=DQXNXQDM&SFSY=1');
         const termRaw: TermQueryRaw = JSON.parse(termText) as TermQueryRaw;
         const rows: TermRowRaw[] | undefined = termRaw.datas?.cxmrxnxq?.rows;
         if (rows !== undefined && rows.length > 0) {
@@ -766,7 +705,7 @@ export class JwxtRepository {
       }
       AppLog.info(DOMAIN, TAG, 'step: term %{public}s', termCode);
 
-      const studentText: string = await JwxtRepository.postForm(JW_QUERY_STUDENT, '');
+      const studentText: string = await postForm(JW_QUERY_STUDENT, '');
       const studentEnvelope: StudentEnvelopeRaw = JSON.parse(studentText) as StudentEnvelopeRaw;
       const student: StudentProfile = parseStudent(studentEnvelope.datas?.queryXsjbxx?.jbxx);
       const pyfadm: string = extractPyfadm(studentEnvelope.datas?.queryXsjbxx?.faArr);
@@ -776,9 +715,9 @@ export class JwxtRepository {
       AppLog.info(DOMAIN, TAG, 'step: student %{public}s pyfadm=%{public}s', student.name, pyfadm);
 
       const scheduleText: string =
-        await JwxtRepository.postForm(JW_SCHEDULE_DETAIL, 'XNXQDM=' + termCode + '&XQDM=1');
+        await postForm(JW_SCHEDULE_DETAIL, 'XNXQDM=' + termCode + '&XQDM=1');
       const sectionsText: string =
-        await JwxtRepository.postForm(JW_SCHEDULE_SECTIONS, 'XNXQDM=' + termCode + '&XQDM=1');
+        await postForm(JW_SCHEDULE_SECTIONS, 'XNXQDM=' + termCode + '&XQDM=1');
       const scheduleEnvelope: ScheduleEnvelopeRaw = JSON.parse(scheduleText) as ScheduleEnvelopeRaw;
       const scheduleCells: ScheduleCellInfo[] =
         parseScheduleCells(scheduleEnvelope.datas?.getMyScheduleDetail?.arrangedList);
@@ -798,7 +737,7 @@ export class JwxtRepository {
       let gradeCategories: GradeCategory[] = [];
       let trainingPlan: PlanCategory[] = [];
       if (pyfadm.length > 0) {
-        const gradesText: string = await JwxtRepository.postForm(JW_QUERY_GRADES,
+        const gradesText: string = await postForm(JW_QUERY_GRADES,
           'fromPage=grxyjcbg&PYFADM=' + pyfadm + '&SCLX=04&XDLX=01');
         const gradeEnvelope: GradeEnvelopeRaw = JSON.parse(gradesText) as GradeEnvelopeRaw;
         const report: GradeReportRaw | null | undefined = gradeEnvelope.datas?.queryXyzhbx;
@@ -865,7 +804,7 @@ export class JwxtRepository {
       const err: BusinessError = error as BusinessError;
       AppLog.error(DOMAIN, TAG, "clearAllCookiesSync failed: %{public}s %{public}s", `${err.code}`, `${err.message}`);
     }
-    JwxtRepository.lastCookie = '';
+    clearLastCookie();
     const mode: string = JwxtRepository.privacyMode();
     if (mode === 'standard') {
       // 保留离线数据：仅失效 xgfw 会话标记，页面继续显示已获取的离线数据
@@ -880,7 +819,7 @@ export class JwxtRepository {
       return;
     }
     // 限制模式：清除课表以外的离线缓存与内存数据，桌面课表卡片不受影响
-    const context: common.UIAbilityContext | null = JwxtRepository.appContext;
+    const context: common.UIAbilityContext | null = getContext();
     if (context !== null) {
       CardDataStore.clearAppCache(context);
     }
