@@ -2,6 +2,7 @@ import { display, window } from '@kit.ArkUI';
 import { GradeCategory, GradeEntry } from '../model/JwModels';
 import { JwxtRepository } from '../data/JwxtRepository';
 import { FrostBand, FROST_BAND_HEIGHT, frostTopInsetVp } from './FrostBand';
+import { GradeSummaryCard, GradeTrainingPlanEntry, GradeSection, GradeOfflineBanner, GradeTermFilterRow, GradeEmptyText, gradeSectionFingerprint } from './GradeCards';
 
 const TERM_ALL: string = '全部';
 
@@ -108,15 +109,6 @@ export struct GradeView {
     this.visibleSections = sections;
   }
 
-  /** 分组内容指纹：课程名+性质+考核+成绩拼接，内容变化时 ForEach key 变化以重建分组 */
-  private sectionFingerprint(items: GradeEntry[]): string {
-    let fp: string = String(items.length);
-    for (const grade of items) {
-      fp += '|' + grade.courseName + grade.natureText + grade.examTypeText + grade.scoreView;
-    }
-    return fp;
-  }
-
   /** 学期码转显示文案："2025-2026-1" → "2025-2026学年1学期"，非该格式原样返回 */
   private formatTermLabel(termCode: string): string {
     const parts: string[] = termCode.split('-');
@@ -177,74 +169,6 @@ export struct GradeView {
       return 0;
     }
     return Math.round(weighted / credits * 100) / 100;
-  }
-
-  private scoreColor(score: string): string {
-    if (score === '优秀') {
-      return '#2E7D32';
-    }
-    if (score === '良好') {
-      return '#1565C0';
-    }
-    if (score === '中等') {
-      return '#B26A00';
-    }
-    return '#616161';
-  }
-
-  private scoreBackground(score: string): string {
-    if (score === '优秀') {
-      return '#E8F5E9';
-    }
-    if (score === '良好') {
-      return '#E3F2FD';
-    }
-    if (score === '中等') {
-      return '#FFF3E0';
-    }
-    return '#EEEEEE';
-  }
-
-  /** 课程性质标签色（必修蓝/限选橙/选修及其他灰，兼容“必修课”等带后缀文案） */
-  private natureTagColor(nature: string): string {
-    if (nature.startsWith('必修')) {
-      return '#1565C0';
-    }
-    if (nature.startsWith('限选')) {
-      return '#B26A00';
-    }
-    return '#616161';
-  }
-
-  private natureTagBackground(nature: string): string {
-    if (nature.startsWith('必修')) {
-      return '#E3F2FD';
-    }
-    if (nature.startsWith('限选')) {
-      return '#FFF3E0';
-    }
-    return '#F5F5F5';
-  }
-
-  /** 考核方式标签色（考试绿/考查紫/其他灰） */
-  private examTagColor(examType: string): string {
-    if (examType === '考试') {
-      return '#2E7D32';
-    }
-    if (examType === '考查') {
-      return '#6A1B9A';
-    }
-    return '#616161';
-  }
-
-  private examTagBackground(examType: string): string {
-    if (examType === '考试') {
-      return '#E8F5E9';
-    }
-    if (examType === '考查') {
-      return '#F3E5F5';
-    }
-    return '#F5F5F5';
   }
 
   private contentMaxWidth(): number {
@@ -352,158 +276,9 @@ export struct GradeView {
     });
   }
 
-  @Builder
-  summaryCell(label: string, value: string) {
-    Column({ space: 4 }) {
-      Text(value)
-        .fontSize(22)
-        .fontWeight(FontWeight.Bold)
-        .fontColor($r('sys.color.ohos_id_color_text_primary_activated'))
-      Text(label)
-        .fontSize(11)
-        .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-    }
-    .layoutWeight(1)
-    .alignItems(HorizontalAlign.Center)
-  }
-
-  @Builder
-  summaryCard() {
-    Row() {
-      this.summaryCell('平均绩点', String(this.averageGpa()))
-      Column()
-        .width(1)
-        .height(32)
-        .backgroundColor($r('sys.color.ohos_id_color_button_normal'))
-      this.summaryCell('通过学分', String(this.totalCredit()))
-      Column()
-        .width(1)
-        .height(32)
-        .backgroundColor($r('sys.color.ohos_id_color_button_normal'))
-      this.summaryCell('课程门数', String(this.allGrades().length))
-    }
-    .width('100%')
-    .justifyContent(FlexAlign.SpaceEvenly)
-    .alignItems(VerticalAlign.Center)
-    .padding({ top: 16, bottom: 16 })
-    .borderRadius(16)
-    .backgroundColor($r('app.color.card_background'))
-    .geometryTransition('grade-summary')
-    .transition(TransitionEffect.OPACITY)
-  }
-
-  /** 培养计划入口（位于成绩汇总卡下方） */
-  @Builder
-  trainingPlanEntry() {
-    Row({ space: 12 }) {
-      Column({ space: 2 }) {
-        Text('培养计划')
-          .fontSize(15)
-          .fontWeight(FontWeight.Medium)
-          .fontColor($r('sys.color.ohos_id_color_text_primary'))
-        Text('方案内课程、学分与开课学期')
-          .fontSize(12)
-          .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-      }
-      .layoutWeight(1)
-      .alignItems(HorizontalAlign.Start)
-
-      SymbolGlyph($r('sys.symbol.chevron_right'))
-        .fontSize(16)
-        .fontColor([$r('sys.color.ohos_id_color_text_secondary')])
-    }
-    .width('100%')
-    .padding(16)
-    .borderRadius(16)
-    .backgroundColor($r('app.color.card_background'))
-    .margin({ top: 12 })
-    .geometryTransition('grade-plan')
-    .transition(TransitionEffect.OPACITY)
-    .onClick(() => {
-      this.getUIContext().getRouter().pushUrl({ url: 'pages/TrainingPlanIndex' });
-    })
-  }
-
-  @Builder
-  gradeRow(grade: GradeEntry) {
-    Row() {
-      Column({ space: 4 }) {
-        Row({ space: 6 }) {
-          Text(grade.courseName)
-            .fontSize(14)
-            .fontWeight(FontWeight.Medium)
-            .fontColor($r('sys.color.ohos_id_color_text_primary'))
-            .maxLines(1)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
-            .flexShrink(1)
-          if (grade.natureText.length > 0) {
-            Text(grade.natureText)
-              .fontSize(10)
-              .fontColor(this.natureTagColor(grade.natureText))
-              .padding({ left: 6, right: 6, top: 2, bottom: 2 })
-              .borderRadius(8)
-              .backgroundColor(this.natureTagBackground(grade.natureText))
-          }
-          if (grade.examTypeText.length > 0) {
-            Text(grade.examTypeText)
-              .fontSize(10)
-              .fontColor(this.examTagColor(grade.examTypeText))
-              .padding({ left: 6, right: 6, top: 2, bottom: 2 })
-              .borderRadius(8)
-              .backgroundColor(this.examTagBackground(grade.examTypeText))
-          }
-        }
-        .width('100%')
-        Text(grade.credit + '学分 · 绩点' + grade.gpaPoint)
-          .fontSize(11)
-          .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-      }
-      .layoutWeight(1)
-      .alignItems(HorizontalAlign.Start)
-      Text(grade.scoreView)
-        .fontSize(13)
-        .fontWeight(FontWeight.Bold)
-        .fontColor(this.scoreColor(grade.scoreView))
-        .padding({ left: 12, right: 12, top: 6, bottom: 6 })
-        .borderRadius(12)
-        .backgroundColor(this.scoreBackground(grade.scoreView))
-        .margin({ left: 12 })
-    }
-    .width('100%')
-    .justifyContent(FlexAlign.SpaceBetween)
-    .alignItems(VerticalAlign.Center)
-    .padding({ top: 10, bottom: 10 })
-  }
-
-  @Builder
-  gradeSection(title: string, items: GradeEntry[]) {
-    if (items.length > 0) {
-      Column() {
-        Row() {
-          Text(title)
-            .fontSize(15)
-            .fontWeight(FontWeight.Bold)
-            .fontColor($r('sys.color.ohos_id_color_text_primary'))
-          Blank()
-          Text(items.length + '门')
-            .fontSize(11)
-            .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-        }
-        .width('100%')
-        .padding({ bottom: 4 })
-        ForEach(items, (grade: GradeEntry) => {
-          this.gradeRow(grade)
-        }, (grade: GradeEntry) => grade.termCode + grade.courseName + grade.natureText + grade.examTypeText + grade.scoreView)
-      }
-      .width('100%')
-      .alignItems(HorizontalAlign.Start)
-      .margin({ top: 12 })
-      .padding({ left: 16, right: 16, top: 12, bottom: 8 })
-      .borderRadius(16)
-      .backgroundColor($r('app.color.card_background'))
-      .geometryTransition('grade-sec-' + title)
-      .transition(TransitionEffect.OPACITY)
-    }
+  /** 打开培养计划页（培养计划入口点击） */
+  private goTrainingPlan(): void {
+    this.getUIContext().getRouter().pushUrl({ url: 'pages/TrainingPlanIndex' });
   }
 
   private goLogin(): void {
@@ -533,88 +308,6 @@ export struct GradeView {
     });
   }
 
-  /** 离线数据提示条：使用本地缓存成绩时置顶提示，点击“去登录”重新在线获取 */
-  @Builder
-  offlineBanner() {
-    Row({ space: 10 }) {
-      SymbolGlyph($r('sys.symbol.exclamationmark_circle'))
-        .fontSize(20)
-        .fontColor([$r('sys.color.ohos_id_color_warning')])
-      Column({ space: 2 }) {
-        Text('正在使用离线数据')
-          .fontSize(14)
-          .fontWeight(FontWeight.Medium)
-          .fontColor($r('sys.color.ohos_id_color_text_primary'))
-        Text('当前展示本地缓存，重新登录后自动更新')
-          .fontSize(11)
-          .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-      }
-      .alignItems(HorizontalAlign.Start)
-      .layoutWeight(1)
-      Text('去登录')
-        .fontSize(13)
-        .fontWeight(FontWeight.Medium)
-        .fontColor($r('sys.color.ohos_id_color_text_primary_activated'))
-    }
-    .width('100%')
-    .alignItems(VerticalAlign.Center)
-    .padding({ left: 14, right: 14, top: 10, bottom: 10 })
-    .borderRadius(12)
-    .backgroundColor($r('sys.color.comp_background_tertiary'))
-    .margin({ bottom: 12 })
-    .geometryTransition('grade-banner')
-    .transition(TransitionEffect.OPACITY)
-    .onAreaChange((oldArea: Area, newArea: Area) => {
-      this.bannerHeightVp = typeof newArea.height === 'number' ? newArea.height : 0;
-    })
-    .onClick(() => {
-      this.goLogin();
-    })
-  }
-
-  /** 学期筛选行：学期下拉选择（横屏双列时位于右列顶部） */
-  @Builder
-  termFilterRow() {
-    Row({ space: 10 }) {
-      Text('学期')
-        .fontSize(13)
-        .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-      Select(this.termOptions())
-        .selected(this.selectedTermIndex())
-        .value(this.selectedTermLabel())
-        .font({ size: 13 })
-        .fontColor($r('sys.color.ohos_id_color_text_primary'))
-        .optionFont({ size: 13 })
-        .optionFontColor($r('sys.color.ohos_id_color_text_primary'))
-        .selectedOptionFontColor($r('sys.color.ohos_id_color_text_primary_activated'))
-        .selectedOptionBgColor($r('sys.color.ohos_id_color_button_normal'))
-        .optionWidth(232)
-        .onSelect((index: number) => {
-          if (index >= 0 && index < this.termChips.length) {
-            this.selectedTerm = this.termChips[index];
-            this.rebuildSections();
-          }
-        })
-    }
-    .width('100%')
-    .margin({ top: 16, bottom: 4 })
-    .alignItems(VerticalAlign.Center)
-    .geometryTransition('grade-term')
-    .transition(TransitionEffect.OPACITY)
-  }
-
-  /** 无成绩空态提示（登录态/离线态/未登录文案不同） */
-  @Builder
-  emptyGradesText() {
-    Text(this.dataMode === 'online' ? '暂无成绩数据' :
-      (this.dataMode === 'offlineCache' ? '暂无缓存成绩' : '登录教务系统后可查看成绩'))
-      .fontSize(12)
-      .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-      .padding({ top: 24, bottom: 24 })
-      .geometryTransition('grade-empty')
-      .transition(TransitionEffect.OPACITY)
-  }
-
   /**
    * 平板横屏双列布局：汇总卡与培养计划入口在左列固定不随滚动，
    * 学期筛选与分类成绩在右列独立滚动；离线横幅不在此处渲染，
@@ -627,8 +320,10 @@ export struct GradeView {
     Row() {
       Scroll() {
         Column() {
-          this.summaryCard()
-          this.trainingPlanEntry()
+          GradeSummaryCard(String(this.averageGpa()), String(this.totalCredit()), String(this.allGrades().length))
+          GradeTrainingPlanEntry((): void => {
+            this.goTrainingPlan();
+          })
         }
         .width('100%')
         .alignItems(HorizontalAlign.Start)
@@ -643,12 +338,18 @@ export struct GradeView {
 
       Scroll() {
         Column() {
-          this.termFilterRow()
+          GradeTermFilterRow(this.termOptions(), this.selectedTermIndex(), this.selectedTermLabel(),
+            (index: number): void => {
+              if (index >= 0 && index < this.termChips.length) {
+                this.selectedTerm = this.termChips[index];
+                this.rebuildSections();
+              }
+            })
           ForEach(this.visibleSections, (section: GradeSectionData) => {
-            this.gradeSection(section.title, section.grades)
-          }, (section: GradeSectionData) => section.title + '|' + this.sectionFingerprint(section.grades))
+            GradeSection(section.title, section.grades)
+          }, (section: GradeSectionData) => section.title + '|' + gradeSectionFingerprint(section.grades))
           if (this.allGrades().length === 0) {
-            this.emptyGradesText()
+            GradeEmptyText(this.dataMode)
           }
         }
         .width('100%')
@@ -678,19 +379,31 @@ export struct GradeView {
           // 离线横幅恒在外层内容顶部：单列全宽，双列横跨左右两列上方全宽；
           // 宽屏行高按实测横幅块高扣减（wideRowHeight），外层 Scroll 仍恰好不滚
           if (this.dataMode === 'offlineCache') {
-            this.offlineBanner()
+            GradeOfflineBanner((vp: number): void => {
+              this.bannerHeightVp = vp;
+            }, (): void => {
+              this.goLogin();
+            })
           }
           if (this.isWide()) {
             this.wideContent()
           } else {
-            this.summaryCard()
-            this.trainingPlanEntry()
-            this.termFilterRow()
+            GradeSummaryCard(String(this.averageGpa()), String(this.totalCredit()), String(this.allGrades().length))
+            GradeTrainingPlanEntry((): void => {
+              this.goTrainingPlan();
+            })
+            GradeTermFilterRow(this.termOptions(), this.selectedTermIndex(), this.selectedTermLabel(),
+              (index: number): void => {
+                if (index >= 0 && index < this.termChips.length) {
+                  this.selectedTerm = this.termChips[index];
+                  this.rebuildSections();
+                }
+              })
             ForEach(this.visibleSections, (section: GradeSectionData) => {
-              this.gradeSection(section.title, section.grades)
-            }, (section: GradeSectionData) => section.title + '|' + this.sectionFingerprint(section.grades))
+              GradeSection(section.title, section.grades)
+            }, (section: GradeSectionData) => section.title + '|' + gradeSectionFingerprint(section.grades))
             if (this.allGrades().length === 0) {
-              this.emptyGradesText()
+              GradeEmptyText(this.dataMode)
             }
           }
         }
