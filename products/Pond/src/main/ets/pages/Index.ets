@@ -55,6 +55,7 @@ const SETTINGS_SIDE_MARGIN: number = 16;
  *   其中放置液态指示器胶囊：一团白色光晕（胶囊大小）随选中页签或手指位置弹簧滑动、
  *   轻微回弹，支持在悬浮导航栏区域按住拖动跟手、松手就近吸附切换页签，
  *   页签图标从光晕中透出，深浅色自适应；
+ *   内容区支持左右滑动切换页签（scrollable），页签栏拖拽/轻点与内容滑动互通；
  *   页签栏宽度随窗口尺寸变化自动重算（横竖屏切换、折叠屏开合、分屏/悬浮窗拖动），
  *   各视图通过断点（mainBreakpoint）自动适配横竖屏布局；
  *   设备缺少 HDS 能力时降级：API 26+ 走 uiMaterial 悬浮页签栏，再退普通底栏。
@@ -345,7 +346,7 @@ struct Index {
           }
           .barPosition(BarPosition.End)
           .vertical(false)
-          .scrollable(false)
+          .scrollable(true)
           .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
           .barOverlap(true)
           .barHeight(BAR_HEIGHT)
@@ -384,7 +385,7 @@ struct Index {
         }
         .barOverlap(true)
         .vertical(false)
-        .scrollable(false)
+        .scrollable(true)
         .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
         .barHeight(BAR_HEIGHT)
         .animationDuration(300)
@@ -411,7 +412,7 @@ struct Index {
           this.tabPages()
         }
         .vertical(false)
-        .scrollable(false)
+        .scrollable(true)
         .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
         .barHeight(BAR_HEIGHT)
         .animationDuration(300)
