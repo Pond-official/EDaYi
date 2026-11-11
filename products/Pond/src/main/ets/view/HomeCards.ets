@@ -1,4 +1,4 @@
-import { FinalExamEntry, ScheduleCellInfo } from '../model/JwModels';
+import { FinalExamEntry, ScheduleCellInfo, StudentProfile } from '../model/JwModels';
 import { ExamDateUtils } from '../utils/ExamDateUtils';
 
 /** 离线数据提示条（自 HomeView 拆出；onLogin 跳登录） */
@@ -35,13 +35,18 @@ export function HomeOfflineBanner(onLogin: () => void) {
   })
 }
 
+/** 学生信息卡入参（单参对象字面量按引用传递，jwStudent 到达后随状态刷新） */
+export interface HomeStudentCardParams {
+  student: StudentProfile;
+}
+
 /** 学生信息卡（自 HomeView 拆出） */
 @Builder
-export function HomeStudentCard(name: string, studentId: string, className: string, collegeName: string) {
+export function HomeStudentCard(params: HomeStudentCardParams) {
   Column() {
     Row() {
       Stack() {
-        Text(name.length > 0 ? name.substring(0, 1) : '生')
+        Text(params.student.name.length > 0 ? params.student.name.substring(0, 1) : '生')
           .fontSize(24)
           .fontWeight(FontWeight.Bold)
           .fontColor(Color.White)
@@ -51,11 +56,11 @@ export function HomeStudentCard(name: string, studentId: string, className: stri
       .borderRadius(28)
       .backgroundColor($r('sys.color.ohos_id_color_text_primary_activated'))
       Column({ space: 4 }) {
-        Text(name)
+        Text(params.student.name)
           .fontSize(18)
           .fontWeight(FontWeight.Bold)
           .fontColor($r('sys.color.ohos_id_color_text_primary'))
-        Text(studentId)
+        Text(params.student.studentId)
           .fontSize(12)
           .fontColor($r('sys.color.ohos_id_color_text_secondary'))
       }
@@ -63,11 +68,11 @@ export function HomeStudentCard(name: string, studentId: string, className: stri
       .alignItems(HorizontalAlign.Start)
       .padding({ left: 12 })
       Column({ space: 4 }) {
-        Text(className)
+        Text(params.student.className)
           .fontSize(11)
           .fontColor($r('sys.color.ohos_id_color_text_secondary'))
           .textAlign(TextAlign.End)
-        Text(collegeName)
+        Text(params.student.collegeName)
           .fontSize(11)
           .fontColor($r('sys.color.ohos_id_color_text_secondary'))
           .textAlign(TextAlign.End)
@@ -132,9 +137,14 @@ export function HomeTodayCourseRow(cell: ScheduleCellInfo) {
   .padding({ top: 8, bottom: 8 })
 }
 
+/** 今日课程卡入参（单参对象字面量按引用传递，课表同步/跨天后随状态刷新） */
+export interface HomeTodayCardParams {
+  cells: ScheduleCellInfo[];
+}
+
 /** 今日课程卡（自 HomeView 拆出） */
 @Builder
-export function HomeTodayCard(todayCells: ScheduleCellInfo[]) {
+export function HomeTodayCard(params: HomeTodayCardParams) {
   Column() {
     Row() {
       Text('今日课程')
@@ -142,18 +152,18 @@ export function HomeTodayCard(todayCells: ScheduleCellInfo[]) {
         .fontWeight(FontWeight.Bold)
         .fontColor($r('sys.color.ohos_id_color_text_primary'))
       Blank()
-      Text('共' + todayCells.length + '门')
+      Text('共' + params.cells.length + '门')
         .fontSize(11)
         .fontColor($r('sys.color.ohos_id_color_text_secondary'))
     }
     .width('100%')
-    if (todayCells.length === 0) {
+    if (params.cells.length === 0) {
       Text('今天没有课程安排')
         .fontSize(12)
         .fontColor($r('sys.color.ohos_id_color_text_secondary'))
         .padding({ top: 16, bottom: 16 })
     } else {
-      ForEach(todayCells, (cell: ScheduleCellInfo) => {
+      ForEach(params.cells, (cell: ScheduleCellInfo) => {
         HomeTodayCourseRow(cell)
       }, (cell: ScheduleCellInfo) => 'today' + cell.courseSerialNo + cell.dayOfWeek + cell.startSection)
     }
@@ -165,21 +175,28 @@ export function HomeTodayCard(todayCells: ScheduleCellInfo[]) {
   .backgroundColor($r('app.color.card_background'))
 }
 
+/** 课表周切换片入参（单参对象字面量按引用传递，选中态随 scheduleWeekOffset 刷新） */
+export interface HomeWeekChipParams {
+  label: string;
+  selected: boolean;
+  onSelect: () => void;
+}
+
 /** 课表周切换片（自 HomeView 拆出；onSelect 切换周偏移） */
 @Builder
-export function HomeWeekChip(label: string, offset: number, selected: boolean, onSelect: () => void) {
-  Text(label)
+export function HomeWeekChip(params: HomeWeekChipParams) {
+  Text(params.label)
     .fontSize(11)
-    .fontWeight(selected ? FontWeight.Bold : FontWeight.Normal)
-    .fontColor(selected ?
+    .fontWeight(params.selected ? FontWeight.Bold : FontWeight.Normal)
+    .fontColor(params.selected ?
       Color.White : $r('sys.color.ohos_id_color_text_secondary'))
-    .backgroundColor(selected ?
+    .backgroundColor(params.selected ?
       $r('sys.color.ohos_id_color_text_primary_activated') : $r('sys.color.ohos_id_color_button_normal'))
     .borderRadius(10)
     .padding({ left: 10, right: 10, top: 3, bottom: 3 })
     .margin({ left: 6 })
     .onClick(() => {
-      onSelect();
+      params.onSelect();
     })
 }
 
@@ -245,10 +262,16 @@ export function HomeFinalExamRow(entry: FinalExamEntry, colorHex: string, days: 
   .padding({ top: 7, bottom: 7 })
 }
 
+/** 期末倒计时卡入参（单参对象字面量按引用传递，设置考试日期后随状态刷新） */
+export interface HomeFinalExamCardParams {
+  exams: FinalExamEntry[];
+  colorOf: (courseName: string) => string;
+  daysOf: (entry: FinalExamEntry) => number;
+}
+
 /** 期末倒计时卡：显示已设定期末日期的科目及倒计时，未设定任何日期时不显示（自 HomeView 拆出） */
 @Builder
-export function HomeFinalExamCard(exams: FinalExamEntry[],
-  colorOf: (courseName: string) => string, daysOf: (entry: FinalExamEntry) => number) {
+export function HomeFinalExamCard(params: HomeFinalExamCardParams) {
   Column() {
     Row() {
       Text('期末倒计时')
@@ -263,8 +286,8 @@ export function HomeFinalExamCard(exams: FinalExamEntry[],
     .width('100%')
     .padding({ bottom: 4 })
 
-    ForEach(exams, (entry: FinalExamEntry) => {
-      HomeFinalExamRow(entry, colorOf(entry.courseName), daysOf(entry))
+    ForEach(params.exams, (entry: FinalExamEntry) => {
+      HomeFinalExamRow(entry, params.colorOf(entry.courseName), params.daysOf(entry))
     }, (entry: FinalExamEntry) => 'exam' + entry.courseName + entry.examDate)
   }
   .width('100%')

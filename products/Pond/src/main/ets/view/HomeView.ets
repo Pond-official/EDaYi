@@ -239,12 +239,12 @@ export struct HomeView {
           .fontWeight(FontWeight.Bold)
           .fontColor($r('sys.color.ohos_id_color_text_primary'))
         Blank()
-        HomeWeekChip('本周', 0, this.scheduleWeekOffset === 0, (): void => {
+        HomeWeekChip({ label: '本周', selected: this.scheduleWeekOffset === 0, onSelect: (): void => {
           this.scheduleWeekOffset = 0;
-        })
-        HomeWeekChip('下周', 1, this.scheduleWeekOffset === 1, (): void => {
+        } })
+        HomeWeekChip({ label: '下周', selected: this.scheduleWeekOffset === 1, onSelect: (): void => {
           this.scheduleWeekOffset = 1;
-        })
+        } })
       }
       .width('100%')
       .padding({ bottom: 12 })
@@ -273,14 +273,14 @@ export struct HomeView {
   @Builder
   infoColumn() {
     Column() {
-      HomeStudentCard(this.student.name, this.student.studentId, this.student.className, this.student.collegeName)
+      HomeStudentCard({ student: this.student })
       if (this.dataMode !== 'online') {
         this.loginFooter()
       } else {
         this.logoutFooter()
       }
       HomeSectionTitle('今日安排')
-      HomeTodayCard(this.todayCells)
+      HomeTodayCard({ cells: this.todayCells })
     }
     .width('100%')
     .geometryTransition('home-info')
@@ -318,9 +318,11 @@ export struct HomeView {
       Column() {
         this.scheduleCard()
         if (this.sortedFinalExams().length > 0) {
-          HomeFinalExamCard(this.sortedFinalExams(),
-            (courseName: string): string => this.courseColorOf(courseName),
-            (entry: FinalExamEntry): number => this.examDaysOf(entry))
+          HomeFinalExamCard({
+            exams: this.sortedFinalExams(),
+            colorOf: (courseName: string): string => this.courseColorOf(courseName),
+            daysOf: (entry: FinalExamEntry): number => this.examDaysOf(entry)
+          })
         }
       }
       .layoutWeight(1)
@@ -339,9 +341,11 @@ export struct HomeView {
       HomeSectionTitle('我的课表')
       this.scheduleCard()
       if (this.sortedFinalExams().length > 0) {
-        HomeFinalExamCard(this.sortedFinalExams(),
-          (courseName: string): string => this.courseColorOf(courseName),
-          (entry: FinalExamEntry): number => this.examDaysOf(entry))
+        HomeFinalExamCard({
+          exams: this.sortedFinalExams(),
+          colorOf: (courseName: string): string => this.courseColorOf(courseName),
+          daysOf: (entry: FinalExamEntry): number => this.examDaysOf(entry)
+        })
       }
     }
     .width('100%')
