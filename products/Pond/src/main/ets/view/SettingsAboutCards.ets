@@ -59,10 +59,15 @@ export function SettingsAboutEntry(onEnter: () => void) {
   })
 }
 
+/** 开发者模式开关卡入参（单参对象字面量按引用传递，开关随开发者模式状态刷新） */
+export interface SettingsDeveloperModeCardParams {
+  developerMode: boolean;
+  onModeToggle: (isOn: boolean) => void;
+}
+
 /** 开发者模式开关卡（自 SettingsView 拆出；onModeToggle 切换开发者模式，关闭即回主页） */
 @Builder
-export function SettingsDeveloperModeCard(developerMode: boolean,
-  onModeToggle: (isOn: boolean) => void) {
+export function SettingsDeveloperModeCard(params: SettingsDeveloperModeCardParams) {
   Row({ space: 12 }) {
     Column({ space: 2 }) {
       Text('开发者模式')
@@ -76,9 +81,9 @@ export function SettingsDeveloperModeCard(developerMode: boolean,
     .layoutWeight(1)
     .alignItems(HorizontalAlign.Start)
 
-    Toggle({ type: ToggleType.Switch, isOn: developerMode })
+    Toggle({ type: ToggleType.Switch, isOn: params.developerMode })
       .onChange((isOn: boolean) => {
-        onModeToggle(isOn);
+        params.onModeToggle(isOn);
       })
   }
   .width('100%')
@@ -117,9 +122,15 @@ export function SettingsDeveloperCard(onSendTest: () => void) {
   .backgroundColor($r('app.color.card_background'))
 }
 
+/** 版本号卡入参（单参对象字面量按引用传递，versionText 异步读取后随状态刷新） */
+export interface SettingsVersionCardParams {
+  versionText: string;
+  onVersionTap: () => void;
+}
+
 /** 版本号卡（自 SettingsView 拆出；onVersionTap 连续点击 5 次可开启开发者选项） */
 @Builder
-export function SettingsVersionCard(versionText: string, onVersionTap: () => void) {
+export function SettingsVersionCard(params: SettingsVersionCardParams) {
   Row() {
     Column({ space: 2 }) {
       Text('版本号')
@@ -133,7 +144,7 @@ export function SettingsVersionCard(versionText: string, onVersionTap: () => voi
     .layoutWeight(1)
     .alignItems(HorizontalAlign.Start)
 
-    Text(versionText)
+    Text(params.versionText)
       .fontSize(15)
       .fontWeight(FontWeight.Medium)
       .fontColor($r('sys.color.ohos_id_color_text_primary'))
@@ -144,7 +155,7 @@ export function SettingsVersionCard(versionText: string, onVersionTap: () => voi
   .borderRadius(16)
   .backgroundColor($r('app.color.card_background'))
   .onClick(() => {
-    onVersionTap();
+    params.onVersionTap();
   })
 }
 

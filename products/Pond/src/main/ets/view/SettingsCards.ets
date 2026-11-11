@@ -21,61 +21,23 @@ export function SettingsSectionTitle(title: string) {
     .padding({ top: 16, bottom: 8 })
 }
 
-/** 自定义提前提醒时间输入弹层内容（自 SettingsView 拆出） */
-@Builder
-function SettingsAdvanceSheet(inputText: string, onInput: (value: string) => void,
-  onConfirm: () => void, onClose: () => void) {
-  Column({ space: 16 }) {
-    Text('自定义提前提醒时间')
-      .fontSize(18)
-      .fontWeight(FontWeight.Medium)
-      .fontColor($r('sys.color.ohos_id_color_text_primary'))
-      .width('100%')
-    Text('输入上课前多少分钟提醒，可设 1-120 分钟')
-      .fontSize(12)
-      .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-      .width('100%')
-    TextInput({ text: inputText, placeholder: '1-120' })
-      .type(InputType.Number)
-      .fontSize(16)
-      .maxLength(3)
-      .width('100%')
-      .onChange((value: string) => {
-        onInput(value);
-      })
-      .enterKeyType(EnterKeyType.Done)
-      .onSubmit(() => {
-        onConfirm();
-      })
-    Row({ space: 12 }) {
-      Button('取消')
-        .layoutWeight(1)
-        .backgroundColor($r('sys.color.ohos_id_color_button_normal'))
-        .fontColor($r('sys.color.ohos_id_color_text_primary'))
-        .onClick(() => {
-          onClose();
-        })
-      Button('确定')
-        .layoutWeight(1)
-        .onClick(() => {
-          onConfirm();
-        })
-    }
-    .width('100%')
-  }
-  .width('100%')
-  .alignItems(HorizontalAlign.Start)
-  .padding({ left: 28, right: 28, top: 12, bottom: 36 })
+/** 上课提醒卡入参（单参对象字面量按引用传递，开关/提前分钟/代理开关随设置刷新；
+ * 自定义输入弹层由 SettingsView 持有（bindSheet 挂在页面根节点），本卡仅回调打开） */
+export interface SettingsReminderCardParams {
+  reminderEnabled: boolean;
+  nextReminder: string;
+  reminderAdvance: number;
+  reminderAgentEnabled: boolean;
+  onToggleReminder: (isOn: boolean) => void;
+  onSelectAdvance: (minutes: number) => void;
+  onOpenAdvanceSheet: () => void;
+  onToggleAgent: (isOn: boolean) => void;
 }
 
-/** 上课提醒卡（自 SettingsView 拆出；onToggleReminder 切换开关，onSelectAdvance 选择提前分钟数，onOpenAdvanceSheet 打开自定义输入弹层，onToggleAgent 切换代理提醒，onAdvanceInput/onAdvanceConfirm/onAdvanceClose 驱动弹层输入，onSheetDismiss 弹层关闭回写） */
+/** 上课提醒卡（自 SettingsView 拆出；onToggleReminder 切换开关，onSelectAdvance 选择提前分钟数，
+ * onOpenAdvanceSheet 打开自定义输入弹层，onToggleAgent 切换代理提醒） */
 @Builder
-export function SettingsReminderCard(reminderEnabled: boolean, nextReminder: string,
-  reminderAdvance: number, reminderAgentEnabled: boolean, advanceInputText: string,
-  showAdvanceSheet: boolean, onToggleReminder: (isOn: boolean) => void,
-  onSelectAdvance: (minutes: number) => void, onOpenAdvanceSheet: () => void,
-  onToggleAgent: (isOn: boolean) => void, onAdvanceInput: (value: string) => void,
-  onAdvanceConfirm: () => void, onAdvanceClose: () => void, onSheetDismiss: () => void) {
+export function SettingsReminderCard(params: SettingsReminderCardParams) {
   Column({ space: 12 }) {
     Row() {
       Column({ space: 2 }) {
@@ -90,17 +52,17 @@ export function SettingsReminderCard(reminderEnabled: boolean, nextReminder: str
       .layoutWeight(1)
       .alignItems(HorizontalAlign.Start)
 
-      Toggle({ type: ToggleType.Switch, isOn: reminderEnabled })
+      Toggle({ type: ToggleType.Switch, isOn: params.reminderEnabled })
         .onChange((isOn: boolean) => {
-          onToggleReminder(isOn);
+          params.onToggleReminder(isOn);
         })
     }
     .width('100%')
     .alignItems(VerticalAlign.Center)
 
-    if (reminderEnabled) {
-      Text(nextReminder.length > 0 ?
-        '下次提醒：' + nextReminder : '暂无即将到来的课程提醒')
+    if (params.reminderEnabled) {
+      Text(params.nextReminder.length > 0 ?
+        '下次提醒：' + params.nextReminder : '暂无即将到来的课程提醒')
         .fontSize(12)
         .fontColor($r('sys.color.ohos_id_color_text_secondary'))
         .width('100%')
@@ -117,32 +79,33 @@ export function SettingsReminderCard(reminderEnabled: boolean, nextReminder: str
         ForEach(ADVANCE_PRESETS, (minutes: number) => {
           Text(`${minutes}分钟`)
             .fontSize(13)
-            .fontWeight(reminderAdvance === minutes ? FontWeight.Bold : FontWeight.Normal)
-            .fontColor(reminderAdvance === minutes ? Color.White :
+            .fontWeight(params.reminderAdvance === minutes ? FontWeight.Bold : FontWeight.Normal)
+            .fontColor(params.reminderAdvance === minutes ? Color.White :
               $r('sys.color.ohos_id_color_text_primary_activated'))
             .padding({ left: 14, right: 14, top: 7, bottom: 7 })
             .margin({ right: 8, bottom: 8 })
             .borderRadius(16)
-            .backgroundColor(reminderAdvance === minutes ?
+            .backgroundColor(params.reminderAdvance === minutes ?
               $r('sys.color.ohos_id_color_text_primary_activated') :
               $r('sys.color.ohos_id_color_button_normal'))
             .onClick(() => {
-              onSelectAdvance(minutes);
+              params.onSelectAdvance(minutes);
             })
-        }, (minutes: number) => 'advance' + minutes)
-        Text(customAdvanceLabel(reminderAdvance))
+        }, (minutes: number) => 'advance' + minutes
+          + (params.reminderAdvance === minutes ? ':on' : ':off'))
+        Text(customAdvanceLabel(params.reminderAdvance))
           .fontSize(13)
-          .fontWeight(isCustomAdvance(reminderAdvance) ? FontWeight.Bold : FontWeight.Normal)
-          .fontColor(isCustomAdvance(reminderAdvance) ? Color.White :
+          .fontWeight(isCustomAdvance(params.reminderAdvance) ? FontWeight.Bold : FontWeight.Normal)
+          .fontColor(isCustomAdvance(params.reminderAdvance) ? Color.White :
             $r('sys.color.ohos_id_color_text_primary_activated'))
           .padding({ left: 14, right: 14, top: 7, bottom: 7 })
           .margin({ right: 8, bottom: 8 })
           .borderRadius(16)
-          .backgroundColor(isCustomAdvance(reminderAdvance) ?
+          .backgroundColor(isCustomAdvance(params.reminderAdvance) ?
             $r('sys.color.ohos_id_color_text_primary_activated') :
             $r('sys.color.ohos_id_color_button_normal'))
           .onClick(() => {
-            onOpenAdvanceSheet();
+            params.onOpenAdvanceSheet();
           })
       }
       .width('100%')
@@ -156,9 +119,9 @@ export function SettingsReminderCard(reminderEnabled: boolean, nextReminder: str
           .fontWeight(FontWeight.Medium)
           .fontColor($r('sys.color.ohos_id_color_text_primary'))
           .layoutWeight(1)
-        Toggle({ type: ToggleType.Switch, isOn: reminderAgentEnabled })
+        Toggle({ type: ToggleType.Switch, isOn: params.reminderAgentEnabled })
           .onChange((isOn: boolean) => {
-            onToggleAgent(isOn);
+            params.onToggleAgent(isOn);
           })
       }
       .width('100%')
@@ -180,59 +143,100 @@ export function SettingsReminderCard(reminderEnabled: boolean, nextReminder: str
   .padding(16)
   .borderRadius(16)
   .backgroundColor($r('app.color.card_background'))
-  .bindSheet(showAdvanceSheet, SettingsAdvanceSheet(advanceInputText, onAdvanceInput, onAdvanceConfirm, onAdvanceClose), {
-    height: SheetSize.FIT_CONTENT,
-    dragBar: true,
-    showClose: true,
-    onDisappear: onSheetDismiss
-  })
 }
 
-/** 隐私模式单行（自 SettingsView 拆出；onSelect 选择模式） */
-@Builder
-function SettingsPrivacyOptionRow(privacyMode: string, value: string, title: string,
-  description: string, onSelect: (value: string) => void) {
-  Row({ space: 12 }) {
-    Column({ space: 2 }) {
-      Text(title)
-        .fontSize(15)
-        .fontWeight(FontWeight.Medium)
-        .fontColor($r('sys.color.ohos_id_color_text_primary'))
-      Text(description)
-        .fontSize(11)
-        .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-    }
-    .layoutWeight(1)
-    .alignItems(HorizontalAlign.Start)
-
-    Radio({ value: value, group: 'privacyMode' })
-      .checked(privacyMode === value)
-      .hitTestBehavior(HitTestMode.None)
-  }
-  .width('100%')
-  .alignItems(VerticalAlign.Center)
-  .padding({ top: 8, bottom: 8 })
-  .onClick(() => {
-    onSelect(value);
-  })
+/** 隐私模式卡入参（单参对象字面量按引用传递，选中 Radio 随隐私模式刷新） */
+export interface SettingsPrivacyCardParams {
+  privacyMode: string;
+  onSelect: (value: string) => void;
 }
 
-/** 隐私模式卡（自 SettingsView 拆出；onSelect 选择模式） */
+/** 隐私模式卡（自 SettingsView 拆出；onSelect 选择模式；三行选项内联直读 params，选中态随绑定刷新） */
 @Builder
-export function SettingsPrivacyCard(privacyMode: string, onSelect: (value: string) => void) {
+export function SettingsPrivacyCard(params: SettingsPrivacyCardParams) {
   Column() {
     Text('隐私')
       .fontSize(13)
       .fontColor($r('sys.color.ohos_id_color_text_secondary'))
       .width('100%')
 
-    SettingsPrivacyOptionRow(privacyMode, 'standard', '标准', '缓存个人成绩、课表等所有信息（默认）', onSelect)
+    Row({ space: 12 }) {
+      Column({ space: 2 }) {
+        Text('标准')
+          .fontSize(15)
+          .fontWeight(FontWeight.Medium)
+          .fontColor($r('sys.color.ohos_id_color_text_primary'))
+        Text('缓存个人成绩、课表等所有信息（默认）')
+          .fontSize(11)
+          .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+      }
+      .layoutWeight(1)
+      .alignItems(HorizontalAlign.Start)
+
+      Radio({ value: 'standard', group: 'privacyMode' })
+        .checked(params.privacyMode === 'standard')
+        .hitTestBehavior(HitTestMode.None)
+    }
+    .width('100%')
+    .alignItems(VerticalAlign.Center)
+    .padding({ top: 8, bottom: 8 })
+    .onClick(() => {
+      params.onSelect('standard');
+    })
+
     Divider()
       .color($r('sys.color.ohos_id_color_list_separator'))
-    SettingsPrivacyOptionRow(privacyMode, 'restricted', '限制', '仅缓存课表供桌面卡片使用，其他数据都不会缓存', onSelect)
+
+    Row({ space: 12 }) {
+      Column({ space: 2 }) {
+        Text('限制')
+          .fontSize(15)
+          .fontWeight(FontWeight.Medium)
+          .fontColor($r('sys.color.ohos_id_color_text_primary'))
+        Text('仅缓存课表供桌面卡片使用，其他数据都不会缓存')
+          .fontSize(11)
+          .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+      }
+      .layoutWeight(1)
+      .alignItems(HorizontalAlign.Start)
+
+      Radio({ value: 'restricted', group: 'privacyMode' })
+        .checked(params.privacyMode === 'restricted')
+        .hitTestBehavior(HitTestMode.None)
+    }
+    .width('100%')
+    .alignItems(VerticalAlign.Center)
+    .padding({ top: 8, bottom: 8 })
+    .onClick(() => {
+      params.onSelect('restricted');
+    })
+
     Divider()
       .color($r('sys.color.ohos_id_color_list_separator'))
-    SettingsPrivacyOptionRow(privacyMode, 'strict', '严格', '不缓存任何信息；进入后台或退出后清理缓存并退出登录，桌面卡片不可用', onSelect)
+
+    Row({ space: 12 }) {
+      Column({ space: 2 }) {
+        Text('严格')
+          .fontSize(15)
+          .fontWeight(FontWeight.Medium)
+          .fontColor($r('sys.color.ohos_id_color_text_primary'))
+        Text('不缓存任何信息；进入后台或退出后清理缓存并退出登录，桌面卡片不可用')
+          .fontSize(11)
+          .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+      }
+      .layoutWeight(1)
+      .alignItems(HorizontalAlign.Start)
+
+      Radio({ value: 'strict', group: 'privacyMode' })
+        .checked(params.privacyMode === 'strict')
+        .hitTestBehavior(HitTestMode.None)
+    }
+    .width('100%')
+    .alignItems(VerticalAlign.Center)
+    .padding({ top: 8, bottom: 8 })
+    .onClick(() => {
+      params.onSelect('strict');
+    })
   }
   .width('100%')
   .alignItems(HorizontalAlign.Start)
@@ -241,9 +245,15 @@ export function SettingsPrivacyCard(privacyMode: string, onSelect: (value: strin
   .backgroundColor($r('app.color.card_background'))
 }
 
+/** 存储管理卡入参（单参对象字面量按引用传递，清理后缓存大小随刷新更新） */
+export interface SettingsCacheCardParams {
+  cacheSizeText: string;
+  onClearCache: () => void;
+}
+
 /** 存储管理卡（自 SettingsView 拆出；onClearCache 弹窗确认后清理） */
 @Builder
-export function SettingsCacheCard(cacheSizeText: string, onClearCache: () => void) {
+export function SettingsCacheCard(params: SettingsCacheCardParams) {
   Column({ space: 12 }) {
     Text('存储')
       .fontSize(13)
@@ -263,7 +273,7 @@ export function SettingsCacheCard(cacheSizeText: string, onClearCache: () => voi
       .layoutWeight(1)
       .alignItems(HorizontalAlign.Start)
 
-      Text(cacheSizeText)
+      Text(params.cacheSizeText)
         .fontSize(15)
         .fontWeight(FontWeight.Medium)
         .fontColor($r('sys.color.ohos_id_color_text_primary'))
@@ -276,7 +286,7 @@ export function SettingsCacheCard(cacheSizeText: string, onClearCache: () => voi
       .height(36)
       .width('100%')
       .onClick(() => {
-        onClearCache();
+        params.onClearCache();
       })
 
     Text('清理后成绩将清空，可通过主页"刷新"重新同步；不影响已添加的桌面卡片和登录状态。')

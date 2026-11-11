@@ -106,14 +106,19 @@ function selectedSubText(item: SelectedCourse): string {
   return item.teacher + credit;
 }
 
+/** 提示条入参（单参对象字面量按引用传递，tipText 随错误/提交结果刷新） */
+export interface SelectionTipCardParams {
+  tipText: string;
+}
+
 /** 提示条（自 SelectionView 拆出） */
 @Builder
-export function SelectionTipCard(tipText: string) {
+export function SelectionTipCard(params: SelectionTipCardParams) {
   Row({ space: 8 }) {
     SymbolGlyph($r('sys.symbol.exclamationmark_circle'))
       .fontSize(18)
       .fontColor([$r('sys.color.ohos_id_color_text_primary_activated')])
-    Text(tipText)
+    Text(params.tipText)
       .fontSize(12)
       .fontColor($r('sys.color.ohos_id_color_text_primary'))
       .layoutWeight(1)
@@ -125,16 +130,23 @@ export function SelectionTipCard(tipText: string) {
   .backgroundColor($r('app.color.card_background'))
 }
 
+/** 顶栏卡入参（单参对象字面量按引用传递，已选计数随刷新变化） */
+export interface SelectionHeaderCardParams {
+  summaryText: string;
+  onRefresh: () => void;
+  onLogout: () => void;
+}
+
 /** 顶栏卡（自 SelectionView 拆出；onRefresh 刷新数据，onLogout 退出登录） */
 @Builder
-export function SelectionHeaderCard(summaryText: string, onRefresh: () => void, onLogout: () => void) {
+export function SelectionHeaderCard(params: SelectionHeaderCardParams) {
   Row({ space: 8 }) {
     Column({ space: 2 }) {
       Text('选课系统')
         .fontSize(16)
         .fontWeight(FontWeight.Bold)
         .fontColor($r('sys.color.ohos_id_color_text_primary'))
-      Text(summaryText)
+      Text(params.summaryText)
         .fontSize(12)
         .fontColor($r('sys.color.ohos_id_color_text_secondary'))
     }
@@ -144,13 +156,13 @@ export function SelectionHeaderCard(summaryText: string, onRefresh: () => void, 
       .fontSize(13)
       .height(34)
       .onClick(() => {
-        onRefresh();
+        params.onRefresh();
       })
     Button('退出')
       .fontSize(13)
       .height(34)
       .onClick(() => {
-        onLogout();
+        params.onLogout();
       })
   }
   .width('100%')
@@ -160,7 +172,7 @@ export function SelectionHeaderCard(summaryText: string, onRefresh: () => void, 
   .backgroundColor($r('app.color.card_background'))
 }
 
-/** 轮次切换片（自 SelectionView 拆出；onSelect 切换当前轮次） */
+/** 轮次切换片（自 SelectionView 拆出；onSelect 切换当前轮次；选中态经轮次 ForEach key 驱动重建刷新） */
 @Builder
 function SelectionBatchChip(batch: SelectionBatch, selected: boolean, onSelect: () => void) {
   Text(batch.name.length > 0 ? batch.name : '轮次')
@@ -179,56 +191,63 @@ function SelectionBatchChip(batch: SelectionBatch, selected: boolean, onSelect: 
     })
 }
 
+/** 轮次区入参（单参对象字面量按引用传递，轮次列表与当前选中随状态刷新） */
+export interface SelectionBatchSectionParams {
+  batches: SelectionBatch[];
+  currentIndex: number;
+  onSelect: (index: number) => void;
+}
+
 /** 轮次区（自 SelectionView 拆出；onSelect 切换当前轮次） */
 @Builder
-export function SelectionBatchSection(batches: SelectionBatch[], currentIndex: number,
-  onSelect: (index: number) => void) {
+export function SelectionBatchSection(params: SelectionBatchSectionParams) {
   Column({ space: 10 }) {
     Scroll() {
       Row({ space: 8 }) {
-        ForEach(batches, (batch: SelectionBatch, index: number) => {
-          SelectionBatchChip(batch, index === currentIndex, (): void => {
-            onSelect(index);
+        ForEach(params.batches, (batch: SelectionBatch, index: number) => {
+          SelectionBatchChip(batch, index === params.currentIndex, (): void => {
+            params.onSelect(index);
           })
-        }, (batch: SelectionBatch) => batch.code)
+        }, (batch: SelectionBatch, index: number) =>
+          batch.code + (index === params.currentIndex ? ':on' : ':off'))
       }
     }
     .scrollable(ScrollDirection.Horizontal)
     .scrollBar(BarState.Off)
     .width('100%')
-    if (batches.length > 0) {
+    if (params.batches.length > 0) {
       Column({ space: 6 }) {
         Row({ space: 8 }) {
-          Text(batches[currentIndex].name)
+          Text(params.batches[params.currentIndex].name)
             .fontSize(14)
             .fontWeight(FontWeight.Bold)
             .fontColor($r('sys.color.ohos_id_color_text_primary'))
             .layoutWeight(1)
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
-          Text(batchStatus(batches[currentIndex]))
+          Text(batchStatus(params.batches[params.currentIndex]))
             .fontSize(12)
             .fontWeight(FontWeight.Medium)
-            .fontColor(statusColor(batchStatus(batches[currentIndex])))
+            .fontColor(statusColor(batchStatus(params.batches[params.currentIndex])))
         }
         .width('100%')
         .alignItems(VerticalAlign.Center)
-        Text('选课时间：' + batchTimeText(batches, currentIndex))
+        Text('选课时间：' + batchTimeText(params.batches, params.currentIndex))
           .fontSize(12)
           .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-        if (batches[currentIndex].typeName.length > 0
-          || batches[currentIndex].tacticName.length > 0) {
-          Text(batches[currentIndex].typeName
-            + (batches[currentIndex].tacticName.length > 0
-              ? ' · ' + batches[currentIndex].tacticName
+        if (params.batches[params.currentIndex].typeName.length > 0
+          || params.batches[params.currentIndex].tacticName.length > 0) {
+          Text(params.batches[params.currentIndex].typeName
+            + (params.batches[params.currentIndex].tacticName.length > 0
+              ? ' · ' + params.batches[params.currentIndex].tacticName
               : ''))
             .fontSize(12)
             .fontColor($r('sys.color.ohos_id_color_text_secondary'))
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
         }
-        if (batches[currentIndex].weekRange.length > 0) {
-          Text('上课周次：' + batches[currentIndex].weekRange)
+        if (params.batches[params.currentIndex].weekRange.length > 0) {
+          Text('上课周次：' + params.batches[params.currentIndex].weekRange)
             .fontSize(12)
             .fontColor($r('sys.color.ohos_id_color_text_secondary'))
         }
@@ -244,9 +263,14 @@ export function SelectionBatchSection(batches: SelectionBatch[], currentIndex: n
   .alignItems(HorizontalAlign.Start)
 }
 
+/** 已选课程卡入参（单参对象字面量按引用传递，选课提交后随已选列表刷新） */
+export interface SelectionSelectedCardParams {
+  selectedCourses: SelectedCourse[];
+}
+
 /** 已选课程卡（自 SelectionView 拆出） */
 @Builder
-export function SelectionSelectedCard(selectedCourses: SelectedCourse[]) {
+export function SelectionSelectedCard(params: SelectionSelectedCardParams) {
   Column({ space: 8 }) {
     Row({ space: 8 }) {
       Text('已选课程')
@@ -254,18 +278,18 @@ export function SelectionSelectedCard(selectedCourses: SelectedCourse[]) {
         .fontWeight(FontWeight.Bold)
         .fontColor($r('sys.color.ohos_id_color_text_primary'))
         .layoutWeight(1)
-      Text(`${selectedCourses.length}` + ' 门')
+      Text(`${params.selectedCourses.length}` + ' 门')
         .fontSize(12)
         .fontColor($r('sys.color.ohos_id_color_text_secondary'))
     }
     .width('100%')
     .alignItems(VerticalAlign.Center)
-    if (selectedCourses.length === 0) {
+    if (params.selectedCourses.length === 0) {
       Text('暂无已选课程，选课提交后在此显示，可下拉刷新查看最新结果。')
         .fontSize(12)
         .fontColor($r('sys.color.ohos_id_color_text_secondary'))
     } else {
-      ForEach(selectedCourses, (item: SelectedCourse) => {
+      ForEach(params.selectedCourses, (item: SelectedCourse) => {
         Row({ space: 8 }) {
           Column({ space: 2 }) {
             Text(item.courseName)
@@ -290,7 +314,8 @@ export function SelectionSelectedCard(selectedCourses: SelectedCourse[]) {
         }
         .width('100%')
         .alignItems(VerticalAlign.Center)
-      }, (item: SelectedCourse) => item.jxbId)
+      }, (item: SelectedCourse) => item.jxbId + ':' + item.courseName + ':' + item.teacher
+        + ':' + item.credit + ':' + `${item.selectStatus}`)
     }
   }
   .width('100%')
@@ -300,68 +325,82 @@ export function SelectionSelectedCard(selectedCourses: SelectedCourse[]) {
   .backgroundColor($r('app.color.card_background'))
 }
 
+/** 搜索行入参（单参对象字面量按引用传递，搜索可用态随加载状态刷新） */
+export interface SelectionSearchRowParams {
+  keyword: string;
+  searchEnabled: boolean;
+  onKeywordChange: (value: string) => void;
+  onSearch: () => void;
+}
+
 /** 搜索行（自 SelectionView 拆出；onKeywordChange 同步关键词，onSearch 触发搜索） */
 @Builder
-export function SelectionSearchRow(keyword: string, searchEnabled: boolean,
-  onKeywordChange: (value: string) => void, onSearch: () => void) {
+export function SelectionSearchRow(params: SelectionSearchRowParams) {
   Row({ space: 8 }) {
-    TextInput({ placeholder: '搜索课程名或教师', text: keyword })
+    TextInput({ placeholder: '搜索课程名或教师', text: params.keyword })
       .fontSize(13)
       .height(40)
       .layoutWeight(1)
       .backgroundColor($r('sys.color.ohos_id_color_button_normal'))
       .borderRadius(20)
       .onChange((value: string) => {
-        onKeywordChange(value);
+        params.onKeywordChange(value);
       })
     Button('搜索')
       .fontSize(13)
       .height(40)
-      .enabled(searchEnabled)
+      .enabled(params.searchEnabled)
       .onClick(() => {
-        onSearch();
+        params.onSearch();
       })
   }
   .width('100%')
   .alignItems(VerticalAlign.Center)
 }
 
+/** 课程卡入参（单参对象字面量按引用传递，按钮文案/可用态经课程 ForEach key 驱动重建刷新） */
+export interface SelectionCourseCardParams {
+  course: SelectionCourse;
+  actionLabel: string;
+  actionEnabled: boolean;
+  onConfirm: () => void;
+}
+
 /** 课程卡（自 SelectionView 拆出；onConfirm 提交选课） */
 @Builder
-export function SelectionCourseCard(course: SelectionCourse, actionLabel: string,
-  actionEnabled: boolean, onConfirm: () => void) {
+export function SelectionCourseCard(params: SelectionCourseCardParams) {
   Column({ space: 8 }) {
     Row() {
-      Text(course.courseName)
+      Text(params.course.courseName)
         .fontSize(15)
         .fontWeight(FontWeight.Bold)
         .fontColor($r('sys.color.ohos_id_color_text_primary'))
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
         .layoutWeight(1)
-      Text(course.credit + '学分')
+      Text(params.course.credit + '学分')
         .fontSize(11)
         .fontColor($r('sys.color.ohos_id_color_text_secondary'))
         .margin({ left: 8 })
     }
     .width('100%')
-    Text(courseSubText(course))
+    Text(courseSubText(params.course))
       .fontSize(12)
       .fontColor($r('sys.color.ohos_id_color_text_secondary'))
       .maxLines(2)
       .textOverflow({ overflow: TextOverflow.Ellipsis })
     Row() {
-      Text(courseCountText(course))
+      Text(courseCountText(params.course))
         .fontSize(11)
         .fontColor($r('sys.color.ohos_id_color_text_secondary'))
         .layoutWeight(1)
-      Button(actionLabel)
+      Button(params.actionLabel)
         .fontSize(13)
         .height(32)
         .padding({ left: 16, right: 16 })
-        .enabled(actionEnabled)
+        .enabled(params.actionEnabled)
         .onClick(() => {
-          onConfirm();
+          params.onConfirm();
         })
     }
     .width('100%')
@@ -393,14 +432,19 @@ export function SelectionCoursesLoadingCard() {
   .backgroundColor($r('app.color.card_background'))
 }
 
+/** 课程空态卡入参（单参对象字面量按引用传递，关键词变化时切换文案） */
+export interface SelectionCoursesEmptyCardParams {
+  hasKeyword: boolean;
+}
+
 /** 课程空态卡（自 SelectionView 拆出；hasKeyword 区分「未找到」与「暂无」） */
 @Builder
-export function SelectionCoursesEmptyCard(hasKeyword: boolean) {
+export function SelectionCoursesEmptyCard(params: SelectionCoursesEmptyCardParams) {
   Column({ space: 8 }) {
     SymbolGlyph($r('sys.symbol.list_bullet'))
       .fontSize(36)
       .fontColor([$r('sys.color.ohos_id_color_text_secondary')])
-    Text(hasKeyword ? '未找到相关课程' : '暂无可选课程')
+    Text(params.hasKeyword ? '未找到相关课程' : '暂无可选课程')
       .fontSize(13)
       .fontWeight(FontWeight.Medium)
       .fontColor($r('sys.color.ohos_id_color_text_primary'))
@@ -416,11 +460,18 @@ export function SelectionCoursesEmptyCard(hasKeyword: boolean) {
   .backgroundColor($r('app.color.card_background'))
 }
 
+/** 加载更多行入参（单参对象字面量按引用传递，加载态/是否还有更多随分页刷新） */
+export interface SelectionLoadMoreRowParams {
+  moreLoading: boolean;
+  hasMore: boolean;
+  onLoadMore: () => void;
+}
+
 /** 加载更多行（自 SelectionView 拆出；onLoadMore 加载下一页） */
 @Builder
-export function SelectionLoadMoreRow(moreLoading: boolean, hasMore: boolean, onLoadMore: () => void) {
+export function SelectionLoadMoreRow(params: SelectionLoadMoreRowParams) {
   Column() {
-    if (moreLoading) {
+    if (params.moreLoading) {
       Row({ space: 8 }) {
         LoadingProgress()
           .width(20)
@@ -430,12 +481,12 @@ export function SelectionLoadMoreRow(moreLoading: boolean, hasMore: boolean, onL
           .fontColor($r('sys.color.ohos_id_color_text_secondary'))
       }
       .alignItems(VerticalAlign.Center)
-    } else if (hasMore) {
+    } else if (params.hasMore) {
       Button('加载更多')
         .fontSize(13)
         .height(36)
         .onClick(() => {
-          onLoadMore();
+          params.onLoadMore();
         })
     } else {
       Text('没有更多了')

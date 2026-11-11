@@ -228,22 +228,71 @@ export struct SettingsView {
     JwxtRepository.updatePrivacyMode(mode);
   }
 
+  /** 自定义提前提醒时间输入弹层内容（体内直读状态，随输入刷新；弹层经页面根节点 bindSheet 挂载） */
+  @Builder
+  advanceSheetContent() {
+    Column({ space: 16 }) {
+      Text('自定义提前提醒时间')
+        .fontSize(18)
+        .fontWeight(FontWeight.Medium)
+        .fontColor($r('sys.color.ohos_id_color_text_primary'))
+        .width('100%')
+      Text('输入上课前多少分钟提醒，可设 1-120 分钟')
+        .fontSize(12)
+        .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+        .width('100%')
+      TextInput({ text: this.advanceInputText, placeholder: '1-120' })
+        .type(InputType.Number)
+        .fontSize(16)
+        .maxLength(3)
+        .width('100%')
+        .onChange((value: string) => {
+          this.advanceInputText = value;
+        })
+        .enterKeyType(EnterKeyType.Done)
+        .onSubmit(() => {
+          this.confirmAdvanceInput();
+        })
+      Row({ space: 12 }) {
+        Button('取消')
+          .layoutWeight(1)
+          .backgroundColor($r('sys.color.ohos_id_color_button_normal'))
+          .fontColor($r('sys.color.ohos_id_color_text_primary'))
+          .onClick(() => {
+            this.showAdvanceSheet = false;
+          })
+        Button('确定')
+          .layoutWeight(1)
+          .onClick(() => {
+            this.confirmAdvanceInput();
+          })
+      }
+      .width('100%')
+    }
+    .width('100%')
+    .alignItems(HorizontalAlign.Start)
+    .padding({ left: 28, right: 28, top: 12, bottom: 36 })
+  }
+
   build() {
     Column() {
       if (this.subPage === SettingsSubPage.Developer) {
         // 「开发者选项」标题悬浮于顶带返回键旁（由 SettingsIndex 渲染），此处不重复
         Scroll() {
           Column({ space: 16 }) {
-            SettingsDeveloperModeCard(this.developerMode, (isOn: boolean) => {
-              if (isOn === this.developerMode) {
-                return;
-              }
-              AppLog.info(SETTING_DOMAIN, SETTING_TAG, 'developer mode toggled: %{public}s', `${isOn}`);
-              JwxtRepository.updateDeveloperMode(isOn);
-              if (!isOn) {
-                this.getUIContext().animateTo({ duration: PAGE_PUSH_DURATION, curve: Curve.Friction }, () => {
-                  this.subPage = SettingsSubPage.Main;
-                });
+            SettingsDeveloperModeCard({
+              developerMode: this.developerMode,
+              onModeToggle: (isOn: boolean): void => {
+                if (isOn === this.developerMode) {
+                  return;
+                }
+                AppLog.info(SETTING_DOMAIN, SETTING_TAG, 'developer mode toggled: %{public}s', `${isOn}`);
+                JwxtRepository.updateDeveloperMode(isOn);
+                if (!isOn) {
+                  this.getUIContext().animateTo({ duration: PAGE_PUSH_DURATION, curve: Curve.Friction }, () => {
+                    this.subPage = SettingsSubPage.Main;
+                  });
+                }
               }
             })
             SettingsDeveloperCard(() => {
@@ -263,8 +312,11 @@ export struct SettingsView {
         // 「关于应用」标题悬浮于顶带返回键旁（由 SettingsIndex 渲染），此处不重复
         Scroll() {
           Column() {
-            SettingsVersionCard(this.versionText, () => {
-              this.onVersionTap();
+            SettingsVersionCard({
+              versionText: this.versionText,
+              onVersionTap: (): void => {
+                this.onVersionTap();
+              }
             })
             SettingsOpenSourceCard(() => {
               this.openGithubUrl();
@@ -285,34 +337,39 @@ export struct SettingsView {
         Scroll() {
           Column() {
             // 「设置」标题悬浮于顶带返回键旁（由 SettingsIndex 渲染），此处不重复
-            SettingsReminderCard(this.reminderEnabled, this.nextReminder, this.reminderAdvance,
-              this.reminderAgentEnabled, this.advanceInputText, this.showAdvanceSheet,
-              (isOn: boolean) => {
+            SettingsReminderCard({
+              reminderEnabled: this.reminderEnabled,
+              nextReminder: this.nextReminder,
+              reminderAdvance: this.reminderAdvance,
+              reminderAgentEnabled: this.reminderAgentEnabled,
+              onToggleReminder: (isOn: boolean): void => {
                 this.applySettings(isOn, this.reminderAdvance, this.reminderAgentEnabled);
-              }, (minutes: number) => {
+              },
+              onSelectAdvance: (minutes: number): void => {
                 if (this.reminderAdvance !== minutes) {
                   this.applySettings(this.reminderEnabled, minutes, this.reminderAgentEnabled);
                 }
-              }, () => {
+              },
+              onOpenAdvanceSheet: (): void => {
                 this.openAdvanceSheet();
-              }, (isOn: boolean) => {
+              },
+              onToggleAgent: (isOn: boolean): void => {
                 this.applySettings(this.reminderEnabled, this.reminderAdvance, isOn);
-              }, (value: string) => {
-                this.advanceInputText = value;
-              }, () => {
-                this.confirmAdvanceInput();
-              }, () => {
-                this.showAdvanceSheet = false;
-              }, () => {
-                this.showAdvanceSheet = false;
-              })
+              }
+            })
             SettingsSectionTitle('隐私')
-            SettingsPrivacyCard(this.privacyMode, (value: string) => {
-              this.selectPrivacyMode(value);
+            SettingsPrivacyCard({
+              privacyMode: this.privacyMode,
+              onSelect: (value: string): void => {
+                this.selectPrivacyMode(value);
+              }
             })
             SettingsSectionTitle('存储')
-            SettingsCacheCard(this.cacheSizeText, () => {
-              this.confirmClearCache();
+            SettingsCacheCard({
+              cacheSizeText: this.cacheSizeText,
+              onClearCache: (): void => {
+                this.confirmClearCache();
+              }
             })
             if (this.developerMode) {
               SettingsSectionTitle('开发者选项')
@@ -344,6 +401,11 @@ export struct SettingsView {
     .width('100%')
     .height('100%')
     .backgroundColor($r('sys.color.ohos_id_color_sub_background'))
+    .bindSheet($$this.showAdvanceSheet, this.advanceSheetContent(), {
+      height: SheetSize.FIT_CONTENT,
+      dragBar: true,
+      showClose: true
+    })
   }
 
   /** 二级页转场：从右侧滑入，退出时滑回右侧 */

@@ -364,44 +364,65 @@ export struct SelectionView {
   @Builder
   mainContent() {
     Column({ space: 12 }) {
-      SelectionHeaderCard(loginSummaryText(this.studentNameText, this.selectedCourses.length),
-        (): void => {
+      SelectionHeaderCard({
+        summaryText: loginSummaryText(this.studentNameText, this.selectedCourses.length),
+        onRefresh: (): void => {
           this.refreshAll();
-        }, (): void => {
+        },
+        onLogout: (): void => {
           this.doLogout();
-        })
+        }
+      })
       if (this.tipText.length > 0) {
-        SelectionTipCard(this.tipText)
+        SelectionTipCard({ tipText: this.tipText })
       }
       if (this.batches.length === 0) {
-        SelectionCoursesEmptyCard(this.keywordInput.length > 0)
+        SelectionCoursesEmptyCard({ hasKeyword: this.keywordInput.length > 0 })
       } else {
-        SelectionBatchSection(this.batches, this.currentBatchIndex, (index: number): void => {
-          this.currentBatchIndex = index;
+        SelectionBatchSection({
+          batches: this.batches,
+          currentIndex: this.currentBatchIndex,
+          onSelect: (index: number): void => {
+            this.currentBatchIndex = index;
+          }
         })
       }
-      SelectionSelectedCard(this.selectedCourses)
-      SelectionSearchRow(this.keywordInput, !this.coursesLoading, (value: string): void => {
-        this.keywordInput = value;
-      }, (): void => {
-        this.searchCourses(true);
+      SelectionSelectedCard({ selectedCourses: this.selectedCourses })
+      SelectionSearchRow({
+        keyword: this.keywordInput,
+        searchEnabled: !this.coursesLoading,
+        onKeywordChange: (value: string): void => {
+          this.keywordInput = value;
+        },
+        onSearch: (): void => {
+          this.searchCourses(true);
+        }
       })
       if (this.coursesLoading && this.courses.length === 0) {
         SelectionCoursesLoadingCard()
       } else if (this.courses.length === 0) {
-        SelectionCoursesEmptyCard(this.keywordInput.length > 0)
+        SelectionCoursesEmptyCard({ hasKeyword: this.keywordInput.length > 0 })
       } else {
         Text(totalCourseText(this.totalCourses))
           .fontSize(12)
           .fontColor($r('sys.color.ohos_id_color_text_secondary'))
         ForEach(this.courses, (course: SelectionCourse) => {
-          SelectionCourseCard(course, this.courseActionLabel(course), this.courseActionEnabled(course),
-            (): void => {
+          SelectionCourseCard({
+            course: course,
+            actionLabel: this.courseActionLabel(course),
+            actionEnabled: this.courseActionEnabled(course),
+            onConfirm: (): void => {
               this.confirmSubmit(course);
-            })
-        }, (course: SelectionCourse) => course.jxbId)
-        SelectionLoadMoreRow(this.moreLoading, this.hasMoreCourses(), (): void => {
-          this.loadMoreCourses();
+            }
+          })
+        }, (course: SelectionCourse) => course.jxbId + ':' + this.courseActionLabel(course)
+          + ':' + `${course.selectedCount}` + '/' + `${course.capacity}`)
+        SelectionLoadMoreRow({
+          moreLoading: this.moreLoading,
+          hasMore: this.hasMoreCourses(),
+          onLoadMore: (): void => {
+            this.loadMoreCourses();
+          }
         })
       }
     }
