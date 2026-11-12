@@ -7,3 +7,7 @@
 # 说明：上游 Linguist 已定义 ArkTS 语言，但 GitHub 线上环境尚未生效
 # （实测 linguist-language=ArkTS 被忽略），故按语法超集 TypeScript 归入统计。
 *.ets linguist-language=TypeScript
+
+# 构建与校验脚本是开发辅助工具，不代表项目主体技术栈，不参与语言统计。
+scripts/*.ps1 linguist-detectable=false
+tools/*.mjs linguist-detectable=false
