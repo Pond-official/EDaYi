@@ -13,18 +13,18 @@
  * 校验命令（项目根目录）：node tools/check_storage_keys.mjs
  */
 
-// ================================ AppStorage 键（23 个） ================================
+// ================================ AppStorage 键（24 个） ================================
 
 // [AppStorage] jwSafeTopPx | number | pondability/PondAbility（窗口避让安全高度） | pages/LoginIndex、pages/Index、pages/TrainingPlanIndex、view/FrostBand、view/GradeView、view/HomeView、view/SelectionView、view/SettingsView、view/ZcpView（9 处）
 // [AppStorage] mainBreakpoint | string | common/utils/BreakpointSystem（pages/Index 注册，断点变化写入） | pages/TrainingPlanIndex、view/GradeView、view/HomeView、view/SelectionView、view/ZcpView（@StorageLink 5 处，双向）
 // [AppStorage] jwDataMode | string（preview/online/offlineCache） | data/JwxtCacheStore、data/JwxtSessionRepository | pages/TrainingPlanIndex、view/GradeView、view/HomeView、view/ZcpView
 // [AppStorage] jwStudent | model/JwModels.StudentProfile | data/JwxtCacheStore、data/JwxtSessionRepository（退出登录置空） | view/HomeView
 // [AppStorage] jwSchedule | model/JwModels.ScheduleCellInfo[] | data/JwxtCacheStore、data/JwxtSessionRepository | view/HomeView、view/ScheduleBoard
-// [AppStorage] jwTerm | model/JwModels.TermStatus | data/JwxtSessionRepository | view/HomeView、view/ScheduleBoard
+// [AppStorage] jwTerm | model/JwModels.TermStatus | data/JwxtSessionRepository | view/HomeView、view/ScheduleBoard、view/SettingsView
 // [AppStorage] jwGrades | model/JwModels.GradeEntry[] | data/JwxtCacheStore、data/JwxtSessionRepository | view/GradeView
 // [AppStorage] jwGradeCategories | model/JwModels.GradeCategory[] | data/JwxtCacheStore、data/JwxtSessionRepository | view/GradeView
-// [AppStorage] jwTrainingPlan | model/JwModels.PlanCategory[] | data/JwxtCacheStore、data/JwxtSessionRepository | pages/TrainingPlanIndex
-// [AppStorage] jwFinalExams | model/JwModels.FinalExamEntry[] | data/JwxtRepository、data/JwxtSessionRepository、data/PrivacyController（严格模式清空） | view/HomeView、view/ScheduleBoard
+// [AppStorage] jwTrainingPlan | model/JwModels.PlanCategory[] | data/JwxtCacheStore、data/JwxtSessionRepository | pages/TrainingPlanIndex、view/SettingsView
+// [AppStorage] jwFinalExams | model/JwModels.FinalExamEntry[] | data/JwxtRepository、data/JwxtSessionRepository、data/PrivacyController（严格模式清空） | view/HomeView、view/SettingsView
 // [AppStorage] jwForegroundTick | number | data/PrivacyController（隐私切换/清数据后通知回前台页刷新） | view/HomeView、view/ScheduleBoard、view/SelectionView
 // [AppStorage] jwPrivacyMode | string（standard/strict） | data/JwxtSessionRepository、data/PrivacyController | view/HomeView（读）；view/SettingsView（@StorageLink，双向）
 // [AppStorage] jwDeveloperMode | boolean | data/JwxtSessionRepository、data/PrivacyController | view/SettingsView（@StorageLink，双向）
@@ -36,6 +36,7 @@
 // [AppStorage] jwSettingsSubPage | view/SettingsView.SettingsSubPage | pages/SettingsIndex、view/SettingsView（@StorageLink 双向，跨页同步设置子页）
 // [AppStorage] jwSelectionTabActive | boolean | pages/Index（页签切换时写入） | view/SelectionLoginPanel（选课页首次可见拉起验证码）
 // [AppStorage] jwZcpTabActive | boolean | pages/Index（页签切换时写入） | view/ZcpView（综评页首次可见建立会话）
+// [AppStorage] jwHomeTabActive | boolean | pages/Index（页签切换时写入） | view/HomeView（页签切回首页时检查已结束考试）
 // [AppStorage] jwZcpResult | model/ZcpModels.ZcpResult | null | data/ZcpRepository、view/ZcpView（缓存回显/加载成功） | view/ZcpView
 // [AppStorage] appLogRevision | number | data/AppLog（日志环形缓冲修订号） | view/AppLogCard
 

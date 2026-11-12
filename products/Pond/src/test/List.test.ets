@@ -4,6 +4,7 @@ import scheduleParserTest from './ScheduleParser.test';
 import gradeParserTest from './GradeParser.test';
 import trainingPlanParserTest from './TrainingPlanParser.test';
 import studentParserTest from './StudentParser.test';
+import examDateUtilsTest from './ExamDateUtils.test';
 
 export default function testsuite() {
   localUnitTest();
@@ -12,4 +13,5 @@ export default function testsuite() {
   gradeParserTest();
   trainingPlanParserTest();
   studentParserTest();
+  examDateUtilsTest();
 }

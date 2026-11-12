@@ -6,6 +6,9 @@ import { getContext } from '../net/JwTransport';
 import { AppLogCard } from './AppLogCard';
 import { FROST_BAND_HEIGHT, frostTopInsetVp } from './FrostBand';
 import { SettingsCacheCard, SettingsPrivacyCard, SettingsReminderCard, SettingsSectionTitle } from './SettingsCards';
+import { ExamCourseItem, SettingsExamEntry, SettingsExamListCard } from './SettingsExamCards';
+import { FinalExamEntry, PlanCategory, TermStatus } from '../model/JwModels';
+import { ExamDateUtils } from '../utils/ExamDateUtils';
 import { GITHUB_URL, SettingsAboutEntry, SettingsAcknowledgementCard, SettingsDeveloperCard,
   SettingsDeveloperEntry, SettingsDeveloperModeCard, SettingsOpenSourceCard, SettingsVersionCard } from './SettingsAboutCards';
 import { bundleManager, common } from '@kit.AbilityKit';
@@ -16,9 +19,10 @@ const SETTING_TAG: string = 'SettingsView';
 /** 二级页推入/弹出转场时长（毫秒） */
 export const PAGE_PUSH_DURATION: number = 380;
 
-/** 设置二级页：主页 / 开发者选项 / 关于应用 */
+/** 设置二级页：主页 / 期末倒计时 / 开发者选项 / 关于应用 */
 export enum SettingsSubPage {
   Main,
+  ExamSchedule,
   Developer,
   About
 }
@@ -40,6 +44,12 @@ export struct SettingsView {
   @State cacheSizeText: string = '计算中…';
   /** 应用版本号 */
   @State versionText: string = '…';
+  /** 本学期培养计划（期末倒计时二级页的考试课数据源） */
+  @StorageProp('jwTrainingPlan') trainingPlan: PlanCategory[] = [];
+  /** 当前学期（培养计划按 plannedTerm 与之匹配） */
+  @StorageProp('jwTerm') termStatus: TermStatus = new TermStatus();
+  /** 各课程期末考试时间设置（按课程名） */
+  @StorageProp('jwFinalExams') finalExams: FinalExamEntry[] = [];
   /** 隐私模式：standard=缓存全部 / restricted=仅课表卡片 / strict=不缓存 */
   @StorageLink('jwPrivacyMode') privacyMode: string = 'standard';
   /** 状态栏避让区高度（px）：沉浸式全屏下内容顶部让位计算用 */
@@ -228,6 +238,98 @@ export struct SettingsView {
     JwxtRepository.updatePrivacyMode(mode);
   }
 
+  /** 该课程已设的期末考试时间（未设置返回空串） */
+  private examDateOfCourse(courseName: string): string {
+    const found: FinalExamEntry | undefined = this.finalExams
+      .find((e: FinalExamEntry): boolean => e.courseName === courseName);
+    return found !== undefined ? found.examDate : '';
+  }
+
+  /**
+   * 期末倒计时考试课列表：本学期培养计划中考核方式为"考试"的课程（去重），
+   * 追加已设置时间但不在上述列表的课程（便于查看与清除），
+   * 已设时间的课程排前面并按考试时间升序，未设置的保持计划顺序在后。
+   */
+  private examCourseItems(): ExamCourseItem[] {
+    const items: ExamCourseItem[] = [];
+    const seen: string[] = [];
+    const termCode: string = this.termStatus.termCode;
+    for (const category of this.trainingPlan) {
+      for (const course of category.courses) {
+        if (course.examTypeText !== '考试' || course.plannedTerm !== termCode) {
+          continue;
+        }
+        if (seen.indexOf(course.courseName) >= 0) {
+          continue;
+        }
+        seen.push(course.courseName);
+        const item: ExamCourseItem = new ExamCourseItem();
+        item.courseName = course.courseName;
+        item.subtitle = course.credit + '学分 · ' + course.natureText;
+        item.examDate = this.examDateOfCourse(course.courseName);
+        items.push(item);
+      }
+    }
+    for (const entry of this.finalExams) {
+      if (seen.indexOf(entry.courseName) >= 0) {
+        continue;
+      }
+      seen.push(entry.courseName);
+      const item: ExamCourseItem = new ExamCourseItem();
+      item.courseName = entry.courseName;
+      item.subtitle = '不在本学期培养计划考试课中';
+      item.examDate = entry.examDate;
+      items.push(item);
+    }
+    items.sort((a: ExamCourseItem, b: ExamCourseItem): number => {
+      const aSet: boolean = a.examDate.length > 0;
+      const bSet: boolean = b.examDate.length > 0;
+      if (aSet !== bSet) {
+        return aSet ? -1 : 1;
+      }
+      if (aSet) {
+        return a.examDate < b.examDate ? -1 : (a.examDate > b.examDate ? 1 : 0);
+      }
+      return 0;
+    });
+    return items;
+  }
+
+  /** 考试课列表空态文案：按数据来源区分引导 */
+  private examEmptyText(): string {
+    if (this.trainingPlan.length === 0) {
+      return '登录教务系统后同步培养计划，本学期考试课将显示在这里';
+    }
+    if (this.termStatus.termCode.length === 0) {
+      return '暂无法确定当前学期，登录教务系统后显示本学期考试课';
+    }
+    return '本学期培养计划中没有考核方式为"考试"的课程';
+  }
+
+  /** 点击考试课：先选日期再选时间（精确到分钟），确认后写入期末倒计时 */
+  private openExamPicker(item: ExamCourseItem): void {
+    const current: Date | null =
+      item.examDate.length > 0 ? ExamDateUtils.parseExamDate(item.examDate) : null;
+    this.getUIContext().showDatePickerDialog({
+      selected: current ?? new Date(),
+      onDateAccept: (value: Date) => {
+        this.getUIContext().showTimePickerDialog({
+          selected: current ?? new Date(),
+          useMilitaryTime: true,
+          onAccept: (time: TimePickerResult) => {
+            JwxtRepository.updateFinalExam(item.courseName,
+              ExamDateUtils.toMinuteText(value, time.hour, time.minute));
+          }
+        });
+      }
+    });
+  }
+
+  /** 清除单门课程的期末考试时间 */
+  private clearExamTime(item: ExamCourseItem): void {
+    JwxtRepository.updateFinalExam(item.courseName, '');
+  }
+
   /** 自定义提前提醒时间输入弹层内容（体内直读状态，随输入刷新；弹层经页面根节点 bindSheet 挂载） */
   @Builder
   advanceSheetContent() {
@@ -276,7 +378,35 @@ export struct SettingsView {
 
   build() {
     Column() {
-      if (this.subPage === SettingsSubPage.Developer) {
+      if (this.subPage === SettingsSubPage.ExamSchedule) {
+        // 「期末倒计时」标题悬浮于顶带返回键旁（由 SettingsIndex 渲染），此处不重复
+        Scroll() {
+          Column() {
+            SettingsExamListCard({
+              items: this.examCourseItems(),
+              emptyText: this.examEmptyText(),
+              onPick: (item: ExamCourseItem): void => {
+                this.openExamPicker(item);
+              },
+              onClear: (item: ExamCourseItem): void => {
+                this.clearExamTime(item);
+              }
+            })
+            Text('考试课来自本学期培养计划（考核方式为"考试"）；点击科目设置考试日期与时间，到点后自动从倒计时中移除。')
+              .fontSize(11)
+              .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+              .width('100%')
+              .padding({ left: 4, right: 4, top: 8 })
+          }
+          .padding({ left: 16, right: 16, top: frostTopInsetVp(this.safeTopPx, this.getUIContext()), bottom: 88 })
+          .constraintSize({ minWidth: '100%', minHeight: '100%' })
+        }
+        .layoutWeight(1)
+        .scrollBar(BarState.Off)
+        .edgeEffect(EdgeEffect.Spring)
+        .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
+        .transition(this.subPageEnter())
+      } else if (this.subPage === SettingsSubPage.Developer) {
         // 「开发者选项」标题悬浮于顶带返回键旁（由 SettingsIndex 渲染），此处不重复
         Scroll() {
           Column({ space: 16 }) {
@@ -356,6 +486,12 @@ export struct SettingsView {
               onToggleAgent: (isOn: boolean): void => {
                 this.applySettings(this.reminderEnabled, this.reminderAdvance, isOn);
               }
+            })
+            SettingsExamEntry(() => {
+              AppLog.info(SETTING_DOMAIN, SETTING_TAG, 'enterExamPage clicked');
+              this.getUIContext().animateTo({ duration: PAGE_PUSH_DURATION, curve: Curve.Friction }, () => {
+                this.subPage = SettingsSubPage.ExamSchedule;
+              });
             })
             SettingsSectionTitle('隐私')
             SettingsPrivacyCard({

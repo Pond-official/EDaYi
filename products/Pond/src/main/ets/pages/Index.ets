@@ -37,6 +37,8 @@ const DRAG_SLOP: number = 8;
 const IMMERSIVE_OS_API_VERSION: number = 260000;
 /** HDS 组件（UI Design Kit）系统能力标识 */
 const HDS_SYSCAP: string = 'SystemCapability.UIDesign.HDSComponent.Core';
+/** 首页页签索引（驱动首页页签切回时检查已结束考试） */
+const TAB_INDEX_HOME: number = 0;
 /** 综评页签索引（驱动综评页首次可见时自动建立会话并加载） */
 const TAB_INDEX_ZCP: number = 2;
 /** 选课页签索引（驱动选课页首次可见时自动加载验证码） */
@@ -105,6 +107,12 @@ struct Index {
     this.breakpointSystem.unregister();
   }
 
+  /** 页面重新可见（从设置/登录等路由页返回）：更新前台时刻戳，
+   * 驱动首页刷新"今日课程"并检查已结束的期末倒计时 */
+  onPageShow(): void {
+    JwxtRepository.notifyForeground();
+  }
+
   /**
    * 页签切换：写入选课/综评页签激活状态（AppStorage），
    * 选课页据此在首次可见且未登录时自动获取图形验证码，
@@ -112,6 +120,7 @@ struct Index {
    * 避免应用启动（Tabs 全量构建页签内容）即触发网络请求。
    */
   onTabChanged(): void {
+    AppStorage.setOrCreate<boolean>('jwHomeTabActive', this.currentTabIndex === TAB_INDEX_HOME);
     AppStorage.setOrCreate<boolean>('jwSelectionTabActive', this.currentTabIndex === TAB_INDEX_SELECTION);
     AppStorage.setOrCreate<boolean>('jwZcpTabActive', this.currentTabIndex === TAB_INDEX_ZCP);
   }

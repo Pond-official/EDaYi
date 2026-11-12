@@ -124,7 +124,7 @@ struct ExamCountdownCard {
         .justifyContent(FlexAlign.Center)
       } else if (this.exams.length === 0) {
         Column() {
-          Text(this.emptyText.length > 0 ? this.emptyText : '在课表课程详情中设置期末时间')
+          Text(this.emptyText.length > 0 ? this.emptyText : '在"设置-期末倒计时"中设置考试时间')
             .fontSize(12)
             .fontColor($r('sys.color.ohos_id_color_text_secondary'))
             .textAlign(TextAlign.Center)

@@ -98,9 +98,9 @@ export class TermStatus {
   currentWeek: number = 0;
 }
 
-/** 课程期末考试日期设置（按课程名，用户在课表课程详情中设定） */
+/** 课程期末考试时间设置（按课程名，用户在"设置-期末倒计时"中设定） */
 export class FinalExamEntry {
   courseName: string = '';
-  /** 期末考试日期（'YYYY-MM-DD'） */
+  /** 期末考试时间（'YYYY-MM-DD HH:mm'，旧版 'YYYY-MM-DD' 数据视为当天 23:59） */
   examDate: string = '';
 }

@@ -18,8 +18,10 @@ export struct HomeView {
   @StorageProp('jwDataMode') dataMode: string = 'preview';
   /** 隐私模式：standard=缓存全部 / restricted=仅课表卡片 / strict=不缓存 */
   @StorageProp('jwPrivacyMode') privacyMode: string = 'standard';
-  /** 各课程期末考试日期设置（按课程名） */
-  @StorageProp('jwFinalExams') finalExams: FinalExamEntry[] = [];
+  /** 各课程期末考试时间设置（按课程名） */
+  @StorageProp('jwFinalExams') @Watch('onFinalExamsChanged') finalExams: FinalExamEntry[] = [];
+  /** 首页页签是否激活（pages/Index 页签切换时写入）：切回首页时检查已结束考试 */
+  @StorageProp('jwHomeTabActive') @Watch('onHomeTabActive') homeTabActive: boolean = true;
   @StorageLink('mainBreakpoint') currentBreakpoint: string = 'md';
   /** 应用回前台时刻戳（PondAbility onForeground），跨天时刷新"今日课程" */
   @StorageProp('jwForegroundTick') @Watch('onForegroundTick') foregroundTick: number = 0;
@@ -61,10 +63,24 @@ export struct HomeView {
     this.rebuildTodayCells();
   }
 
-  /** 应用回前台：跨天挂起后重算"今天"，刷新今日课程 */
+  /** 应用回前台：跨天挂起后重算"今天"，刷新今日课程，检查已结束考试 */
   onForegroundTick(): void {
     this.refreshToday();
     this.rebuildTodayCells();
+    this.checkFinishedExams();
+  }
+
+  /** 首页页签切回：刷新今日课程并检查已结束考试 */
+  onHomeTabActive(): void {
+    if (this.homeTabActive) {
+      this.rebuildTodayCells();
+      this.checkFinishedExams();
+    }
+  }
+
+  /** 期末数据变化（首次异步加载完成/设置页修改）：检查已结束考试 */
+  onFinalExamsChanged(): void {
+    this.checkFinishedExams();
   }
 
   private refreshToday(): void {
@@ -287,18 +303,63 @@ export struct HomeView {
     .transition(TransitionEffect.OPACITY)
   }
 
-  /** 该科目距考天数（日期非法返回 -1，按"已结束"展示） */
-  private examDaysOf(entry: FinalExamEntry): number {
-    const parsed: Date | null = ExamDateUtils.parseYmd(entry.examDate);
-    return parsed !== null ? ExamDateUtils.daysFromDate(parsed) : -1;
+  /** 该科目考试时刻（时间非法返回 null） */
+  private examDateOf(entry: FinalExamEntry): Date | null {
+    return ExamDateUtils.parseExamDate(entry.examDate);
   }
 
-  /** 期末倒计时条目：仅保留日期合法且未考完（含当天）的科目，按考试日期升序 */
+  /** 该科目距考日历天数（今天为 0；时间非法返回 -1） */
+  private examDaysOf(entry: FinalExamEntry): number {
+    const parsed: Date | null = this.examDateOf(entry);
+    return parsed !== null ? ExamDateUtils.calendarDaysFrom(parsed) : -1;
+  }
+
+  /** 该科目倒计时文本（超过一天显示整天，不足一天显示小时；时间非法按"已结束"展示） */
+  private examTextOf(entry: FinalExamEntry): string {
+    const parsed: Date | null = this.examDateOf(entry);
+    return parsed !== null ? ExamDateUtils.countdownTextOf(parsed) : '已结束';
+  }
+
+  /** 期末倒计时条目：仅保留时间合法且未到点的科目，按考试时间升序 */
   private sortedFinalExams(): FinalExamEntry[] {
     return this.finalExams
-      .filter((e: FinalExamEntry): boolean => this.examDaysOf(e) >= 0)
+      .filter((e: FinalExamEntry): boolean => {
+        const parsed: Date | null = this.examDateOf(e);
+        return parsed !== null && ExamDateUtils.remainingMs(parsed) > 0;
+      })
       .sort((a: FinalExamEntry, b: FinalExamEntry): number =>
         a.examDate < b.examDate ? -1 : (a.examDate > b.examDate ? 1 : 0));
+  }
+
+  /**
+   * 首页可见时检查期末倒计时：已到点（含时间非法）的科目弹窗提示已完成数，
+   * 并从设置中删除。触发点：Index.onPageShow（页面就绪，含冷启动/路由返回）、
+   * 应用回前台、页签切回首页、期末数据变化（首次加载/设置页修改）。
+   * 注意：不在此处 aboutToAppear 调用——页面尚未挂载完成时弹窗无法显示。
+   */
+  private checkFinishedExams(): void {
+    const finishedNames: string[] = [];
+    for (const entry of this.finalExams) {
+      const parsed: Date | null = this.examDateOf(entry);
+      if (parsed === null || ExamDateUtils.remainingMs(parsed) <= 0) {
+        finishedNames.push(entry.courseName);
+      }
+    }
+    if (finishedNames.length === 0) {
+      return;
+    }
+    for (const name of finishedNames) {
+      JwxtRepository.updateFinalExam(name, '');
+    }
+    this.getUIContext().showAlertDialog({
+      title: '期末倒计时',
+      message: '已完成 ' + finishedNames.length + ' 科目的考试，相关倒计时已移除',
+      confirm: {
+        value: '知道啦',
+        action: () => {
+        }
+      }
+    });
   }
 
   /** 该课程在课表中的颜色（找不到返回空串，不显示色点） */
@@ -321,7 +382,8 @@ export struct HomeView {
           HomeFinalExamCard({
             exams: this.sortedFinalExams(),
             colorOf: (courseName: string): string => this.courseColorOf(courseName),
-            daysOf: (entry: FinalExamEntry): number => this.examDaysOf(entry)
+            daysOf: (entry: FinalExamEntry): number => this.examDaysOf(entry),
+            textOf: (entry: FinalExamEntry): string => this.examTextOf(entry)
           })
         }
       }
@@ -344,7 +406,8 @@ export struct HomeView {
         HomeFinalExamCard({
           exams: this.sortedFinalExams(),
           colorOf: (courseName: string): string => this.courseColorOf(courseName),
-          daysOf: (entry: FinalExamEntry): number => this.examDaysOf(entry)
+          daysOf: (entry: FinalExamEntry): number => this.examDaysOf(entry),
+          textOf: (entry: FinalExamEntry): string => this.examTextOf(entry)
         })
       }
     }

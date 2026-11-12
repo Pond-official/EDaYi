@@ -86,7 +86,9 @@ struct SettingsIndex {
               this.backFromBand();
             }
           })
-          if (this.subPage === SettingsSubPage.Developer) {
+          if (this.subPage === SettingsSubPage.ExamSchedule) {
+            this.bandTitle('期末倒计时')
+          } else if (this.subPage === SettingsSubPage.Developer) {
             this.bandTitle('开发者选项')
           } else if (this.subPage === SettingsSubPage.About) {
             this.bandTitle('关于应用')

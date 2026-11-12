@@ -72,9 +72,11 @@ export class ExamCardItem {
   x: number = 0;
 }
 
-/** 构建期末卡片数据时的中间项（已解析的日期与距考天数） */
+/** 构建期末卡片数据时的中间项（已解析的考试时刻与距考日历天数） */
 class ExamUpcomingItem {
   entry: FinalExamEntry = new FinalExamEntry();
+  /** 已解析的考试时刻（精确到分钟） */
+  date: Date = new Date();
   days: number = 0;
 }
 
@@ -561,34 +563,33 @@ export class CardDataStore {
     const exams: FinalExamEntry[] = CardDataStore.loadFinalExams(context);
     const upcoming: ExamUpcomingItem[] = [];
     for (const entry of exams) {
-      const parsed: Date | null = ExamDateUtils.parseYmd(entry.examDate);
+      const parsed: Date | null = ExamDateUtils.parseExamDate(entry.examDate);
       if (parsed === null) {
         continue;
       }
-      const days: number = ExamDateUtils.daysFromDate(parsed);
-      if (days < 0) {
+      if (ExamDateUtils.remainingMs(parsed) <= 0) {
         continue;
       }
       const item: ExamUpcomingItem = new ExamUpcomingItem();
       item.entry = entry;
-      item.days = days;
+      item.date = parsed;
+      item.days = ExamDateUtils.calendarDaysFrom(parsed);
       upcoming.push(item);
     }
-    upcoming.sort((a: ExamUpcomingItem, b: ExamUpcomingItem): number =>
-      a.entry.examDate < b.entry.examDate ? -1 : (a.entry.examDate > b.entry.examDate ? 1 : 0));
+    upcoming.sort((a: ExamUpcomingItem, b: ExamUpcomingItem): number => a.date.getTime() - b.date.getTime());
     const shown: ExamUpcomingItem[] = upcoming.slice(0, 10);
     const items: ExamCardItem[] = [];
     for (const item of shown) {
       const card: ExamCardItem = new ExamCardItem();
       card.n = item.entry.courseName;
       card.d = ExamDateUtils.formatDisplay(item.entry.examDate);
-      card.t = ExamDateUtils.countdownText(item.days);
+      card.t = ExamDateUtils.countdownTextOf(item.date);
       card.x = item.days;
       items.push(card);
     }
     let emptyText: string = '';
     if (upcoming.length === 0) {
-      emptyText = exams.length > 0 ? '暂无即将到来的期末考试' : '在课表课程详情中设置期末时间';
+      emptyText = exams.length > 0 ? '暂无即将到来的期末考试' : '在"设置-期末倒计时"中设置考试时间';
     }
     AppLog.info(DOMAIN, TAG, 'buildExamBindingData exams:%{public}d upcoming:%{public}d shown:%{public}d',
       exams.length, upcoming.length, shown.length);

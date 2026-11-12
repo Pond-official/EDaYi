@@ -200,38 +200,24 @@ export function HomeWeekChip(params: HomeWeekChipParams) {
     })
 }
 
-/** 倒计时徽标：未来为激活色底白字，当天为警示色，已结束为次要文字（自 HomeView 拆出） */
+/** 倒计时徽标：当天考试为警示色，其余为激活色底白字（自 HomeView 拆出） */
 @Builder
-export function HomeCountdownBadge(days: number) {
-  if (days > 0) {
-    Text(ExamDateUtils.countdownText(days))
-      .fontSize(12)
-      .fontWeight(FontWeight.Bold)
-      .fontColor(Color.White)
-      .padding({ left: 10, right: 10, top: 4, bottom: 4 })
-      .borderRadius(12)
-      .backgroundColor($r('sys.color.ohos_id_color_text_primary_activated'))
-  } else if (days === 0) {
-    Text(ExamDateUtils.countdownText(days))
-      .fontSize(12)
-      .fontWeight(FontWeight.Bold)
-      .fontColor($r('sys.color.ohos_id_color_warning'))
-      .padding({ left: 10, right: 10, top: 4, bottom: 4 })
-      .borderRadius(12)
-      .backgroundColor($r('sys.color.ohos_id_color_button_normal'))
-  } else {
-    Text(ExamDateUtils.countdownText(days))
-      .fontSize(12)
-      .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-      .padding({ left: 10, right: 10, top: 4, bottom: 4 })
-      .borderRadius(12)
-      .backgroundColor($r('sys.color.ohos_id_color_button_normal'))
-  }
+export function HomeCountdownBadge(badgeText: string, urgent: boolean) {
+  Text(badgeText)
+    .fontSize(12)
+    .fontWeight(FontWeight.Bold)
+    .fontColor(urgent ?
+      $r('sys.color.ohos_id_color_warning') : Color.White)
+    .padding({ left: 10, right: 10, top: 4, bottom: 4 })
+    .borderRadius(12)
+    .backgroundColor(urgent ?
+      $r('sys.color.ohos_id_color_button_normal') :
+      $r('sys.color.ohos_id_color_text_primary_activated'))
 }
 
-/** 期末倒计时单行（自 HomeView 拆出；colorHex 为课表课程色，days 为距考天数） */
+/** 期末倒计时单行（自 HomeView 拆出；colorHex 为课表课程色，badgeText 为倒计时文本，urgent 为当天考试标记） */
 @Builder
-export function HomeFinalExamRow(entry: FinalExamEntry, colorHex: string, days: number) {
+export function HomeFinalExamRow(entry: FinalExamEntry, colorHex: string, badgeText: string, urgent: boolean) {
   Row() {
     if (colorHex.length > 0) {
       Column()
@@ -255,21 +241,22 @@ export function HomeFinalExamRow(entry: FinalExamEntry, colorHex: string, days: 
     .layoutWeight(1)
     .alignItems(HorizontalAlign.Start)
 
-    HomeCountdownBadge(days)
+    HomeCountdownBadge(badgeText, urgent)
   }
   .width('100%')
   .alignItems(VerticalAlign.Center)
   .padding({ top: 7, bottom: 7 })
 }
 
-/** 期末倒计时卡入参（单参对象字面量按引用传递，设置考试日期后随状态刷新） */
+/** 期末倒计时卡入参（单参对象字面量按引用传递，设置考试时间后随状态刷新） */
 export interface HomeFinalExamCardParams {
   exams: FinalExamEntry[];
   colorOf: (courseName: string) => string;
   daysOf: (entry: FinalExamEntry) => number;
+  textOf: (entry: FinalExamEntry) => string;
 }
 
-/** 期末倒计时卡：显示已设定期末日期的科目及倒计时，未设定任何日期时不显示（自 HomeView 拆出） */
+/** 期末倒计时卡：显示已设定期末时间的科目及倒计时，未设定任何时间时不显示（自 HomeView 拆出） */
 @Builder
 export function HomeFinalExamCard(params: HomeFinalExamCardParams) {
   Column() {
@@ -279,7 +266,7 @@ export function HomeFinalExamCard(params: HomeFinalExamCardParams) {
         .fontWeight(FontWeight.Bold)
         .fontColor($r('sys.color.ohos_id_color_text_primary'))
       Blank()
-      Text('在课表课程详情中设置')
+      Text('在设置中配置考试时间')
         .fontSize(11)
         .fontColor($r('sys.color.ohos_id_color_text_secondary'))
     }
@@ -287,8 +274,10 @@ export function HomeFinalExamCard(params: HomeFinalExamCardParams) {
     .padding({ bottom: 4 })
 
     ForEach(params.exams, (entry: FinalExamEntry) => {
-      HomeFinalExamRow(entry, params.colorOf(entry.courseName), params.daysOf(entry))
-    }, (entry: FinalExamEntry) => 'exam' + entry.courseName + entry.examDate + ':' + params.daysOf(entry))
+      HomeFinalExamRow(entry, params.colorOf(entry.courseName),
+        params.textOf(entry), params.daysOf(entry) === 0)
+    }, (entry: FinalExamEntry) => 'exam' + entry.courseName + entry.examDate
+      + ':' + params.daysOf(entry) + ':' + params.textOf(entry))
   }
   .width('100%')
   .alignItems(HorizontalAlign.Start)
