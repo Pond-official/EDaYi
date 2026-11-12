@@ -2,5 +2,8 @@
 #
 # ArkTS 源码使用 .ets 扩展名。GitHub 的语言统计默认不识别该扩展名，
 # 导致 73 个 .ets 文件（约 500 KB）完全不计入统计，仓库主语言被误判为
-# 构建脚本所占的 PowerShell。此处显式声明语言归属。
-*.ets linguist-language=ArkTS
+# 构建脚本所占的 ps1 脚本语言。
+#
+# 说明：上游 Linguist 已定义 ArkTS 语言，但 GitHub 线上环境尚未生效
+# （实测 linguist-language=ArkTS 被忽略），故按语法超集 TypeScript 归入统计。
+*.ets linguist-language=TypeScript
