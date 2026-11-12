@@ -374,10 +374,6 @@ export struct HomeView {
     Row() {
       Column() {
         this.infoColumn()
-      }
-      .width(360)
-      Column() {
-        this.scheduleCard()
         if (this.sortedFinalExams().length > 0) {
           HomeFinalExamCard({
             exams: this.sortedFinalExams(),
@@ -386,6 +382,10 @@ export struct HomeView {
             textOf: (entry: FinalExamEntry): string => this.examTextOf(entry)
           })
         }
+      }
+      .width(360)
+      Column() {
+        this.scheduleCard()
       }
       .layoutWeight(1)
       .padding({ left: 16 })
