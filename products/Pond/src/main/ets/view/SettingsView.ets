@@ -3,6 +3,7 @@ import { CacheManager } from '../data/CacheManager';
 import { AppLog } from '../data/AppLog';
 import { ReminderScheduler } from '../data/ReminderScheduler';
 import { getContext } from '../net/JwTransport';
+import { CloseButton } from './BackButton';
 import { AppLogCard } from './AppLogCard';
 import { FROST_BAND_HEIGHT, frostTopInsetVp } from './FrostBand';
 import { SettingsCacheCard, SettingsPrivacyCard, SettingsReminderCard, SettingsSectionTitle } from './SettingsCards';
@@ -452,13 +453,11 @@ export struct SettingsView {
           .fontWeight(FontWeight.Medium)
           .fontColor($r('sys.color.ohos_id_color_text_primary'))
         Blank()
-        SymbolGlyph($r('sys.symbol.xmark'))
-          .fontSize(18)
-          .fontColor([$r('sys.color.ohos_id_color_text_secondary')])
-          .padding(8)
-          .onClick(() => {
+        CloseButton({
+          onClose: (): void => {
             this.showExamAddSheet = false;
-          })
+          }
+        })
       }
       .width('100%')
 
@@ -486,7 +485,6 @@ export struct SettingsView {
     .width('100%')
     .height('100%')
     .alignItems(HorizontalAlign.Start)
-    .backgroundColor($r('app.color.card_background'))
     .padding({ left: 28, right: 28, top: 12, bottom: 24 })
   }
 
@@ -663,7 +661,11 @@ export struct SettingsView {
       height: '80%',
       width: '55%',
       dragBar: true,
-      showClose: false
+      showClose: false,
+      enableOutsideInteractive: false,
+      shouldDismiss: (sheetDismiss: SheetDismiss): void => {
+        sheetDismiss.dismiss();
+      }
     })
   }
 
