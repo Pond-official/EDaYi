@@ -660,7 +660,7 @@ export struct SettingsView {
       showClose: true
     })
     .bindSheet($$this.showExamAddSheet, this.examAddSheetContent(), {
-      height: '92%',
+      height: '80%',
       width: '55%',
       dragBar: true,
       showClose: false
