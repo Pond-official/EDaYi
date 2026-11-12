@@ -446,16 +446,27 @@ export struct SettingsView {
   @Builder
   examAddSheetContent() {
     Column() {
-      Text('添加科目')
-        .fontSize(18)
-        .fontWeight(FontWeight.Medium)
-        .fontColor($r('sys.color.ohos_id_color_text_primary'))
-        .width('100%')
+      Row() {
+        Text('添加科目')
+          .fontSize(18)
+          .fontWeight(FontWeight.Medium)
+          .fontColor($r('sys.color.ohos_id_color_text_primary'))
+        Blank()
+        SymbolGlyph($r('sys.symbol.xmark'))
+          .fontSize(18)
+          .fontColor([$r('sys.color.ohos_id_color_text_secondary')])
+          .padding(8)
+          .onClick(() => {
+            this.showExamAddSheet = false;
+          })
+      }
+      .width('100%')
+
       Text('从本学期培养计划中选择考查课等非考试科目，设置其考试时间')
         .fontSize(12)
         .fontColor($r('sys.color.ohos_id_color_text_secondary'))
         .width('100%')
-        .margin({ top: 4, bottom: 8 })
+        .margin({ top: 4 })
       Scroll() {
         SettingsExamAddList({
           candidates: this.examAddCandidates(),
@@ -470,9 +481,12 @@ export struct SettingsView {
       .scrollBar(BarState.Off)
       .edgeEffect(EdgeEffect.Spring)
       .width('100%')
+      .margin({ top: 8 })
     }
     .width('100%')
+    .height('100%')
     .alignItems(HorizontalAlign.Start)
+    .backgroundColor($r('app.color.card_background'))
     .padding({ left: 28, right: 28, top: 12, bottom: 24 })
   }
 
@@ -646,9 +660,10 @@ export struct SettingsView {
       showClose: true
     })
     .bindSheet($$this.showExamAddSheet, this.examAddSheetContent(), {
-      height: SheetSize.MEDIUM,
+      height: '92%',
+      width: '55%',
       dragBar: true,
-      showClose: true
+      showClose: false
     })
   }
 
