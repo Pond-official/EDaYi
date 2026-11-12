@@ -6,8 +6,9 @@ import { getContext } from '../net/JwTransport';
 import { AppLogCard } from './AppLogCard';
 import { FROST_BAND_HEIGHT, frostTopInsetVp } from './FrostBand';
 import { SettingsCacheCard, SettingsPrivacyCard, SettingsReminderCard, SettingsSectionTitle } from './SettingsCards';
-import { ExamCourseItem, SettingsExamEntry, SettingsExamListCard } from './SettingsExamCards';
-import { FinalExamEntry, PlanCategory, TermStatus } from '../model/JwModels';
+import { ExamAddCandidate, ExamCourseItem, SettingsExamAddEntry, SettingsExamAddList,
+  SettingsExamEntry, SettingsExamListCard } from './SettingsExamCards';
+import { FinalExamEntry, PlanCategory, PlanCourse, TermStatus } from '../model/JwModels';
 import { ExamDateUtils } from '../utils/ExamDateUtils';
 import { GITHUB_URL, SettingsAboutEntry, SettingsAcknowledgementCard, SettingsDeveloperCard,
   SettingsDeveloperEntry, SettingsDeveloperModeCard, SettingsOpenSourceCard, SettingsVersionCard } from './SettingsAboutCards';
@@ -62,6 +63,8 @@ export struct SettingsView {
   @State showAdvanceSheet: boolean = false;
   /** 自定义提前分钟数输入内容（弹层内 TextInput） */
   @State advanceInputText: string = '';
+  /** 添加科目弹层显隐（候选列表来自培养计划非考试课） */
+  @State showExamAddSheet: boolean = false;
   /** 上次点击版本号的时间戳（毫秒），超过 3 秒视为不连续 */
   private lastVersionTapMs: number = 0;
   /** 解锁开发者选项需连续点击版本号的次数 */
@@ -277,7 +280,13 @@ export struct SettingsView {
       seen.push(entry.courseName);
       const item: ExamCourseItem = new ExamCourseItem();
       item.courseName = entry.courseName;
-      item.subtitle = '不在本学期培养计划考试课中';
+      const planCourse: PlanCourse | null = this.planCourseOf(entry.courseName);
+      if (planCourse !== null) {
+        item.subtitle = planCourse.credit + '学分 · ' + planCourse.natureText
+          + ' · ' + planCourse.examTypeText;
+      } else {
+        item.subtitle = '不在本学期培养计划考试课中';
+      }
       item.examDate = entry.examDate;
       items.push(item);
     }
@@ -308,8 +317,13 @@ export struct SettingsView {
 
   /** 点击考试课：先选日期再选时间（精确到分钟），确认后写入期末倒计时 */
   private openExamPicker(item: ExamCourseItem): void {
+    this.openExamPickerFor(item.courseName, item.examDate);
+  }
+
+  /** 按课程名打开日期+时间选择器（精确到分钟），确认后写入期末倒计时 */
+  private openExamPickerFor(courseName: string, currentExamDate: string): void {
     const current: Date | null =
-      item.examDate.length > 0 ? ExamDateUtils.parseExamDate(item.examDate) : null;
+      currentExamDate.length > 0 ? ExamDateUtils.parseExamDate(currentExamDate) : null;
     this.getUIContext().showDatePickerDialog({
       selected: current ?? new Date(),
       onDateAccept: (value: Date) => {
@@ -317,7 +331,7 @@ export struct SettingsView {
           selected: current ?? new Date(),
           useMilitaryTime: true,
           onAccept: (time: TimePickerResult) => {
-            JwxtRepository.updateFinalExam(item.courseName,
+            JwxtRepository.updateFinalExam(courseName,
               ExamDateUtils.toMinuteText(value, time.hour, time.minute));
           }
         });
@@ -328,6 +342,58 @@ export struct SettingsView {
   /** 清除单门课程的期末考试时间 */
   private clearExamTime(item: ExamCourseItem): void {
     JwxtRepository.updateFinalExam(item.courseName, '');
+  }
+
+  /** 培养计划本学期课程查询（按课程名），未找到返回 null */
+  private planCourseOf(courseName: string): PlanCourse | null {
+    const termCode: string = this.termStatus.termCode;
+    for (const category of this.trainingPlan) {
+      for (const course of category.courses) {
+        if (course.courseName === courseName && course.plannedTerm === termCode) {
+          return course;
+        }
+      }
+    }
+    return null;
+  }
+
+  /** 添加科目候选列表：本学期培养计划中考核方式非"考试"的课程，排除已在列表中的科目 */
+  private examAddCandidates(): ExamAddCandidate[] {
+    const excluded: string[] = [];
+    for (const item of this.examCourseItems()) {
+      excluded.push(item.courseName);
+    }
+    const candidates: ExamAddCandidate[] = [];
+    const seen: string[] = [];
+    const termCode: string = this.termStatus.termCode;
+    for (const category of this.trainingPlan) {
+      for (const course of category.courses) {
+        if (course.plannedTerm !== termCode || course.examTypeText === '考试') {
+          continue;
+        }
+        if (excluded.indexOf(course.courseName) >= 0 || seen.indexOf(course.courseName) >= 0) {
+          continue;
+        }
+        seen.push(course.courseName);
+        const candidate: ExamAddCandidate = new ExamAddCandidate();
+        candidate.courseName = course.courseName;
+        candidate.subtitle = course.credit + '学分 · ' + course.natureText
+          + ' · ' + course.examTypeText;
+        candidates.push(candidate);
+      }
+    }
+    return candidates;
+  }
+
+  /** 添加科目候选列表空态文案：按数据来源区分引导 */
+  private examAddEmptyText(): string {
+    if (this.trainingPlan.length === 0) {
+      return '登录教务系统后同步培养计划，可从中添加科目';
+    }
+    if (this.termStatus.termCode.length === 0) {
+      return '暂无法确定当前学期，登录教务系统后可添加科目';
+    }
+    return '本学期培养计划中已没有其他可添加的科目';
   }
 
   /** 自定义提前提醒时间输入弹层内容（体内直读状态，随输入刷新；弹层经页面根节点 bindSheet 挂载） */
@@ -376,6 +442,40 @@ export struct SettingsView {
     .padding({ left: 28, right: 28, top: 12, bottom: 36 })
   }
 
+  /** 添加科目弹层内容：培养计划非考试课候选列表（点击科目进入日期+时间选择器） */
+  @Builder
+  examAddSheetContent() {
+    Column() {
+      Text('添加科目')
+        .fontSize(18)
+        .fontWeight(FontWeight.Medium)
+        .fontColor($r('sys.color.ohos_id_color_text_primary'))
+        .width('100%')
+      Text('从本学期培养计划中选择考查课等非考试科目，设置其考试时间')
+        .fontSize(12)
+        .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+        .width('100%')
+        .margin({ top: 4, bottom: 8 })
+      Scroll() {
+        SettingsExamAddList({
+          candidates: this.examAddCandidates(),
+          emptyText: this.examAddEmptyText(),
+          onPick: (candidate: ExamAddCandidate): void => {
+            this.showExamAddSheet = false;
+            this.openExamPickerFor(candidate.courseName, '');
+          }
+        })
+      }
+      .layoutWeight(1)
+      .scrollBar(BarState.Off)
+      .edgeEffect(EdgeEffect.Spring)
+      .width('100%')
+    }
+    .width('100%')
+    .alignItems(HorizontalAlign.Start)
+    .padding({ left: 28, right: 28, top: 12, bottom: 24 })
+  }
+
   build() {
     Column() {
       if (this.subPage === SettingsSubPage.ExamSchedule) {
@@ -392,7 +492,10 @@ export struct SettingsView {
                 this.clearExamTime(item);
               }
             })
-            Text('考试课来自本学期培养计划（考核方式为"考试"）；点击科目设置考试日期与时间，到点后自动从倒计时中移除。')
+            SettingsExamAddEntry((): void => {
+              this.showExamAddSheet = true;
+            })
+            Text('考试课来自本学期培养计划（考核方式为"考试"）；点击科目设置考试日期与时间，到点后自动移除；考查课等非考试科目可点"添加科目"从培养计划中选择。')
               .fontSize(11)
               .fontColor($r('sys.color.ohos_id_color_text_secondary'))
               .width('100%')
@@ -539,6 +642,11 @@ export struct SettingsView {
     .backgroundColor($r('sys.color.ohos_id_color_sub_background'))
     .bindSheet($$this.showAdvanceSheet, this.advanceSheetContent(), {
       height: SheetSize.FIT_CONTENT,
+      dragBar: true,
+      showClose: true
+    })
+    .bindSheet($$this.showExamAddSheet, this.examAddSheetContent(), {
+      height: SheetSize.MEDIUM,
       dragBar: true,
       showClose: true
     })

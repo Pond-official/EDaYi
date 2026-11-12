@@ -48,6 +48,99 @@ export function SettingsExamEntry(onEnter: () => void) {
   })
 }
 
+/** 添加科目入口（onAdd 打开候选列表弹层，科目来自培养计划非考试课） */
+@Builder
+export function SettingsExamAddEntry(onAdd: () => void) {
+  Row({ space: 8 }) {
+    SymbolGlyph($r('sys.symbol.plus'))
+      .fontSize(16)
+      .fontColor([$r('sys.color.ohos_id_color_text_primary_activated')])
+    Text('添加科目')
+      .fontSize(14)
+      .fontWeight(FontWeight.Medium)
+      .fontColor($r('sys.color.ohos_id_color_text_primary'))
+    Blank()
+    Text('考查课等非考试科目')
+      .fontSize(11)
+      .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+  }
+  .width('100%')
+  .padding(16)
+  .borderRadius(16)
+  .backgroundColor($r('app.color.card_background'))
+  .margin({ top: 12 })
+  .onClick(() => {
+    onAdd();
+  })
+}
+
+/** 添加科目候选项（本学期培养计划中考核方式非"考试"的课程） */
+export class ExamAddCandidate {
+  courseName: string = '';
+  /** 课程副标题（"学分 · 性质 · 考核方式"） */
+  subtitle: string = '';
+}
+
+/** 添加科目候选列表入参（单参对象字面量按引用传递） */
+export interface SettingsExamAddListParams {
+  candidates: ExamAddCandidate[];
+  /** 空态文案（由 SettingsView 按数据来源区分） */
+  emptyText: string;
+  onPick: (candidate: ExamAddCandidate) => void;
+}
+
+/** 添加科目候选列表：点击科目后进入日期+时间选择器 */
+@Builder
+export function SettingsExamAddList(params: SettingsExamAddListParams) {
+  Column() {
+    if (params.candidates.length === 0) {
+      Text(params.emptyText)
+        .fontSize(12)
+        .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+        .width('100%')
+        .padding({ top: 12, bottom: 12 })
+    } else {
+      ForEach(params.candidates, (candidate: ExamAddCandidate, index: number) => {
+        if (index > 0) {
+          Divider()
+            .color($r('sys.color.ohos_id_color_list_separator'))
+        }
+        Row() {
+          Column({ space: 2 }) {
+            Text(candidate.courseName)
+              .fontSize(15)
+              .fontWeight(FontWeight.Medium)
+              .fontColor($r('sys.color.ohos_id_color_text_primary'))
+              .maxLines(1)
+              .textOverflow({ overflow: TextOverflow.Ellipsis })
+            if (candidate.subtitle.length > 0) {
+              Text(candidate.subtitle)
+                .fontSize(11)
+                .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+                .maxLines(1)
+                .textOverflow({ overflow: TextOverflow.Ellipsis })
+            }
+          }
+          .layoutWeight(1)
+          .alignItems(HorizontalAlign.Start)
+
+          SymbolGlyph($r('sys.symbol.chevron_right'))
+            .fontSize(14)
+            .fontColor([$r('sys.color.ohos_id_color_text_secondary')])
+        }
+        .width('100%')
+        .alignItems(VerticalAlign.Center)
+        .padding({ top: 10, bottom: 10 })
+        .onClick(() => {
+          params.onPick(candidate);
+        })
+      }, (candidate: ExamAddCandidate) => 'examAdd' + candidate.courseName)
+    }
+  }
+  .width('100%')
+  .alignItems(HorizontalAlign.Start)
+}
+
 /** 考试课列表卡入参（单参对象字面量按引用传递，设置时间后随状态刷新） */
 export interface SettingsExamListParams {
   items: ExamCourseItem[];
