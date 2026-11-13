@@ -14,3 +14,6 @@ build-profile.json5
 .codegenie/
 /.cache
 /.tmp-ui
+
+# hvigor 构建时自动生成（BUILD_MODE_NAME / DEBUG 随构建模式变化），不入库
+**/BuildProfile.ets
