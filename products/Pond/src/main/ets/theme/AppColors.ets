@@ -44,7 +44,5 @@ export const TEXT_DARK: string = '#333333';
 export const TEXT_MEDIUM: string = '#555555';
 /** 卡片周次选中 文字/底色（系统蓝） */
 export const WIDGET_SELECTED_COLOR: string = '#007DFF';
-/** 底栏光效指示器颜色（淡蓝） */
-export const TAB_LIGHT_EFFECT_COLOR: string = '#87C8FF';
 /** 课表单元格默认底色（浅绿，服务端未下发颜色时兜底） */
 export const COURSE_CELL_DEFAULT_BG: string = '#E8F3DB';
