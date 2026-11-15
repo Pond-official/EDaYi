@@ -8,10 +8,10 @@ import { GRADE_GOOD_BG, GRADE_GOOD_TEXT, TAG_DEFAULT_BG } from '../theme/AppColo
 
 /** 光效颜色预设（#RRGGBB 十六进制串） */
 export class LightEffectPresets {
-  /** 预设色板：白/淡蓝/系统蓝/青/紫/粉/橙/绿 */
+  /** 预设色板：白/淡蓝/系统蓝/青绿/青/紫/粉/橙/绿 */
   static readonly COLORS: string[] = [
     '#FFFFFF', '#87C8FF', '#007DFF', '#40C4FF',
-    '#7C4DFF', '#FF80AB', '#FFB74D', '#69F0AE'
+    '#39C5BB', '#7C4DFF', '#FF80AB', '#FFB74D', '#69F0AE'
   ];
   /** 材质档位（与 hdsMaterial.MaterialLevel 一一对应） */
   static readonly LEVELS: string[] = ['ADAPTIVE', 'EXQUISITE', 'GENTLE', 'SMOOTH'];
