@@ -45,6 +45,9 @@ export function LibraryLoansCard(params: LibraryLoansCardParams) {
   .padding(16)
   .borderRadius(16)
   .backgroundColor($r('app.color.card_background'))
+  .transition(TransitionEffect.OPACITY
+    .combine(TransitionEffect.translate({ y: 24 }))
+    .animation({ duration: 360, curve: Curve.EaseOut }))
 }
 
 /** 在借单行：书名/著者/借出与应还日期，右侧续借按钮（逾期标红提示） */
@@ -137,7 +140,10 @@ export function LibraryHistoryCard(params: LibraryHistoryCardParams) {
   .padding(16)
   .borderRadius(16)
   .backgroundColor($r('app.color.card_background'))
-  .margin({ top: 16 })
+  .margin({ top: 12 })
+  .transition(TransitionEffect.OPACITY
+    .combine(TransitionEffect.translate({ y: 24 }))
+    .animation({ duration: 360, curve: Curve.EaseOut, delay: 90 }))
 }
 
 /** 借阅历史单行：书名/著者·出版社/借出与归还日期 */

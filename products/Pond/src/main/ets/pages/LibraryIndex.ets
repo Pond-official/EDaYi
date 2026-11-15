@@ -196,6 +196,8 @@ struct LibraryIndex {
               .fontSize(12)
               .fontColor($r('sys.color.ohos_id_color_text_secondary'))
               .padding({ top: 12, bottom: 12 })
+              .transition(TransitionEffect.OPACITY
+                .animation({ duration: 360, curve: Curve.EaseOut, delay: 180 }))
           } else if (this.phase === 'bootstrap' || this.phase === 'loading') {
             LibraryLoadingCard(this.phase === 'bootstrap' ? '正在建立图书馆会话…' : '正在获取借阅数据…')
           } else if (this.phase === 'error') {
