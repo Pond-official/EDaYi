@@ -2,8 +2,8 @@
   "app": {
     "bundleName": "com.example.edaiyi_next",
     "vendor": "example",
-    "versionCode": 3010500,
-    "versionName": "3.1.5",
+    "versionCode": 3020000,
+    "versionName": "3.2.0",
     "buildVersion": "1",
     "icon": "$media:layered_image",
     "label": "$string:app_name"
