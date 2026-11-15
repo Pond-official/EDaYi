@@ -1,7 +1,7 @@
 import { ZcpDetailItem, ZcpIndicator, ZcpResult } from '../model/ZcpModels';
 import { ZcpCtxCard, ZcpRadarCard } from './ZcpCards';
 import { PASS_TEXT } from '../theme/AppColors';
-import { cardEnterEffect } from './CardEnter';
+import { mainEnterEffect } from './CardEnter';
 
 /** 附加项行是否可展开明细（展示展开图标）（自 ZcpView 拆出） */
 function isExpandable(item: ZcpIndicator): boolean {
@@ -291,7 +291,7 @@ export function ZcpIndicatorCard(root: ZcpIndicator, detailZbdm: string, detailI
   .borderRadius(16)
   .backgroundColor($r('app.color.card_background'))
   .geometryTransition('zcp-ind-' + root.zbdm)
-  .transition(cardEnterEffect(180))
+  .transition(mainEnterEffect(180))
 }
 
 /** 平板横屏双列布局参数（单参对象按引用传递，避免 @Builder 按值传参冻结） */

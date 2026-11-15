@@ -5,7 +5,7 @@ import { BackButton } from '../view/BackButton';
 import { GRADE_DEFAULT_BG, GRADE_DEFAULT_TEXT, GRADE_EXCELLENT_TEXT, GRADE_GOOD_BG,
   GRADE_GOOD_TEXT, GRADE_INSPECT_BG, GRADE_INSPECT_TEXT, GRADE_MEDIUM_TEXT, PASS_BG,
   REVIEW_BG, TAG_DEFAULT_BG } from '../theme/AppColors';
-import { cardEnterEffect } from '../view/CardEnter';
+import { cardEnterEffect, cardFadeEffect } from '../view/CardEnter';
 
 const TERM_ALL: string = '全部';
 /** 开课学期未指定的课程归入此筛选项（排在最后） */
@@ -399,7 +399,7 @@ struct TrainingPlanIndex {
     .padding({ left: 16, right: 16, top: 12, bottom: 8 })
     .borderRadius(16)
     .backgroundColor($r('app.color.card_background'))
-    .transition(enterDelayMs >= 0 ? cardEnterEffect(enterDelayMs) : TransitionEffect.OPACITY)
+    .transition(enterDelayMs >= 0 ? cardEnterEffect(enterDelayMs) : cardFadeEffect())
   }
 
   build() {

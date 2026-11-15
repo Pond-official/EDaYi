@@ -684,13 +684,15 @@ export struct SettingsView {
     })
   }
 
-  /** 二级页转场：从右侧滑入，退出时滑回右侧 */
+  /** 二级页转场：从右侧滑入并淡入，退出时滑回右侧并淡出 */
   private subPageEnter(): TransitionEffect {
-    return TransitionEffect.OPACITY.combine(TransitionEffect.translate({ x: '100%' }));
+    return TransitionEffect.OPACITY.combine(TransitionEffect.translate({ x: '100%' }))
+      .animation({ duration: 300, curve: Curve.EaseOut });
   }
 
-  /** 主页转场：从左侧滑回，退出时向左滑出让位 */
+  /** 主页转场：从左侧滑回并淡入，退出时向左滑出让位并淡出 */
   private mainPageEnter(): TransitionEffect {
-    return TransitionEffect.OPACITY.combine(TransitionEffect.translate({ x: '-25%' }));
+    return TransitionEffect.OPACITY.combine(TransitionEffect.translate({ x: '-25%' }))
+      .animation({ duration: 300, curve: Curve.EaseOut });
   }
 }

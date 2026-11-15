@@ -39,6 +39,8 @@ struct LibraryIndex {
   @State history: LoanPage = new LoanPage();
   /** 正在续借的 loanId（0 = 无在途续借） */
   @State renewingLoanId: number = 0;
+  /** 下拉刷新进行中 */
+  @State isRefreshing: boolean = false;
 
   aboutToAppear(): void {
     this.start();
@@ -56,6 +58,7 @@ struct LibraryIndex {
     }
     this.errorText = '';
     if (!LibraryRepository.hasToken() && !LibraryRepository.bindTokenFromCookie()) {
+      this.phase = 'bootstrap';
       const bound: boolean = await this.rebindToken();
       if (!bound) {
         this.phase = 'error';
@@ -66,12 +69,11 @@ struct LibraryIndex {
     await this.doLoad(false);
   }
 
-  /** 重新换票：失效跨域就绪标记（JWT 过期重走 SSO），换票后轮询重读令牌 */
+  /** 重新换票：失效跨域就绪标记（JWT 过期重走 SSO），换票后轮询重读令牌（不改动 phase，由调用方决定加载态展示） */
   private async rebindToken(): Promise<boolean> {
     if (CrossDomainSession.isReady(DOMAIN_LIBSP.key)) {
       CrossDomainSession.invalidate(DOMAIN_LIBSP.key);
     }
-    this.phase = 'bootstrap';
     const ok: boolean = await CrossDomainSession.ensure(DOMAIN_LIBSP);
     if (!ok) {
       return false;
@@ -113,6 +115,7 @@ struct LibraryIndex {
       const message: string = `${error}`;
       if (message.indexOf(LIBSP_SESSION_INVALID) >= 0 && !retried) {
         LibraryRepository.clearToken();
+        this.phase = 'bootstrap';
         const bound: boolean = await this.rebindToken();
         if (bound) {
           await this.doLoad(true);
@@ -122,6 +125,43 @@ struct LibraryIndex {
       this.phase = 'error';
       this.errorText = message.indexOf(LIBSP_SESSION_INVALID) >= 0 ?
         '图书馆登录状态已失效，请重新进入本页重试' : plainError(message);
+    }
+  }
+
+  /** 下拉刷新：已加载时保持当前内容展示静默重拉；错误态下拉重走启动加载 */
+  private async doRefresh(): Promise<void> {
+    if (this.phase === 'loaded') {
+      try {
+        await this.reloadQuietly(false);
+      } catch (error) {
+        this.showToast('刷新失败，请稍后重试');
+      }
+    } else if (this.phase === 'error') {
+      await this.start();
+    }
+    this.isRefreshing = false;
+  }
+
+  /** 静默重拉在借与历史（不动 phase，页面内容保持）：失败上抛由调用方处理 */
+  private async reloadQuietly(retried: boolean): Promise<void> {
+    try {
+      const loans: LoanPage = await LibraryRepository.fetchLoans();
+      const history: LoanPage = await LibraryRepository.fetchHistory();
+      this.loans = loans;
+      this.history = history;
+      // 图书馆实时数量回写首页统计（ehall 聚合值为缓存，两处保持一致）
+      EhallRepository.updateLoanCount(loans.numFound);
+    } catch (error) {
+      const message: string = `${error}`;
+      if (message.indexOf(LIBSP_SESSION_INVALID) >= 0 && !retried) {
+        LibraryRepository.clearToken();
+        const bound: boolean = await this.rebindToken();
+        if (bound) {
+          await this.reloadQuietly(true);
+          return;
+        }
+      }
+      throw new Error(message);
     }
   }
 
@@ -181,46 +221,52 @@ struct LibraryIndex {
 
   build() {
     Stack({ alignContent: Alignment.Top }) {
-      Scroll() {
-        Column() {
-          if (this.phase === 'loaded') {
-            LibraryLoansCard({
-              page: this.loans,
-              renewingLoanId: this.renewingLoanId,
-              onRenew: (record: LoanRecord): void => {
-                this.doRenew(record);
-              }
-            })
-            LibraryHistoryCard({ page: this.history })
-            Text('数据来自图书馆系统（汇文 LibSP），续借结果以图书馆系统为准')
-              .fontSize(12)
-              .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-              .padding({ top: 12, bottom: 12 })
-              .transition(TransitionEffect.OPACITY
-                .animation({ duration: 360, curve: Curve.EaseOut, delay: 180 }))
-          } else if (this.phase === 'bootstrap' || this.phase === 'loading') {
-            LibraryLoadingCard(this.phase === 'bootstrap' ? '正在建立图书馆会话…' : '正在获取借阅数据…')
-          } else if (this.phase === 'error') {
-            LibraryErrorCard(this.errorText, (): void => {
-              this.start();
-            })
+      Refresh({ refreshing: $$this.isRefreshing }) {
+        Scroll() {
+          Column() {
+            if (this.phase === 'loaded') {
+              LibraryLoansCard({
+                page: this.loans,
+                renewingLoanId: this.renewingLoanId,
+                onRenew: (record: LoanRecord): void => {
+                  this.doRenew(record);
+                }
+              })
+              LibraryHistoryCard({ page: this.history })
+              Text('数据来自图书馆系统（汇文 LibSP），续借结果以图书馆系统为准')
+                .fontSize(12)
+                .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+                .padding({ top: 12, bottom: 12 })
+                .transition(TransitionEffect.OPACITY
+                  .animation({ duration: 360, curve: Curve.EaseOut, delay: 180 }))
+            } else if (this.phase === 'bootstrap' || this.phase === 'loading') {
+              LibraryLoadingCard(this.phase === 'bootstrap' ? '正在建立图书馆会话…' : '正在获取借阅数据…')
+            } else if (this.phase === 'error') {
+              LibraryErrorCard(this.errorText, (): void => {
+                this.start();
+              })
+            }
           }
+          .padding({
+            left: 16,
+            right: 16,
+            top: frostTopInsetVp(this.safeTopPx, this.getUIContext()),
+            bottom: 88
+          })
+          .alignItems(HorizontalAlign.Start)
+          .constraintSize({ minWidth: '100%' })
         }
-        .padding({
-          left: 16,
-          right: 16,
-          top: frostTopInsetVp(this.safeTopPx, this.getUIContext()),
-          bottom: 88
-        })
-        .alignItems(HorizontalAlign.Start)
-        .constraintSize({ minWidth: '100%' })
+        .width('100%')
+        .height('100%')
+        .align(Alignment.Top)
+        .edgeEffect(EdgeEffect.Spring)
+        .scrollBar(BarState.Off)
       }
+      .onRefreshing(() => {
+        this.doRefresh();
+      })
       .width('100%')
       .height('100%')
-      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
-      .align(Alignment.Top)
-      .edgeEffect(EdgeEffect.Spring)
-      .scrollBar(BarState.Off)
 
       FrostBand() {
         Row() {
