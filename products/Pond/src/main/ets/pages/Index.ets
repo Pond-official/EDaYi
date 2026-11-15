@@ -259,32 +259,52 @@ struct Index {
 
       if (this.hdsSupported) {
         HdsNavigation() {
-          HdsTabs({ controller: this.hdsTabsController }) {
-            this.tabPages()
+          if (this.supportsFloatingBar) {
+            // API 26+：悬浮页签栏 + 沉浸材质 + 光效指示器（barFloatingStyle 为 26 版本属性）
+            HdsTabs({ controller: this.hdsTabsController }) {
+              this.tabPages()
+            }
+            .barPosition(BarPosition.End)
+            .vertical(false)
+            .scrollable(true)
+            .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
+            .barOverlap(true)
+            .barHeight(BAR_HEIGHT)
+            .animationDuration(300)
+            .onSelected((index: number) => {
+              this.currentTabIndex = index;
+            })
+            .barFloatingStyle({
+              barWidth: {
+                smallWidth: this.barWidthVp,
+                mediumWidth: this.barWidthVp,
+                largeWidth: this.barWidthVp
+              },
+              barSideMargin: BAR_SIDE_MARGIN,
+              barBottomMargin: BAR_BOTTOM_MARGIN,
+              lightColor: this.lightEffectColor,
+              systemMaterialEffect: this.buildHdsMaterial()
+            })
+            .width('100%')
+            .height('100%')
+          } else {
+            // API 26 以下：HDS 常规底栏（悬浮栏样式为高版本属性，低版本设备调用会抛异常，条件渲染规避）
+            HdsTabs({ controller: this.hdsTabsController }) {
+              this.tabPages()
+            }
+            .barPosition(BarPosition.End)
+            .vertical(false)
+            .scrollable(true)
+            .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
+            .barOverlap(true)
+            .barHeight(BAR_HEIGHT)
+            .animationDuration(300)
+            .onSelected((index: number) => {
+              this.currentTabIndex = index;
+            })
+            .width('100%')
+            .height('100%')
           }
-          .barPosition(BarPosition.End)
-          .vertical(false)
-          .scrollable(true)
-          .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
-          .barOverlap(true)
-          .barHeight(BAR_HEIGHT)
-          .animationDuration(300)
-          .onSelected((index: number) => {
-            this.currentTabIndex = index;
-          })
-          .barFloatingStyle({
-            barWidth: {
-              smallWidth: this.barWidthVp,
-              mediumWidth: this.barWidthVp,
-              largeWidth: this.barWidthVp
-            },
-            barSideMargin: BAR_SIDE_MARGIN,
-            barBottomMargin: BAR_BOTTOM_MARGIN,
-            lightColor: this.lightEffectColor,
-            systemMaterialEffect: this.buildHdsMaterial()
-          })
-          .width('100%')
-          .height('100%')
         }
         .hideTitleBar(true)
         .hideToolBar(true)

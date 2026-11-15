@@ -35,21 +35,40 @@ export struct SettingsEntryButton {
   }
 
   build() {
-    Stack() {
-      SymbolGlyph($r('sys.symbol.gearshape'))
-        .fontSize(20)
-        .fontWeight(FontWeight.Medium)
-        .fontColor([$r('sys.color.ohos_id_color_text_primary')])
+    if (this.material) {
+      Stack() {
+        SymbolGlyph($r('sys.symbol.gearshape'))
+          .fontSize(20)
+          .fontWeight(FontWeight.Medium)
+          .fontColor([$r('sys.color.ohos_id_color_text_primary')])
+      }
+      .width(BUTTON_SIZE)
+      .height(BUTTON_SIZE)
+      .borderRadius(BUTTON_SIZE / 2)
+      .clip(true)
+      .backgroundColor($r('app.color.settings_button_fill'))
+      .systemMaterial(this.material)
+      .border({ width: 1, color: $r('sys.color.ohos_id_color_list_separator') })
+      .onClick(() => {
+        this.openSettings();
+      })
+    } else {
+      // 设备不支持沉浸光感（< API 26）：仅半透明底色 + 细描边，不挂 systemMaterial（高版本属性低版本调用会抛异常）
+      Stack() {
+        SymbolGlyph($r('sys.symbol.gearshape'))
+          .fontSize(20)
+          .fontWeight(FontWeight.Medium)
+          .fontColor([$r('sys.color.ohos_id_color_text_primary')])
+      }
+      .width(BUTTON_SIZE)
+      .height(BUTTON_SIZE)
+      .borderRadius(BUTTON_SIZE / 2)
+      .clip(true)
+      .backgroundColor($r('app.color.settings_button_fill'))
+      .border({ width: 1, color: $r('sys.color.ohos_id_color_list_separator') })
+      .onClick(() => {
+        this.openSettings();
+      })
     }
-    .width(BUTTON_SIZE)
-    .height(BUTTON_SIZE)
-    .borderRadius(BUTTON_SIZE / 2)
-    .clip(true)
-    .backgroundColor($r('app.color.settings_button_fill'))
-    .systemMaterial(this.material)
-    .border({ width: 1, color: $r('sys.color.ohos_id_color_list_separator') })
-    .onClick(() => {
-      this.openSettings();
-    })
   }
 }
