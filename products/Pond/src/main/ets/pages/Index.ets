@@ -66,6 +66,10 @@ struct Index {
   /** 降级分支页签栏沉浸光感材质（随光效颜色自定义重建） */
   @State barMaterial: uiMaterial.ImmersiveMaterial | undefined = undefined;
   tabLabels: string[] = ['首页', '成绩', '综评', '选课'];
+  /** 页签内容重建分支：每次激活已访问页签时翻转，强制视图重建以重播级联入场（TabContent 懒加载只构建一次，转场仅首次激活播放） */
+  @State tabFresh: boolean[] = [false, false, false, false];
+  /** 页签是否已被激活过（首页启动即激活）：首次激活走懒加载入场，之后激活靠翻转重建重播 */
+  private tabVisited: boolean[] = [true, false, false, false];
   private readonly hdsTabsController: HdsTabsController = new HdsTabsController();
   private readonly tabsController: TabsController = new TabsController();
   private readonly breakpointSystem: BreakpointSystem = new BreakpointSystem('mainBreakpoint');
@@ -102,6 +106,16 @@ struct Index {
     AppStorage.setOrCreate<boolean>('jwHomeTabActive', this.currentTabIndex === TAB_INDEX_HOME);
     AppStorage.setOrCreate<boolean>('jwSelectionTabActive', this.currentTabIndex === TAB_INDEX_SELECTION);
     AppStorage.setOrCreate<boolean>('jwZcpTabActive', this.currentTabIndex === TAB_INDEX_ZCP);
+  }
+
+  /** 页签选中（HDS/悬浮/普通底栏共用）：已访问页签翻转重建分支重播级联渐入，首次激活仅记录（懒加载自带入场） */
+  private onTabSelected(index: number): void {
+    if (this.tabVisited[index]) {
+      this.tabFresh[index] = !this.tabFresh[index];
+    } else {
+      this.tabVisited[index] = true;
+    }
+    this.onTabSelected(index);
   }
 
   /** 右上角设置入口顶部边距（vp）：沉浸式全屏下叠加状态栏避让区，保持与原视觉位置一致 */
@@ -200,29 +214,46 @@ struct Index {
     return symbol;
   }
 
-  /** 四个页签页（HDS/悬浮/普通三种底栏共用）：TabContent 顶部安全区扩展，配合视图内顶部材质条上扩覆盖状态栏 */
+  /** 四个页签页（HDS/悬浮/普通三种底栏共用）：TabContent 顶部安全区扩展，配合视图内顶部材质条上扩覆盖状态栏。
+   * 视图置于 tabFresh 翻转分支内：每次激活已访问页签时分支互换强制重建，重播级联渐入（左右切换叠加，同图书借阅页入场）。 */
   @Builder
   tabPages() {
     TabContent() {
-      HomeView()
+      if (this.tabFresh[0]) {
+        HomeView()
+      } else {
+        HomeView()
+      }
     }
     .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
     .tabBar(new BottomTabBarStyle(this.tabSymbol(0), this.tabLabels[0]))
 
     TabContent() {
-      GradeView()
+      if (this.tabFresh[1]) {
+        GradeView()
+      } else {
+        GradeView()
+      }
     }
     .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
     .tabBar(new BottomTabBarStyle(this.tabSymbol(1), this.tabLabels[1]))
 
     TabContent() {
-      ZcpView()
+      if (this.tabFresh[2]) {
+        ZcpView()
+      } else {
+        ZcpView()
+      }
     }
     .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
     .tabBar(new BottomTabBarStyle(this.tabSymbol(2), this.tabLabels[2]))
 
     TabContent() {
-      SelectionView()
+      if (this.tabFresh[3]) {
+        SelectionView()
+      } else {
+        SelectionView()
+      }
     }
     .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
     .tabBar(new BottomTabBarStyle(this.tabSymbol(3), this.tabLabels[3]))
@@ -272,7 +303,7 @@ struct Index {
             .barHeight(BAR_HEIGHT)
             .animationDuration(300)
             .onSelected((index: number) => {
-              this.currentTabIndex = index;
+              this.onTabSelected(index);
             })
             .barFloatingStyle({
               barWidth: {
@@ -300,7 +331,7 @@ struct Index {
             .barHeight(BAR_HEIGHT)
             .animationDuration(300)
             .onSelected((index: number) => {
-              this.currentTabIndex = index;
+              this.onTabSelected(index);
             })
             .width('100%')
             .height('100%')
@@ -326,7 +357,7 @@ struct Index {
         .barHeight(BAR_HEIGHT)
         .animationDuration(300)
         .onSelected((index: number) => {
-          this.currentTabIndex = index;
+          this.onTabSelected(index);
         })
         .barFloatingStyle({
           barWidth: {
@@ -353,7 +384,7 @@ struct Index {
         .barHeight(BAR_HEIGHT)
         .animationDuration(300)
         .onSelected((index: number) => {
-          this.currentTabIndex = index;
+          this.onTabSelected(index);
         })
         .barBackgroundBlurStyle(BlurStyle.COMPONENT_THIN)
         .width('100%')
