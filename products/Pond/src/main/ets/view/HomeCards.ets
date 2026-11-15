@@ -91,6 +91,37 @@ export function HomeStudentCard(params: HomeStudentCardParams) {
   .backgroundColor($r('app.color.card_background'))
 }
 
+/** 首页统计小卡入参（单参对象字面量按引用传递，统计值随状态刷新） */
+export interface HomeStatCardParams {
+  label: string;
+  valueText: string;
+  onClick: () => void;
+}
+
+/** 首页统计小卡：校园卡余额 / 图书借阅数量（学生卡下方独立小卡，借阅卡点击进详情页） */
+@Builder
+export function HomeStatCard(params: HomeStatCardParams) {
+  Column({ space: 6 }) {
+    Text(params.label)
+      .fontSize(11)
+      .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+    Text(params.valueText)
+      .fontSize(20)
+      .fontWeight(FontWeight.Bold)
+      .fontColor($r('sys.color.ohos_id_color_text_primary'))
+      .maxLines(1)
+      .textOverflow({ overflow: TextOverflow.Ellipsis })
+  }
+  .layoutWeight(1)
+  .alignItems(HorizontalAlign.Start)
+  .padding({ left: 14, right: 14, top: 12, bottom: 12 })
+  .borderRadius(16)
+  .backgroundColor($r('app.color.card_background'))
+  .onClick(() => {
+    params.onClick();
+  })
+}
+
 /** 区块标题（自 HomeView 拆出） */
 @Builder
 export function HomeSectionTitle(title: string) {

@@ -4,6 +4,8 @@ import { CardDataStore } from './CardDataStore';
 import { ReminderScheduler } from './ReminderScheduler';
 import { SelectionRepository } from './SelectionRepository';
 import { ZcpRepository } from './ZcpRepository';
+import { EhallRepository } from './EhallRepository';
+import { LibraryRepository } from './LibraryRepository';
 import { getContext } from '../net/JwTransport';
 
 const TAG: string = 'JwxtRepository';
@@ -49,6 +51,10 @@ export class PrivacyController {
       // 综评数据不属于课表数据，受限模式连同临时缓存一并清除
       ZcpRepository.clearMemory();
       ZcpRepository.clearCache();
+      // ehall 统计（余额/借阅数）与图书馆令牌不属于课表数据，受限模式一并清除
+      EhallRepository.clearSession();
+      EhallRepository.clearCache();
+      LibraryRepository.clearToken();
       if (context !== null) {
         CardDataStore.clearAppCache(context);
         CardDataStore.clearFinalExams(context);
@@ -73,6 +79,10 @@ export class PrivacyController {
     // 综评为个人测评数据，严格模式连同 xgfw 会话标记与临时缓存一并清除
     ZcpRepository.clearSession();
     ZcpRepository.clearCache();
+    // ehall 统计（余额/借阅数）与图书馆令牌为个人数据，严格模式一并清除
+    EhallRepository.clearSession();
+    EhallRepository.clearCache();
+    LibraryRepository.clearToken();
     const context: common.UIAbilityContext | null = getContext();
     if (context === null) {
       return;

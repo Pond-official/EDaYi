@@ -13,6 +13,8 @@ import { parseStudent } from '../jwxt/parsers/StudentParser';
 import { ZcpRepository } from './ZcpRepository';
 import { PrivacyController } from './PrivacyController';
 import { JwxtCacheStore } from './JwxtCacheStore';
+import { EhallRepository } from './EhallRepository';
+import { LibraryRepository } from './LibraryRepository';
 import { JW_APP_ROOT, postForm, getForm, getContext, attachContext as transportAttachContext, clearLastCookie } from '../net/JwTransport';
 import { CrossDomainSession } from '../net/CrossDomainSession';
 
@@ -244,10 +246,13 @@ export class JwxtSessionRepository {
     // Cookie 已清空，跨域换票就绪集必须同步失效，否则下次进综评会跳过引导直接撞 401
     CrossDomainSession.reset();
     clearLastCookie();
+    // 图书馆 JWT（内存态）随登录态一并丢弃；ehall 统计按隐私模式分级处理
+    LibraryRepository.clearToken();
     const mode: string = PrivacyController.privacyMode();
     if (mode === 'standard') {
-      // 保留离线数据：仅失效 xgfw 会话标记，页面继续显示已获取的离线数据
+      // 保留离线数据：仅失效 xgfw/ehall 会话标记，页面继续显示已获取的离线数据
       ZcpRepository.invalidateSession();
+      EhallRepository.invalidateSession();
       AppStorage.setOrCreate<string>('jwDataMode', 'offlineCache');
       AppStorage.setOrCreate<boolean>('jwLoaded', true);
       return;
@@ -264,6 +269,8 @@ export class JwxtSessionRepository {
     }
     ZcpRepository.clearSession();
     ZcpRepository.clearCache();
+    EhallRepository.clearSession();
+    EhallRepository.clearCache();
     JwxtSessionRepository.applyEmpty('offline');
   }
 

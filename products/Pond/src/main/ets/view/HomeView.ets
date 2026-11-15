@@ -1,10 +1,11 @@
 ﻿import { FinalExamEntry, ScheduleCellInfo, StudentProfile, TermStatus } from '../model/JwModels';
 import { JwxtRepository } from '../data/JwxtRepository';
+import { EhallRepository } from '../data/EhallRepository';
 import { ExamDateUtils } from '../utils/ExamDateUtils';
 import { ScheduleBoard } from './ScheduleBoard';
 import { FrostBand, FROST_BAND_HEIGHT, frostTopInsetVp } from './FrostBand';
 import { display, window } from '@kit.ArkUI';
-import { HomeOfflineBanner, HomeStudentCard, HomeSectionTitle, HomeTodayCard, HomeWeekChip, HomeFinalExamCard } from './HomeCards';
+import { HomeOfflineBanner, HomeStudentCard, HomeSectionTitle, HomeStatCard, HomeTodayCard, HomeWeekChip, HomeFinalExamCard } from './HomeCards';
 
 /**
  * 首页：学生信息卡 + 今日课程 + 我的课表（原生 Row/Column 布局，三端自适应）。
@@ -15,7 +16,7 @@ export struct HomeView {
   @StorageProp('jwStudent') student: StudentProfile = new StudentProfile();
   @StorageProp('jwSchedule') @Watch('onScheduleChanged') scheduleCells: ScheduleCellInfo[] = [];
   @StorageProp('jwTerm') @Watch('onScheduleChanged') termStatus: TermStatus = new TermStatus();
-  @StorageProp('jwDataMode') dataMode: string = 'preview';
+  @StorageProp('jwDataMode') @Watch('onDataModeChanged') dataMode: string = 'preview';
   /** 隐私模式：standard=缓存全部 / restricted=仅课表卡片 / strict=不缓存 */
   @StorageProp('jwPrivacyMode') privacyMode: string = 'standard';
   /** 各课程期末考试时间设置（按课程名） */
@@ -25,6 +26,10 @@ export struct HomeView {
   @StorageLink('mainBreakpoint') currentBreakpoint: string = 'md';
   /** 应用回前台时刻戳（PondAbility onForeground），跨天时刷新"今日课程" */
   @StorageProp('jwForegroundTick') @Watch('onForegroundTick') foregroundTick: number = 0;
+  /** 校园卡余额（ehall 聚合值；空串 = 未获取） */
+  @StorageProp('jwEcardBalance') ecardBalance: string = '';
+  /** 图书借阅数量（ehall 聚合值；-1 = 未获取） */
+  @StorageProp('jwLoanCount') loanCount: number = -1;
   private todayDay: number = 1;
   @State todayCells: ScheduleCellInfo[] = [];
   /** 课表周切换：0=本周，1=下周 */
@@ -51,6 +56,7 @@ export struct HomeView {
     this.refreshHeight = this.refreshHeightVp();
     this.bindWindowHeight();
     JwxtRepository.ensureLoaded();
+    EhallRepository.ensureStatsLoaded();
     this.refreshToday();
     this.rebuildTodayCells();
   }
@@ -61,6 +67,13 @@ export struct HomeView {
 
   onScheduleChanged(): void {
     this.rebuildTodayCells();
+  }
+
+  /** 教务数据模式变化：登录成功（online）后刷新校园卡余额与借阅数量 */
+  onDataModeChanged(): void {
+    if (this.dataMode === 'online') {
+      EhallRepository.refreshStats();
+    }
   }
 
   /** 应用回前台：跨天挂起后重算"今天"，刷新今日课程，检查已结束考试 */
@@ -193,6 +206,21 @@ export struct HomeView {
     this.getUIContext().getRouter().pushUrl({ url: 'pages/LoginIndex' });
   }
 
+  /** 进入图书借阅详情页（当前借阅 + 借阅历史） */
+  private goLibrary(): void {
+    this.getUIContext().getRouter().pushUrl({ url: 'pages/LibraryIndex' });
+  }
+
+  /** 校园卡余额展示文本（未获取显示占位符） */
+  private balanceText(): string {
+    return this.ecardBalance.length > 0 ? '¥' + this.ecardBalance : '—';
+  }
+
+  /** 图书借阅数量展示文本（未获取显示占位符） */
+  private loanCountText(): string {
+    return this.loanCount >= 0 ? this.loanCount + ' 本' : '—';
+  }
+
   /** 下拉刷新：已连接教务系统时在线刷新；未登录时提示先登录并立即收起刷新动画 */
   private doRefresh(): void {
     if (this.dataMode !== 'online') {
@@ -206,7 +234,9 @@ export struct HomeView {
     }
     JwxtRepository.reload().then((ok: boolean) => {
       this.isRefreshing = false;
-      if (!ok) {
+      if (ok) {
+        EhallRepository.refreshStats();
+      } else {
         try {
           this.getUIContext().getPromptAction()
             .showToast({ message: '刷新失败，请稍后重试', duration: 1500 });
@@ -290,6 +320,25 @@ export struct HomeView {
   infoColumn() {
     Column() {
       HomeStudentCard({ student: this.student })
+      if (this.dataMode !== 'preview') {
+        Row({ space: 12 }) {
+          HomeStatCard({
+            label: '校园卡',
+            valueText: this.balanceText(),
+            onClick: (): void => {
+            }
+          })
+          HomeStatCard({
+            label: '图书借阅',
+            valueText: this.loanCountText(),
+            onClick: (): void => {
+              this.goLibrary();
+            }
+          })
+        }
+        .width('100%')
+        .margin({ top: 12 })
+      }
       if (this.dataMode !== 'online') {
         this.loginFooter()
       } else {

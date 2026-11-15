@@ -5,6 +5,8 @@ import gradeParserTest from './GradeParser.test';
 import trainingPlanParserTest from './TrainingPlanParser.test';
 import studentParserTest from './StudentParser.test';
 import examDateUtilsTest from './ExamDateUtils.test';
+import libraryRepositoryTest from './LibraryRepository.test';
+import ehallRepositoryTest from './EhallRepository.test';
 
 export default function testsuite() {
   localUnitTest();
@@ -14,4 +16,6 @@ export default function testsuite() {
   trainingPlanParserTest();
   studentParserTest();
   examDateUtilsTest();
+  libraryRepositoryTest();
+  ehallRepositoryTest();
 }

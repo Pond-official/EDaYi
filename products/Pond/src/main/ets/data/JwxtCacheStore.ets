@@ -4,6 +4,7 @@ import { CacheManager } from './CacheManager';
 import { CardCellItem, CardDataStore } from './CardDataStore';
 import { PrivacyController } from './PrivacyController';
 import { ZcpRepository } from './ZcpRepository';
+import { EhallRepository } from './EhallRepository';
 import { getContext } from '../net/JwTransport';
 import { GradeCategory, GradeEntry, PlanCategory, PlanCourse, ScheduleCellInfo, SectionTimeInfo, StudentProfile, TermStatus } from '../model/JwModels';
 import { AppCacheRaw, CategoryCacheRaw, CellCacheRaw, GradeCacheRaw, PlanCategoryCacheRaw, PlanCourseCacheRaw, SectionCacheRaw, StudentCacheRaw, TermCacheRaw } from '../model/JwRawModels';
@@ -31,6 +32,8 @@ export class JwxtCacheStore {
     }
     // 综评缓存存于 filesDir（不在 cacheDir 内），随"清理缓存"一并清除，统计时单独计入
     bytes += ZcpRepository.cacheSizeBytes();
+    // ehall 首页统计缓存同样存于 filesDir，单独计入
+    bytes += EhallRepository.cacheSizeBytes();
     AppLog.info(DOMAIN, TAG, 'cacheDir=%{public}s abilityDir=%{public}s size=%{public}d',
       appCacheDir, abilityCacheDir, bytes);
     return bytes;
@@ -57,6 +60,8 @@ export class JwxtCacheStore {
     // 综评数据与成绩同级：清缓存同时清空内存态与临时缓存（会话保留，重进页签可重新在线获取）
     ZcpRepository.clearMemory();
     ZcpRepository.clearCache();
+    // ehall 首页统计缓存与综评缓存同级：一并清除（会话保留，下次刷新可重新获取）
+    EhallRepository.clearCache();
   }
 
   /**

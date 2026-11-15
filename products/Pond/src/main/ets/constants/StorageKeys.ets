@@ -13,11 +13,11 @@
  * 校验命令（项目根目录）：node tools/check_storage_keys.mjs
  */
 
-// ================================ AppStorage 键（26 个） ================================
+// ================================ AppStorage 键（28 个） ================================
 
-// [AppStorage] jwSafeTopPx | number | pondability/PondAbility（窗口避让安全高度） | pages/LoginIndex、pages/Index、pages/TrainingPlanIndex、view/FrostBand、view/GradeView、view/HomeView、view/SelectionView、view/SettingsView、view/ZcpView（9 处）
+// [AppStorage] jwSafeTopPx | number | pondability/PondAbility（窗口避让安全高度） | pages/LoginIndex、pages/Index、pages/TrainingPlanIndex、pages/LibraryIndex、view/FrostBand、view/GradeView、view/HomeView、view/SelectionView、view/SettingsView、view/ZcpView（10 处）
 // [AppStorage] mainBreakpoint | string | common/utils/BreakpointSystem（pages/Index 注册，断点变化写入） | pages/TrainingPlanIndex、view/GradeView、view/HomeView、view/SelectionView、view/ZcpView（@StorageLink 5 处，双向）
-// [AppStorage] jwDataMode | string（preview/online/offlineCache） | data/JwxtCacheStore、data/JwxtSessionRepository | pages/TrainingPlanIndex、view/GradeView、view/HomeView、view/ZcpView
+// [AppStorage] jwDataMode | string（preview/online/offlineCache） | data/JwxtCacheStore、data/JwxtSessionRepository | pages/TrainingPlanIndex、pages/LibraryIndex、view/GradeView、view/HomeView、view/ZcpView
 // [AppStorage] jwStudent | model/JwModels.StudentProfile | data/JwxtCacheStore、data/JwxtSessionRepository（退出登录置空） | view/HomeView
 // [AppStorage] jwSchedule | model/JwModels.ScheduleCellInfo[] | data/JwxtCacheStore、data/JwxtSessionRepository | view/HomeView、view/ScheduleBoard
 // [AppStorage] jwTerm | model/JwModels.TermStatus | data/JwxtSessionRepository | view/HomeView、view/ScheduleBoard、view/SettingsView
@@ -41,6 +41,8 @@
 // [AppStorage] appLogRevision | number | data/AppLog（日志环形缓冲修订号） | view/AppLogCard
 // [AppStorage] jwLightEffectColor | string（#RRGGBB） | data/JwxtSessionRepository、view/SettingsView | pages/Index（底栏 HDS lightColor 与降级栏 lightEffect）
 // [AppStorage] jwMaterialLevel | string（ADAPTIVE/EXQUISITE/GENTLE/SMOOTH） | data/JwxtSessionRepository、view/SettingsView | pages/Index（HDS SystemMaterialParams materialLevel）
+// [AppStorage] jwEcardBalance | string（校园卡余额，未获取为空串） | data/EhallRepository（ehall 聚合接口写入/缓存回放） | view/HomeView（首页统计小卡）
+// [AppStorage] jwLoanCount | number（在借图书数，-1 = 未获取） | data/EhallRepository（ehall 聚合接口写入/缓存回放/详情页回写）、pages/LibraryIndex（间接经 EhallRepository.updateLoanCount） | view/HomeView（首页统计小卡）
 
 // ============================ 卡片 LocalStorage 键（15 个） ============================
 // 均由 data/CardDataStore 构造 formData，经 formBindingData 注入对应卡片 @Entry(LocalStorage)；

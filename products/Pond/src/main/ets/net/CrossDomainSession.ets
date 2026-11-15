@@ -10,6 +10,9 @@ class Req {
   spec: DomainSpec;
   resolve: (ok: boolean) => void;
   timer: number;
+  /** 已进入门户预热阶段：onPageEnd/onError 不再收尾，由 warmupTimer 到点结算 */
+  warming: boolean = false;
+  warmupTimer: number = -1;
 
   constructor(spec: DomainSpec, resolve: (ok: boolean) => void, timer: number) {
     this.spec = spec;
@@ -96,24 +99,76 @@ export class CrossDomainSession {
     }
   }
 
+  /**
+   * 取 URL 的 host 部分（不含端口/路径/查询参数），非 http(s) URL 返回空串。
+   * 引导完成判定必须用本方法做 host 全等比较：
+   * 不能用 indexOf(host) —— libsp 入口 URL 的 refer 查询参数里就含目标域字符串，
+   * 会把 chaoxing 入口页误判为已完成，提前 about:blank 杀掉 SSO 重定向链。
+   */
+  private static urlHost(url: string): string {
+    const schemeEnd: number = url.indexOf('://');
+    if (schemeEnd < 0) {
+      return '';
+    }
+    const hostStart: number = schemeEnd + 3;
+    let hostEnd: number = url.indexOf('/', hostStart);
+    if (hostEnd < 0) {
+      hostEnd = url.length;
+    }
+    let host: string = url.substring(hostStart, hostEnd);
+    const portIndex: number = host.indexOf(':');
+    if (portIndex >= 0) {
+      host = host.substring(0, portIndex);
+    }
+    return host;
+  }
+
   /** 由根页面隐藏 Web 的 onPageEnd 调用（about:blank 收尾页由 current === null 挡掉） */
   static onPageEnd(endedUrl: string): void {
     const cur: Req | null = CrossDomainSession.current;
     if (cur === null) {
       return;
     }
+    AppLog.info(DOMAIN, TAG, 'page end: %{public}s', endedUrl);
     if (endedUrl.indexOf('authserver') >= 0) {
       CrossDomainSession.settle(false);
       return;
     }
-    if (endedUrl.indexOf(cur.spec.host) >= 0) {
-      CrossDomainSession.ready.add(cur.spec.key);
-      CrossDomainSession.settle(true);
+    if (CrossDomainSession.urlHost(endedUrl) === cur.spec.host) {
+      if (cur.spec.warmupUrl.length === 0) {
+        CrossDomainSession.ready.add(cur.spec.key);
+        CrossDomainSession.settle(true);
+        return;
+      }
+      if (cur.warming) {
+        // 预热页加载完成：停留期内由 warmupTimer 到点收尾
+        return;
+      }
+      // 换票链已落到目标域：进入门户预热（加载门户页停留 warmupMs，让页面 JS 触发服务端数据聚合）
+      cur.warming = true;
+      clearTimeout(cur.timer);
+      const controller: webview.WebviewController | null = CrossDomainSession.controller;
+      if (controller === null || !CrossDomainSession.loadQuietly(controller, cur.spec.warmupUrl)) {
+        // 无宿主或加载失败：会话已建立，按成功收尾（预热是尽力而为）
+        CrossDomainSession.ready.add(cur.spec.key);
+        CrossDomainSession.settle(true);
+        return;
+      }
+      AppLog.info(DOMAIN, TAG, 'warmup start: %{public}s dwell=%{public}dms', cur.spec.key, `${cur.spec.warmupMs}`);
+      cur.warmupTimer = setTimeout(() => {
+        CrossDomainSession.ready.add(cur.spec.key);
+        CrossDomainSession.settle(true);
+      }, cur.spec.warmupMs);
     }
   }
 
   /** 主文档加载失败（仅主框架）时由根页面隐藏 Web 的 onErrorReceive 调用 */
   static onError(): void {
+    const cur: Req | null = CrossDomainSession.current;
+    if (cur !== null && cur.warming) {
+      // 预热期门户页主文档失败不致命：会话已建立，等待 warmupTimer 收尾
+      return;
+    }
     CrossDomainSession.settle(false);
   }
 
@@ -123,6 +178,10 @@ export class CrossDomainSession {
       return;
     }
     clearTimeout(cur.timer);
+    if (cur.warmupTimer >= 0) {
+      clearTimeout(cur.warmupTimer);
+      cur.warmupTimer = -1;
+    }
     CrossDomainSession.current = null;
     const controller: webview.WebviewController | null = CrossDomainSession.controller;
     if (controller !== null) {
@@ -147,5 +206,10 @@ export class CrossDomainSession {
   /** 登出/会话失效时必须调用，否则会把过期会话当成已就绪 */
   static reset(): void {
     CrossDomainSession.ready.clear();
+  }
+
+  /** 失效单个域的就绪标记（如图书馆 JWT 过期需重新换票，但不影响其他域） */
+  static invalidate(key: string): void {
+    CrossDomainSession.ready.delete(key);
   }
 }

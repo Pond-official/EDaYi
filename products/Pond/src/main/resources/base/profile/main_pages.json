@@ -3,6 +3,7 @@
     "pages/Index",
     "pages/LoginIndex",
     "pages/SettingsIndex",
-    "pages/TrainingPlanIndex"
+    "pages/TrainingPlanIndex",
+    "pages/LibraryIndex"
   ]
 }
