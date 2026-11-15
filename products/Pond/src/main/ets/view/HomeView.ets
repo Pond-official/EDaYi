@@ -6,6 +6,7 @@ import { ScheduleBoard } from './ScheduleBoard';
 import { FrostBand, FROST_BAND_HEIGHT, frostTopInsetVp } from './FrostBand';
 import { display, window } from '@kit.ArkUI';
 import { HomeOfflineBanner, HomeStudentCard, HomeSectionTitle, HomeStatCard, HomeTodayCard, HomeWeekChip, HomeFinalExamCard } from './HomeCards';
+import { cardEnterEffect } from './CardEnter';
 
 /**
  * 首页：学生信息卡 + 今日课程 + 我的课表（原生 Row/Column 布局，三端自适应）。
@@ -313,7 +314,7 @@ export struct HomeView {
     .borderRadius(16)
     .backgroundColor($r('app.color.card_background'))
     .geometryTransition('home-schedule')
-    .transition(TransitionEffect.OPACITY)
+    .transition(cardEnterEffect(270))
   }
 
   @Builder
@@ -338,6 +339,7 @@ export struct HomeView {
         }
         .width('100%')
         .margin({ top: 12 })
+        .transition(cardEnterEffect(90))
       }
       if (this.dataMode !== 'online') {
         this.loginFooter()
@@ -515,6 +517,7 @@ export struct HomeView {
         .width('100%')
         .height('100%')
         .scrollBar(BarState.Off)
+        .edgeEffect(EdgeEffect.Spring)
         }
       .onRefreshing(() => {
         this.doRefresh();

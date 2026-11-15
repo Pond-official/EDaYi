@@ -2,6 +2,7 @@ import { GradeEntry } from '../model/JwModels';
 import { GRADE_DEFAULT_BG, GRADE_DEFAULT_TEXT, GRADE_EXCELLENT_TEXT, GRADE_GOOD_BG,
   GRADE_GOOD_TEXT, GRADE_INSPECT_BG, GRADE_INSPECT_TEXT, GRADE_MEDIUM_TEXT, PASS_BG,
   REVIEW_BG, TAG_DEFAULT_BG } from '../theme/AppColors';
+import { cardEnterEffect } from './CardEnter';
 
 /** 分组内容指纹：课程名+性质+考核+成绩+学分+绩点拼接，内容变化时 ForEach key 变化以重建分组 */
 export function gradeSectionFingerprint(items: GradeEntry[]): string {
@@ -145,7 +146,7 @@ export function GradeSummaryCard(params: GradeSummaryCardParams) {
   .borderRadius(16)
   .backgroundColor($r('app.color.card_background'))
   .geometryTransition('grade-summary')
-  .transition(TransitionEffect.OPACITY)
+  .transition(cardEnterEffect(0))
 }
 
 /** 培养计划入口（位于成绩汇总卡下方，自 GradeView 拆出） */
@@ -174,7 +175,7 @@ export function GradeTrainingPlanEntry(onOpen: () => void) {
   .backgroundColor($r('app.color.card_background'))
   .margin({ top: 12 })
   .geometryTransition('grade-plan')
-  .transition(TransitionEffect.OPACITY)
+  .transition(cardEnterEffect(90))
   .onClick(() => {
     onOpen();
   })
@@ -232,9 +233,9 @@ export function GradeRow(grade: GradeEntry) {
   .padding({ top: 10, bottom: 10 })
 }
 
-/** 分类成绩分组卡片（自 GradeView 拆出） */
+/** 分类成绩分组卡片（自 GradeView 拆出；enterDelayMs 为启动入场延迟，-1 表示不重播上滑） */
 @Builder
-export function GradeSection(title: string, items: GradeEntry[]) {
+export function GradeSection(title: string, items: GradeEntry[], enterDelayMs: number) {
   if (items.length > 0) {
     Column() {
       Row() {
@@ -261,7 +262,7 @@ export function GradeSection(title: string, items: GradeEntry[]) {
     .borderRadius(16)
     .backgroundColor($r('app.color.card_background'))
     .geometryTransition('grade-sec-' + title)
-    .transition(TransitionEffect.OPACITY)
+    .transition(enterDelayMs >= 0 ? cardEnterEffect(enterDelayMs) : TransitionEffect.OPACITY)
   }
 }
 
@@ -341,7 +342,7 @@ export function GradeTermFilterRow(params: GradeTermFilterRowParams) {
   .margin({ top: 16, bottom: 4 })
   .alignItems(VerticalAlign.Center)
   .geometryTransition('grade-term')
-  .transition(TransitionEffect.OPACITY)
+  .transition(cardEnterEffect(180))
 }
 
 /** 无成绩空态提示参数（单参对象按引用传递） */

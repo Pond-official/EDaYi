@@ -5,6 +5,7 @@ import { BackButton } from '../view/BackButton';
 import { GRADE_DEFAULT_BG, GRADE_DEFAULT_TEXT, GRADE_EXCELLENT_TEXT, GRADE_GOOD_BG,
   GRADE_GOOD_TEXT, GRADE_INSPECT_BG, GRADE_INSPECT_TEXT, GRADE_MEDIUM_TEXT, PASS_BG,
   REVIEW_BG, TAG_DEFAULT_BG } from '../theme/AppColors';
+import { cardEnterEffect } from '../view/CardEnter';
 
 const TERM_ALL: string = '全部';
 /** 开课学期未指定的课程归入此筛选项（排在最后） */
@@ -43,6 +44,8 @@ struct TrainingPlanIndex {
   @State visibleSections: PlanSectionData[] = [];
   /** 状态栏避让区高度（px）：沉浸式全屏下内容顶部让位计算用 */
   @StorageProp('jwSafeTopPx') safeTopPx: number = 0;
+  /** 用户是否已切换过筛选：置位后分组不再重播启动级联上滑（降级为纯透明度过渡） */
+  @State filterTouched: boolean = false;
 
   aboutToAppear(): void {
     JwxtRepository.ensureLoaded();
@@ -104,6 +107,14 @@ struct TrainingPlanIndex {
       }
     }
     this.visibleSections = sections;
+  }
+
+  /** 分组入场延迟：启动级联错峰（前 5 组），用户切换筛选后返回 -1 降级为纯透明度过渡 */
+  private sectionEnterDelay(index: number): number {
+    if (this.filterTouched) {
+      return -1;
+    }
+    return 90 + Math.min(index, 4) * 60;
   }
 
   /** 分组内容指纹：课程名+性质+考核+学期+成绩拼接，内容变化时 ForEach key 变化以重建分组 */
@@ -364,7 +375,7 @@ struct TrainingPlanIndex {
   }
 
   @Builder
-  planSection(section: PlanSectionData) {
+  planSection(section: PlanSectionData, enterDelayMs: number) {
     Column() {
       Row() {
         Text(section.name)
@@ -388,6 +399,7 @@ struct TrainingPlanIndex {
     .padding({ left: 16, right: 16, top: 12, bottom: 8 })
     .borderRadius(16)
     .backgroundColor($r('app.color.card_background'))
+    .transition(enterDelayMs >= 0 ? cardEnterEffect(enterDelayMs) : TransitionEffect.OPACITY)
   }
 
   build() {
@@ -412,6 +424,7 @@ struct TrainingPlanIndex {
                   .optionWidth(232)
                   .onSelect((index: number) => {
                     if (index >= 0 && index < this.termChips.length) {
+                      this.filterTouched = true;
                       this.selectedTerm = this.termChips[index];
                       this.rebuildSections();
                     }
@@ -435,6 +448,7 @@ struct TrainingPlanIndex {
                   .optionWidth(232)
                   .onSelect((index: number) => {
                     if (index >= 0 && index < this.natureChips.length) {
+                      this.filterTouched = true;
                       this.selectedNature = this.natureChips[index];
                       this.rebuildSections();
                     }
@@ -458,6 +472,7 @@ struct TrainingPlanIndex {
                   .optionWidth(232)
                   .onSelect((index: number) => {
                     if (index >= 0 && index < this.examChips.length) {
+                      this.filterTouched = true;
                       this.selectedExamType = this.examChips[index];
                       this.rebuildSections();
                     }
@@ -468,9 +483,10 @@ struct TrainingPlanIndex {
             }
             .width('100%')
             .margin({ bottom: 4 })
+            .transition(cardEnterEffect(0))
           }
-          ForEach(this.visibleSections, (section: PlanSectionData) => {
-            this.planSection(section)
+          ForEach(this.visibleSections, (section: PlanSectionData, index: number) => {
+            this.planSection(section, this.sectionEnterDelay(index))
           }, (section: PlanSectionData) => section.name + '|' + this.sectionFingerprint(section.courses))
           if (this.totalCourses() === 0) {
             Text(this.dataMode === 'online' ? '暂无培养计划数据' :
@@ -488,6 +504,7 @@ struct TrainingPlanIndex {
       .height('100%')
       .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
       .scrollBar(BarState.Off)
+      .edgeEffect(EdgeEffect.Spring)
 
       FrostBand() {
         Row() {

@@ -40,6 +40,8 @@ export struct GradeView {
   @State winHeightPx: number = 0;
   /** 离线横幅实测组件高（vp）：宽屏双列行高按横幅块高扣减用 */
   @State bannerHeightVp: number = 0;
+  /** 用户是否已切换过学期：置位后分组不再重播启动级联上滑（降级为纯透明度过渡） */
+  @State termTouched: boolean = false;
   /** 窗口尺寸变化回调：持有引用便于精准解绑，避免 off 误伤其他视图的监听 */
   private readonly onWinSizeChanged = (size: window.Size): void => {
     // 旋转：状态更新包进 animateTo，驱动单列/双列分支 geometryTransition 飞行与高度渐变
@@ -107,6 +109,14 @@ export struct GradeView {
       sections.push({ title: '其他成绩', grades: others });
     }
     this.visibleSections = sections;
+  }
+
+  /** 分组入场延迟：启动级联错峰（前 5 组），用户切换学期后返回 -1 降级为纯透明度过渡 */
+  private sectionEnterDelay(index: number): number {
+    if (this.termTouched) {
+      return -1;
+    }
+    return 270 + Math.min(index, 4) * 60;
   }
 
   /** 学期码转显示文案："2025-2026-1" → "2025-2026学年1学期"，非该格式原样返回 */
@@ -342,12 +352,13 @@ export struct GradeView {
           GradeTermFilterRow({ options: this.termOptions(), selectedIndex: this.selectedTermIndex(),
             selectedLabel: this.selectedTermLabel(), onSelect: (index: number): void => {
               if (index >= 0 && index < this.termChips.length) {
+                this.termTouched = true;
                 this.selectedTerm = this.termChips[index];
                 this.rebuildSections();
               }
             } })
-          ForEach(this.visibleSections, (section: GradeSectionData) => {
-            GradeSection(section.title, section.grades)
+          ForEach(this.visibleSections, (section: GradeSectionData, index: number) => {
+            GradeSection(section.title, section.grades, this.sectionEnterDelay(index))
           }, (section: GradeSectionData) => section.title + '|' + gradeSectionFingerprint(section.grades))
           if (this.allGrades().length === 0) {
             GradeEmptyText({ mode: this.dataMode })
@@ -397,12 +408,13 @@ export struct GradeView {
             GradeTermFilterRow({ options: this.termOptions(), selectedIndex: this.selectedTermIndex(),
               selectedLabel: this.selectedTermLabel(), onSelect: (index: number): void => {
                 if (index >= 0 && index < this.termChips.length) {
+                  this.termTouched = true;
                   this.selectedTerm = this.termChips[index];
                   this.rebuildSections();
                 }
               } })
-            ForEach(this.visibleSections, (section: GradeSectionData) => {
-              GradeSection(section.title, section.grades)
+            ForEach(this.visibleSections, (section: GradeSectionData, index: number) => {
+              GradeSection(section.title, section.grades, this.sectionEnterDelay(index))
             }, (section: GradeSectionData) => section.title + '|' + gradeSectionFingerprint(section.grades))
             if (this.allGrades().length === 0) {
               GradeEmptyText({ mode: this.dataMode })
@@ -416,6 +428,7 @@ export struct GradeView {
       .width('100%')
       .height('100%')
       .scrollBar(BarState.Off)
+      .edgeEffect(EdgeEffect.Spring)
       }
       .onRefreshing(() => {
         this.doRefresh();

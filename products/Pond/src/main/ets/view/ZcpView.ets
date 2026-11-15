@@ -361,6 +361,7 @@ export struct ZcpView {
       .width('100%')
       .height('100%')
       .scrollBar(BarState.Off)
+      .edgeEffect(EdgeEffect.Spring)
       }
       .onRefreshing(() => {
         this.doRefresh();

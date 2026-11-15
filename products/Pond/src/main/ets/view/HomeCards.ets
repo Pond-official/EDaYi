@@ -1,5 +1,6 @@
 import { FinalExamEntry, ScheduleCellInfo, StudentProfile } from '../model/JwModels';
 import { ExamDateUtils } from '../utils/ExamDateUtils';
+import { cardEnterEffect } from './CardEnter';
 
 /** 离线数据提示条（自 HomeView 拆出；onLogin 跳登录） */
 @Builder
@@ -89,6 +90,7 @@ export function HomeStudentCard(params: HomeStudentCardParams) {
   .padding(16)
   .borderRadius(16)
   .backgroundColor($r('app.color.card_background'))
+  .transition(cardEnterEffect(0))
 }
 
 /** 首页统计小卡入参（单参对象字面量按引用传递，统计值随状态刷新） */
@@ -204,6 +206,7 @@ export function HomeTodayCard(params: HomeTodayCardParams) {
   .padding(16)
   .borderRadius(16)
   .backgroundColor($r('app.color.card_background'))
+  .transition(cardEnterEffect(180))
 }
 
 /** 课表周切换片入参（单参对象字面量按引用传递，选中态随 scheduleWeekOffset 刷新） */
@@ -317,5 +320,5 @@ export function HomeFinalExamCard(params: HomeFinalExamCardParams) {
   .backgroundColor($r('app.color.card_background'))
   .margin({ top: 16 })
   .geometryTransition('home-final')
-  .transition(TransitionEffect.OPACITY)
+  .transition(cardEnterEffect(360))
 }
