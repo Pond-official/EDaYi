@@ -115,7 +115,7 @@ struct Index {
     } else {
       this.tabVisited[index] = true;
     }
-    this.onTabSelected(index);
+    this.currentTabIndex = index;
   }
 
   /** 右上角设置入口顶部边距（vp）：沉浸式全屏下叠加状态栏避让区，保持与原视觉位置一致 */
