@@ -11,7 +11,6 @@ import { SettingsEntryButton } from '../view/SettingsEntryButton';
 import { JwxtRepository } from '../data/JwxtRepository';
 import { MaterialUtils } from '../utils/MaterialUtils';
 import { CrossDomainSession } from '../net/CrossDomainSession';
-import { markMainEnterDone } from '../view/CardEnter';
 
 /** 悬浮页签栏最大宽度（宽屏基准），窄屏按屏宽收缩 */
 const BAR_MAX_WIDTH: number = 392;
@@ -81,10 +80,6 @@ struct Index {
     this.barMaterial = this.buildBarMaterial();
     JwxtRepository.ensureLoaded();
     this.onTabChanged();
-    // 启动入场窗口：1s 后结束（覆盖最晚 870ms 的级联入场），此后页签切换重建不再重播卡片级联
-    setTimeout((): void => {
-      markMainEnterDone();
-    }, 1000);
   }
 
   aboutToDisappear(): void {

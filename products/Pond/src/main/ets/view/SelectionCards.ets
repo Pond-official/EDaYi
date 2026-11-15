@@ -1,6 +1,6 @@
 import { SelectionBatch, SelectedCourse, SelectionCourse } from '../model/SelectionModels';
 import { REVIEW_TEXT } from '../theme/AppColors';
-import { mainEnterEffect } from './CardEnter';
+import { cardEnterEffect } from './CardEnter';
 
 /** 轮次未开始状态色 */
 const PENDING_COLOR: string = REVIEW_TEXT;
@@ -171,7 +171,7 @@ export function SelectionHeaderCard(params: SelectionHeaderCardParams) {
   .padding(12)
   .borderRadius(16)
   .backgroundColor($r('app.color.card_background'))
-  .transition(mainEnterEffect(0))
+  .transition(cardEnterEffect(0))
 }
 
 /** 轮次切换片（自 SelectionView 拆出；onSelect 切换当前轮次；选中态经轮次 ForEach key 驱动重建刷新） */
@@ -263,7 +263,7 @@ export function SelectionBatchSection(params: SelectionBatchSectionParams) {
   }
   .width('100%')
   .alignItems(HorizontalAlign.Start)
-  .transition(mainEnterEffect(90))
+  .transition(cardEnterEffect(90))
 }
 
 /** 已选课程卡入参（单参对象字面量按引用传递，选课提交后随已选列表刷新） */
@@ -326,7 +326,7 @@ export function SelectionSelectedCard(params: SelectionSelectedCardParams) {
   .padding(12)
   .borderRadius(16)
   .backgroundColor($r('app.color.card_background'))
-  .transition(mainEnterEffect(180))
+  .transition(cardEnterEffect(180))
 }
 
 /** 搜索行入参（单参对象字面量按引用传递，搜索可用态随加载状态刷新） */
@@ -360,7 +360,7 @@ export function SelectionSearchRow(params: SelectionSearchRowParams) {
   }
   .width('100%')
   .alignItems(VerticalAlign.Center)
-  .transition(mainEnterEffect(270))
+  .transition(cardEnterEffect(270))
 }
 
 /** 课程卡入参（单参对象字面量按引用传递，按钮文案/可用态经课程 ForEach key 驱动重建刷新） */

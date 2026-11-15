@@ -2,7 +2,7 @@ import { CaptchaData, SelectionCredentials } from '../model/SelectionModels';
 import { SelectionRepository } from '../data/SelectionRepository';
 import { plainError } from './SelectionCards';
 import { REJECT_TEXT } from '../theme/AppColors';
-import { mainEnterEffect } from './CardEnter';
+import { cardEnterEffect } from './CardEnter';
 
 /** 提示语颜色（警示） */
 const WARN_COLOR: string = REJECT_TEXT;
@@ -314,6 +314,6 @@ export struct SelectionLoginPanel {
       this.loginContent()
     }
     .width('100%')
-    .transition(mainEnterEffect(0))
+    .transition(cardEnterEffect(0))
   }
 }

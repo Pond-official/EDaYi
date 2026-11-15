@@ -1,7 +1,7 @@
 import { ZcpResult } from '../model/ZcpModels';
 import { ZcpRadarChart, RadarEntry } from './ZcpRadarChart';
 import { NEUTRAL_BG, PASS_BG, PASS_TEXT, REJECT_BG, REJECT_TEXT, REVIEW_BG, REVIEW_TEXT } from '../theme/AppColors';
-import { mainEnterEffect } from './CardEnter';
+import { cardEnterEffect } from './CardEnter';
 
 /** 去掉 Error 字符串的 'Error: ' 前缀，便于直接展示（自 ZcpView 拆出） */
 export function plainError(text: string): string {
@@ -262,7 +262,7 @@ export function ZcpCtxCard(params: ZcpCtxCardParams) {
   .borderRadius(16)
   .backgroundColor($r('app.color.card_background'))
   .geometryTransition('zcp-ctx')
-  .transition(mainEnterEffect(0))
+  .transition(cardEnterEffect(0))
 }
 
 /** 素质得分多维图卡片参数（单参对象按引用传递） */
@@ -291,7 +291,7 @@ export function ZcpRadarCard(params: ZcpRadarCardParams) {
     .borderRadius(16)
     .backgroundColor($r('app.color.card_background'))
     .geometryTransition('zcp-radar')
-    .transition(mainEnterEffect(90))
+    .transition(cardEnterEffect(90))
   }
 }
 
