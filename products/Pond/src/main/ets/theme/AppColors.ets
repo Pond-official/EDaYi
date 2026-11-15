@@ -42,12 +42,6 @@ export const GRADE_INSPECT_BG: string = '#F3E5F5';
 export const TEXT_DARK: string = '#333333';
 /** 中灰正文（课表单元格时间/地点） */
 export const TEXT_MEDIUM: string = '#555555';
-/** 首页底图发光-中心色 */
-export const GLOW_CENTER_COLOR: string = '#99FFFFFF';
-/** 首页底图发光-中间色 */
-export const GLOW_MID_COLOR: string = '#40FFFFFF';
-/** 首页底图发光-边缘色 */
-export const GLOW_EDGE_COLOR: string = '#2EFFFFFF';
 /** 卡片周次选中 文字/底色（系统蓝） */
 export const WIDGET_SELECTED_COLOR: string = '#007DFF';
 /** 课表单元格默认底色（浅绿，服务端未下发颜色时兜底） */
