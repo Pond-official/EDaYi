@@ -13,6 +13,7 @@ import { FinalExamEntry, PlanCategory, PlanCourse, TermStatus } from '../model/J
 import { ExamDateUtils } from '../utils/ExamDateUtils';
 import { GITHUB_URL, SettingsAboutEntry, SettingsAcknowledgementCard, SettingsDeveloperCard,
   SettingsDeveloperEntry, SettingsDeveloperModeCard, SettingsOpenSourceCard, SettingsVersionCard } from './SettingsAboutCards';
+import { SettingsLightEffectCard } from './SettingsLightEffectCards';
 import { bundleManager, common } from '@kit.AbilityKit';
 import { pasteboard, BusinessError } from '@kit.BasicServicesKit';
 
@@ -58,6 +59,10 @@ export struct SettingsView {
   @StorageProp('jwSafeTopPx') safeTopPx: number = 0;
   /** 开发者选项是否已开启（关于应用内连续点击版本号 5 次后开启） */
   @StorageLink('jwDeveloperMode') developerMode: boolean = false;
+  /** 底栏光效颜色（开发者选项自定义，#RRGGBB） */
+  @StorageLink('jwLightEffectColor') lightEffectColor: string = '#FFFFFF';
+  /** 底栏材质档位（开发者选项自定义，ADAPTIVE/EXQUISITE/GENTLE/SMOOTH） */
+  @StorageLink('jwMaterialLevel') materialLevel: string = 'ADAPTIVE';
   /** 版本号连续点击计数（开发者选项解锁用） */
   @State versionTapCount: number = 0;
   /** 自定义提前提醒时间输入弹层显隐 */
@@ -542,6 +547,16 @@ export struct SettingsView {
             })
             SettingsDeveloperCard(() => {
               ReminderScheduler.publishTest(getContext());
+            })
+            SettingsLightEffectCard({
+              color: this.lightEffectColor,
+              level: this.materialLevel,
+              onColorPick: (color: string): void => {
+                JwxtRepository.updateLightEffectSettings(color, this.materialLevel);
+              },
+              onLevelPick: (level: string): void => {
+                JwxtRepository.updateLightEffectSettings(this.lightEffectColor, level);
+              }
             })
             AppLogCard()
           }

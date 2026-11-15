@@ -13,7 +13,7 @@
  * 校验命令（项目根目录）：node tools/check_storage_keys.mjs
  */
 
-// ================================ AppStorage 键（24 个） ================================
+// ================================ AppStorage 键（26 个） ================================
 
 // [AppStorage] jwSafeTopPx | number | pondability/PondAbility（窗口避让安全高度） | pages/LoginIndex、pages/Index、pages/TrainingPlanIndex、view/FrostBand、view/GradeView、view/HomeView、view/SelectionView、view/SettingsView、view/ZcpView（9 处）
 // [AppStorage] mainBreakpoint | string | common/utils/BreakpointSystem（pages/Index 注册，断点变化写入） | pages/TrainingPlanIndex、view/GradeView、view/HomeView、view/SelectionView、view/ZcpView（@StorageLink 5 处，双向）
@@ -39,6 +39,8 @@
 // [AppStorage] jwHomeTabActive | boolean | pages/Index（页签切换时写入） | view/HomeView（页签切回首页时检查已结束考试）
 // [AppStorage] jwZcpResult | model/ZcpModels.ZcpResult | null | data/ZcpRepository、view/ZcpView（缓存回显/加载成功） | view/ZcpView
 // [AppStorage] appLogRevision | number | data/AppLog（日志环形缓冲修订号） | view/AppLogCard
+// [AppStorage] jwLightEffectColor | string（#RRGGBB） | data/JwxtSessionRepository、view/SettingsView | pages/Index（底栏 HDS lightColor 与降级栏 lightEffect）
+// [AppStorage] jwMaterialLevel | string（ADAPTIVE/EXQUISITE/GENTLE/SMOOTH） | data/JwxtSessionRepository、view/SettingsView | pages/Index（HDS SystemMaterialParams materialLevel）
 
 // ============================ 卡片 LocalStorage 键（15 个） ============================
 // 均由 data/CardDataStore 构造 formData，经 formBindingData 注入对应卡片 @Entry(LocalStorage)；

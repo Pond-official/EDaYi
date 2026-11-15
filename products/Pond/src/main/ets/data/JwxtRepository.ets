@@ -90,6 +90,11 @@ export class JwxtRepository {
     JwxtSessionRepository.updateSessionReminder(sessionKey, enabled);
   }
 
+  /** 更新底栏光效自定义（开发者选项）：光效颜色（#RRGGBB）与材质档位，立即生效并持久化 */
+  static updateLightEffectSettings(color: string, level: string): void {
+    JwxtSessionRepository.updateLightEffectSettings(color, level);
+  }
+
   // ---------- 隐私与开发者选项（转发 PrivacyController） ----------
 
   /** 当前隐私模式：standard=缓存全部 / restricted=仅课表卡片 / strict=不缓存 */

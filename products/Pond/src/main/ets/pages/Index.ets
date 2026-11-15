@@ -55,12 +55,16 @@ struct Index {
   @State @Watch('onTabChanged') currentTabIndex: number = 0;
   /** 状态栏避让区高度（px）：沉浸式全屏下设置入口按钮顶部让位计算用 */
   @StorageProp('jwSafeTopPx') safeTopPx: number = 0;
+  /** 底栏光效颜色（开发者选项自定义，#RRGGBB）：变化时重建降级分支页签栏材质（HDS 主路径由状态驱动自动刷新） */
+  @StorageProp('jwLightEffectColor') @Watch('onLightEffectColorChanged') lightEffectColor: string = '#FFFFFF';
+  /** 底栏材质档位（开发者选项自定义，ADAPTIVE/EXQUISITE/GENTLE/SMOOTH） */
+  @StorageProp('jwMaterialLevel') materialLevel: string = 'ADAPTIVE';
   /** 设备是否具备 HDS 组件能力（UI Design Kit） */
   private hdsSupported: boolean = false;
   /** 当前设备是否支持悬浮页签栏 + 沉浸光感（API 26+），降级分支使用 */
   private supportsFloatingBar: boolean = false;
-  /** 降级分支页签栏沉浸光感材质 */
-  private barMaterial: uiMaterial.ImmersiveMaterial | undefined = undefined;
+  /** 降级分支页签栏沉浸光感材质（随光效颜色自定义重建） */
+  @State barMaterial: uiMaterial.ImmersiveMaterial | undefined = undefined;
   tabLabels: string[] = ['首页', '成绩', '综评', '选课'];
   private readonly hdsTabsController: HdsTabsController = new HdsTabsController();
   private readonly tabsController: TabsController = new TabsController();
@@ -123,25 +127,44 @@ struct Index {
     }
   }
 
+  /** 光效颜色自定义变化：重建降级分支页签栏沉浸材质，使 lightEffect 新颜色立即生效 */
+  onLightEffectColorChanged(): void {
+    this.barMaterial = this.buildBarMaterial();
+  }
+
   /**
    * 降级分支页签栏沉浸光感材质：MaterialUtils 统一构造（与底栏/顶部材质条同款），
-   * 设备不支持沉浸光感时返回 undefined，由系统使用默认页签样式。
+   * 光效颜色取开发者选项自定义值，设备不支持沉浸光感时返回 undefined，由系统使用默认页签样式。
    */
   private buildBarMaterial(): uiMaterial.ImmersiveMaterial | undefined {
     if (!this.supportsFloatingBar) {
       return undefined;
     }
-    return MaterialUtils.barMaterial();
+    return MaterialUtils.barMaterial(this.lightEffectColor);
   }
 
-  /** HDS 悬浮导航栏材质：设备支持沉浸材质时使用沉浸材质，否则跟随系统材质策略 */
+  /** HDS 悬浮导航栏材质档位（开发者选项自定义映射到 hdsMaterial.MaterialLevel） */
+  private hdsMaterialLevel(): hdsMaterial.MaterialLevel {
+    if (this.materialLevel === 'EXQUISITE') {
+      return hdsMaterial.MaterialLevel.EXQUISITE;
+    }
+    if (this.materialLevel === 'GENTLE') {
+      return hdsMaterial.MaterialLevel.GENTLE;
+    }
+    if (this.materialLevel === 'SMOOTH') {
+      return hdsMaterial.MaterialLevel.SMOOTH;
+    }
+    return hdsMaterial.MaterialLevel.ADAPTIVE;
+  }
+
+  /** HDS 悬浮导航栏材质：设备支持沉浸材质时使用沉浸材质（档位取开发者选项自定义），否则跟随系统材质策略 */
   private buildHdsMaterial(): SystemMaterialParams {
     try {
       const supported: Array<hdsMaterial.MaterialType> = hdsMaterial.getSystemMaterialTypes();
       if (supported.indexOf(hdsMaterial.MaterialType.IMMERSIVE) >= 0) {
         return {
           materialType: hdsMaterial.MaterialType.IMMERSIVE,
-          materialLevel: hdsMaterial.MaterialLevel.ADAPTIVE
+          materialLevel: this.hdsMaterialLevel()
         };
       }
     } catch (error) {
@@ -257,7 +280,7 @@ struct Index {
             },
             barSideMargin: BAR_SIDE_MARGIN,
             barBottomMargin: BAR_BOTTOM_MARGIN,
-            lightColor: Color.White,
+            lightColor: this.lightEffectColor,
             systemMaterialEffect: this.buildHdsMaterial()
           })
           .width('100%')

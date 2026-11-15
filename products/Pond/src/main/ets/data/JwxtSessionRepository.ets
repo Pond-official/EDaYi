@@ -59,6 +59,19 @@ export class JwxtSessionRepository {
     AppStorage.setOrCreate('jwFinalExams', CardDataStore.loadFinalExams(context));
     AppStorage.setOrCreate('jwPrivacyMode', CardDataStore.loadPrivacyMode(context));
     AppStorage.setOrCreate('jwDeveloperMode', CardDataStore.loadDeveloperMode(context));
+    AppStorage.setOrCreate('jwLightEffectColor', CardDataStore.loadLightEffectColor(context));
+    AppStorage.setOrCreate('jwMaterialLevel', CardDataStore.loadMaterialLevel(context));
+  }
+
+  /** 更新底栏光效自定义（开发者选项）：立即写入 AppStorage 并持久化 */
+  static updateLightEffectSettings(color: string, level: string): void {
+    AppStorage.setOrCreate('jwLightEffectColor', color);
+    AppStorage.setOrCreate('jwMaterialLevel', level);
+    const context: common.UIAbilityContext | null = getContext();
+    if (context !== null) {
+      CardDataStore.saveLightEffectColor(context, color);
+      CardDataStore.saveMaterialLevel(context, level);
+    }
   }
 
   static loginUrl(): string {

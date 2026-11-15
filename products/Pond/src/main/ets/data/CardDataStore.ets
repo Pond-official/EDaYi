@@ -18,6 +18,8 @@ const KEY_FINAL_EXAMS: string = 'finalExamDates';
 const KEY_PRIVACY_MODE: string = 'privacyMode';
 const KEY_EXAM_FORM_IDS: string = 'examFormIds';
 const KEY_DEVELOPER_MODE: string = 'developerMode';
+const KEY_LIGHT_EFFECT_COLOR: string = 'lightEffectColor';
+const KEY_MATERIAL_LEVEL: string = 'materialLevel';
 
 /** 持久化的课表单元格（紧凑字段，仅本周与下周数据） */
 export class CardCellItem {
@@ -312,6 +314,58 @@ export class CardDataStore {
       pref.flushSync();
     } catch (error) {
       AppLog.error(DOMAIN, TAG, 'saveDeveloperMode failed: %{public}s', `${error}`);
+    }
+  }
+
+  /** 读取底栏光效颜色（#RRGGBB 十六进制串，未配置默认白色） */
+  static loadLightEffectColor(context: common.Context): string {
+    let color: string = '#FFFFFF';
+    try {
+      const pref: preferences.Preferences = CardDataStore.store(context);
+      const stored: string = CardDataStore.readString(pref, KEY_LIGHT_EFFECT_COLOR);
+      if (/^#[0-9A-Fa-f]{6}$/.test(stored)) {
+        color = stored;
+      }
+    } catch (error) {
+      AppLog.error(DOMAIN, TAG, 'loadLightEffectColor failed: %{public}s', `${error}`);
+    }
+    return color;
+  }
+
+  /** 保存底栏光效颜色（#RRGGBB 十六进制串） */
+  static saveLightEffectColor(context: common.Context, color: string): void {
+    try {
+      const pref: preferences.Preferences = CardDataStore.store(context);
+      pref.putSync(KEY_LIGHT_EFFECT_COLOR, color);
+      pref.flushSync();
+    } catch (error) {
+      AppLog.error(DOMAIN, TAG, 'saveLightEffectColor failed: %{public}s', `${error}`);
+    }
+  }
+
+  /** 读取底栏材质档位（ADAPTIVE/EXQUISITE/GENTLE/SMOOTH，未配置默认 ADAPTIVE） */
+  static loadMaterialLevel(context: common.Context): string {
+    let level: string = 'ADAPTIVE';
+    try {
+      const pref: preferences.Preferences = CardDataStore.store(context);
+      const stored: string = CardDataStore.readString(pref, KEY_MATERIAL_LEVEL);
+      if (stored === 'ADAPTIVE' || stored === 'EXQUISITE' || stored === 'GENTLE' || stored === 'SMOOTH') {
+        level = stored;
+      }
+    } catch (error) {
+      AppLog.error(DOMAIN, TAG, 'loadMaterialLevel failed: %{public}s', `${error}`);
+    }
+    return level;
+  }
+
+  /** 保存底栏材质档位（ADAPTIVE/EXQUISITE/GENTLE/SMOOTH） */
+  static saveMaterialLevel(context: common.Context, level: string): void {
+    try {
+      const pref: preferences.Preferences = CardDataStore.store(context);
+      pref.putSync(KEY_MATERIAL_LEVEL, level);
+      pref.flushSync();
+    } catch (error) {
+      AppLog.error(DOMAIN, TAG, 'saveMaterialLevel failed: %{public}s', `${error}`);
     }
   }
 
