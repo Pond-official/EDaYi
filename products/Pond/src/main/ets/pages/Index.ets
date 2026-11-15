@@ -11,6 +11,7 @@ import { SettingsEntryButton } from '../view/SettingsEntryButton';
 import { JwxtRepository } from '../data/JwxtRepository';
 import { MaterialUtils } from '../utils/MaterialUtils';
 import { CrossDomainSession } from '../net/CrossDomainSession';
+import { TAB_LIGHT_EFFECT_COLOR } from '../theme/AppColors';
 
 /** 悬浮页签栏最大宽度（宽屏基准），窄屏按屏宽收缩 */
 const BAR_MAX_WIDTH: number = 392;
@@ -125,13 +126,13 @@ struct Index {
 
   /**
    * 降级分支页签栏沉浸光感材质：MaterialUtils 统一构造（与底栏/顶部材质条同款），
-   * 设备不支持沉浸光感时返回 undefined，由系统使用默认页签样式。
+   * 光效颜色与 HDS 主路径一致（淡蓝），设备不支持沉浸光感时返回 undefined，由系统使用默认页签样式。
    */
   private buildBarMaterial(): uiMaterial.ImmersiveMaterial | undefined {
     if (!this.supportsFloatingBar) {
       return undefined;
     }
-    return MaterialUtils.barMaterial();
+    return MaterialUtils.barMaterial(TAB_LIGHT_EFFECT_COLOR);
   }
 
   /** HDS 悬浮导航栏材质：设备支持沉浸材质时使用沉浸材质，否则跟随系统材质策略 */
@@ -257,7 +258,7 @@ struct Index {
             },
             barSideMargin: BAR_SIDE_MARGIN,
             barBottomMargin: BAR_BOTTOM_MARGIN,
-            lightColor: Color.White,
+            lightColor: TAB_LIGHT_EFFECT_COLOR,
             systemMaterialEffect: this.buildHdsMaterial()
           })
           .width('100%')
