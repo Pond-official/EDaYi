@@ -4,9 +4,11 @@ import { deviceInfo } from '@kit.BasicServicesKit';
 import { webview } from '@kit.ArkWeb';
 import { HdsNavigation, HdsTabs, HdsTabsController, hdsMaterial, SystemMaterialParams } from '@kit.UIDesignKit';
 import { HomeView } from '../view/HomeView';
-import { GradeView } from '../view/GradeView';
-import { ZcpView } from '../view/ZcpView';
-import { SelectionView } from '../view/SelectionView';
+// 非首屏页签视图延迟加载（lazy import）：冷启动不求值其模块图
+// （含 SelectionRepository 的 huks 加密、ZcpView 图表等），首次切页签时才加载（一次性 ~10-50ms）
+import lazy { GradeView } from '../view/GradeView';
+import lazy { ZcpView } from '../view/ZcpView';
+import lazy { SelectionView } from '../view/SelectionView';
 import { SettingsEntryButton } from '../view/SettingsEntryButton';
 import { JwxtRepository } from '../data/JwxtRepository';
 import { MaterialUtils } from '../utils/MaterialUtils';
