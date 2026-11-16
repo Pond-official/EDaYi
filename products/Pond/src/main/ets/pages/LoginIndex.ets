@@ -3,6 +3,7 @@ import { router } from '@kit.ArkUI';
 import { AppLog } from '../data/AppLog';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { JwxtRepository } from '../data/JwxtRepository';
+import { AppPreloader } from '../data/AppPreloader';
 import { FrostBand, FROST_BAND_HEIGHT, frostTopInsetVp } from '../view/FrostBand';
 import { BackButton } from '../view/BackButton';
 
@@ -101,6 +102,8 @@ struct LoginIndex {
     this.syncing = true;
     this.showPrompt('登录成功，正在同步教务数据…', 1500);
     AppLog.info(DOMAIN, TAG, 'sync and return: start');
+    // 综评/ehall 统计/图书借阅与教务主数据并行预载（不阻塞返回；返回仍以主数据同步成功为准）
+    AppPreloader.preloadIfNeeded();
     JwxtRepository.reload().then((ok: boolean) => {
       AppLog.info(DOMAIN, TAG, 'sync and return: result %{public}s', `${ok}`);
       if (this.leaving) {

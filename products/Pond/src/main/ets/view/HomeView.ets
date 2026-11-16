@@ -71,10 +71,9 @@ export struct HomeView {
     this.rebuildTodayCells();
   }
 
-  /** 教务数据模式变化：登录成功（online）后刷新校园卡余额与借阅数量，并预载综评/图书借阅 */
+  /** 教务数据模式变化：登录成功（online）后预载 ehall 统计/综评/图书借阅（幂等，与登录确认处共用单飞守卫） */
   onDataModeChanged(): void {
     if (this.dataMode === 'online') {
-      EhallRepository.refreshStats();
       AppPreloader.preloadIfNeeded();
     }
   }

@@ -16,12 +16,18 @@ const TOKEN_RETRY_INTERVAL_MS: number = 500;
 
 /**
  * 登录后预载协调器：
- * 综评与图书借阅原本等页签/页面激活才拉取（懒加载），这里在教务数据转为
- * online（登录成功回到首页 / 启动时已有会话）时提前静默加载，使后续首次打开即时可见。
- * 每次运行至多执行一轮；失败静默——页面激活时仍走原加载流程兜底。
+ * 综评、ehall 统计与图书借阅原本等页签/页面激活才拉取（懒加载），这里提前静默加载——
+ * 登录确认时与教务主数据并行（返回首页仍以主数据成功为准，见 LoginIndex.syncAndReturn），
+ * 冷启动已有会话时由 jwDataMode 转 online 触发（见 HomeView.onDataModeChanged）。
+ * 每次运行至多执行一轮（logout 时 reset 以支持重新登录）；失败静默——页面激活时仍走原加载流程兜底。
  */
 export class AppPreloader {
   private static started: boolean = false;
+
+  /** 重置预载标记（退出登录时调用）：下次登录/上线重新预载 */
+  static reset(): void {
+    AppPreloader.started = false;
+  }
 
   /** 触发一轮预载（幂等） */
   static preloadIfNeeded(): void {
@@ -30,8 +36,23 @@ export class AppPreloader {
     }
     AppPreloader.started = true;
     AppLog.info(DOMAIN, TAG, 'preload: start');
+    AppPreloader.preloadEhall();
     AppPreloader.preloadZcp();
     AppPreloader.preloadLibrary();
+  }
+
+  /** 预载 ehall 统计：隐藏 Web 换票 + 校园卡余额/借阅数轮询（内部单飞去重） */
+  private static async preloadEhall(): Promise<void> {
+    try {
+      const ok: boolean = await EhallRepository.refreshStats();
+      if (!ok) {
+        AppLog.warn(DOMAIN, TAG, 'preload ehall: stats not loaded');
+        return;
+      }
+      AppLog.info(DOMAIN, TAG, 'preload ehall: ok');
+    } catch (error) {
+      AppLog.warn(DOMAIN, TAG, 'preload ehall failed: %{public}s', `${error}`);
+    }
   }
 
   /** 预载综评：xgfw 换票 + loadAll 写入 AppStorage；在线结果（fromCache=false）使综评页签打开即显且不重拉 */

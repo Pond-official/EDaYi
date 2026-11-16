@@ -15,6 +15,7 @@ import { PrivacyController } from './PrivacyController';
 import { JwxtCacheStore } from './JwxtCacheStore';
 import { EhallRepository } from './EhallRepository';
 import { LibraryRepository } from './LibraryRepository';
+import { AppPreloader } from './AppPreloader';
 import { JW_APP_ROOT, postForm, getForm, getContext, attachContext as transportAttachContext, clearLastCookie } from '../net/JwTransport';
 import { CrossDomainSession } from '../net/CrossDomainSession';
 
@@ -246,6 +247,8 @@ export class JwxtSessionRepository {
     // Cookie 已清空，跨域换票就绪集必须同步失效，否则下次进综评会跳过引导直接撞 401
     CrossDomainSession.reset();
     clearLastCookie();
+    // 预载标记一并复位：下次登录成功重新预载
+    AppPreloader.reset();
     // 图书馆 JWT（内存态）随登录态一并丢弃；ehall 统计按隐私模式分级处理
     LibraryRepository.clearToken();
     const mode: string = PrivacyController.privacyMode();
