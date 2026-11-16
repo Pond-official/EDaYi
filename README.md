@@ -97,6 +97,45 @@ powershell -ExecutionPolicy Bypass -File scripts\verify.ps1
 | `ohos.permission.HDR_BRIGHTNESS` | 顶部沉浸光感材质的亮度调制 |
 | `ohos.permission.READ_CALENDAR` / `WRITE_CALENDAR` | 仅在用户开启「日历代理提醒」时写入课程日程，或清理历史遗留的日历账户 |
 
+## 应用数据获取流程
+
+### 1. 统一认证登录（CAS）
+
+1. 首次使用打开应用内 Web 登录页，加载教务系统首页，自动 302 跳转至学校统一认证（CAS authserver）；
+2. 输入学号密码后，CAS 携票据重定向回教务系统，会话 Cookie 落入系统 Cookie 存储；
+3. 登录页检测到 URL 回到教务域后调用会话探针（`currentUser.do`，`code=="0"` 即有效），自动进入应用。
+
+### 2. 教务数据（jwxt.dmu.edu.cn）
+
+- 原生 HTTP 请求（`postForm` / `getForm`）每次实时从系统 Cookie 读取教务会话附加到请求头；
+- 课表、成绩、学生信息、当前学期、培养计划等 `.do` 接口返回 JSON / HTML，由 `jwxt/parsers` 解析为强类型模型。
+
+### 3. 跨域会话与隐藏 Web 换票（CrossDomainSession）
+
+- 综评（xgfw）、一卡通余额 / 借阅数量（ehall 门户）、图书馆（汇文 LibSP）分散在不同域名，CAS 登录一次后仍需逐域「换票」；
+- 根页面按需挂载 1×1 隐藏 Web，静默加载目标域入口页，由 WebView 完成 CAS 单点重定向链，把各域会话 Cookie 落入系统 Cookie 存储；
+- 不同域排队串行执行；引导中落到 CAS 登录页视为会话过期，超时按失败返回并由界面提示重登。
+
+### 4. 一卡通余额与借阅数量（ehall 门户）
+
+- 换票落地后加载门户页预热 15 秒，让页面 JS 触发服务端数据聚合；
+- 调「个人数据」聚合卡片端点（`execCardMethod`）按条目 wid 取「校园卡余额」「图书借阅」；
+- 服务端尚未聚合完成（`data:null`）时按 1.5 秒间隔轮询，最多 6 次。
+
+### 5. 综合测评（xgfw.dmu.edu.cn）
+
+- 隐藏 Web 换票建立 xgfw 会话后，原生接口先切换学生角色，再拉批次上下文、综测得分、指标明细与附加分。
+
+### 6. 图书借阅（汇文 LibSP）
+
+- 隐藏 Web 走 CAS → 超星 CAS → LibSP 的 SSO 链换取 JWT（落 Cookie），原生接口凭 JWT 拉当前借阅 / 借阅历史并支持一键续借；
+- 令牌 24 小时有效，过期后自动重新走换票链。
+
+### 7. 选课（jwxk.dmu.edu.cn）
+
+- 独立选课系统账号原生登录：AES 加密密码 + 图形验证码，登录 token 仅保留在内存、永不持久化；
+- 凭据使用系统 Asset 加密存储，可在设置中一键清除。
+
 ## 隐私与安全设计
 
 - **隐私三档模式**：标准（全量离线缓存）/ 限制（仅课表缓存）/ 严格（不缓存任何信息，退出即清理并登出）；
