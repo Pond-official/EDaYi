@@ -343,12 +343,12 @@ export struct HomeView {
   @Builder
   statsRow(topVp: number, bottomVp: number) {
     Row({ space: 12 }) {
-      HomeStatCard({
-        label: '校园卡',
-        valueText: this.balanceText(),
-        onClick: (): void => {
-        }
-      })
+        HomeStatCard({
+          label: '一卡通余额',
+          valueText: this.balanceText(),
+          onClick: (): void => {
+          }
+        })
       HomeStatCard({
         label: '图书借阅',
         valueText: this.loanCountText(),
