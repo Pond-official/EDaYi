@@ -1,6 +1,7 @@
 ﻿import { FinalExamEntry, ScheduleCellInfo, StudentProfile, TermStatus } from '../model/JwModels';
 import { JwxtRepository } from '../data/JwxtRepository';
 import { EhallRepository } from '../data/EhallRepository';
+import { AppPreloader } from '../data/AppPreloader';
 import { ExamDateUtils } from '../utils/ExamDateUtils';
 import { ScheduleBoard } from './ScheduleBoard';
 import { FrostBand, FROST_BAND_HEIGHT, frostTopInsetVp } from './FrostBand';
@@ -70,10 +71,11 @@ export struct HomeView {
     this.rebuildTodayCells();
   }
 
-  /** 教务数据模式变化：登录成功（online）后刷新校园卡余额与借阅数量 */
+  /** 教务数据模式变化：登录成功（online）后刷新校园卡余额与借阅数量，并预载综评/图书借阅 */
   onDataModeChanged(): void {
     if (this.dataMode === 'online') {
       EhallRepository.refreshStats();
+      AppPreloader.preloadIfNeeded();
     }
   }
 
