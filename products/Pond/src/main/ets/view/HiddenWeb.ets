@@ -12,6 +12,8 @@ import { CrossDomainSession, HiddenWebHost } from '../net/CrossDomainSession';
 @Component
 export struct HiddenWeb {
   private readonly controller: webview.WebviewController = new webview.WebviewController();
+  /** 初始 about:blank 是否已加载完（首个 onPageEnd）：完成前 loadUrl 会被吞，必须等本信号 */
+  private webReady: boolean = false;
 
   build() {
     Web({ src: 'about:blank', controller: this.controller })
@@ -29,6 +31,11 @@ export struct HiddenWeb {
           endedUrl = this.controller.getUrl();
         } catch (error) {
           endedUrl = '';
+        }
+        if (!this.webReady) {
+          // 首个页面加载完成 = 宿主真正可用：此刻前的 loadUrl 会被初始加载静默吞掉
+          this.webReady = true;
+          CrossDomainSession.onHostReady();
         }
         CrossDomainSession.onPageEnd(endedUrl);
       })

@@ -45,6 +45,10 @@ class Req {
  */
 export class CrossDomainSession {
   private static host: HiddenWebHost | null = null;
+  /** 宿主已 attach 且初始页面加载完成（onPageEnd 首次触发）才置 true：
+   * controller attach 时初始 about:blank 仍在加载，此时 loadUrl 会被静默吞掉，
+   * 排队请求将空转到超时，必须等 onHostReady 信号后才真正发起加载 */
+  private static hostReady: boolean = false;
   private static hostRequestCallback: (() => void) | null = null;
   /** 已向宿主页请求挂载隐藏 Web（防重复请求；挂载成功或等待超时后复位） */
   private static hostRequested: boolean = false;
@@ -58,15 +62,25 @@ export class CrossDomainSession {
     CrossDomainSession.hostRequestCallback = callback;
   }
 
-  /** 隐藏 Web 宿主就绪后绑定（HiddenWeb.onControllerAttached） */
+  /** 隐藏 Web 宿主 controller 就绪后绑定（HiddenWeb.onControllerAttached）；
+   * 此时初始 about:blank 仍在加载，loadUrl 会被吞掉，pump 等 onHostReady 才发起 */
   static onHostAttached(host: HiddenWebHost): void {
     CrossDomainSession.host = host;
+    CrossDomainSession.hostReady = false;
+    AppLog.info(DOMAIN, TAG, 'hidden web host attached');
+  }
+
+  /** 隐藏 Web 宿主真正可用（首个页面加载完成）后由 HiddenWeb.onPageEnd 调用，才开始排队请求的拉取 */
+  static onHostReady(): void {
     if (CrossDomainSession.hostWaitTimer >= 0) {
       clearTimeout(CrossDomainSession.hostWaitTimer);
       CrossDomainSession.hostWaitTimer = -1;
     }
     CrossDomainSession.hostRequested = false;
-    AppLog.info(DOMAIN, TAG, 'hidden web host attached');
+    if (!CrossDomainSession.hostReady) {
+      CrossDomainSession.hostReady = true;
+      AppLog.info(DOMAIN, TAG, 'hidden web host ready');
+    }
     CrossDomainSession.pump();
   }
 
@@ -93,8 +107,12 @@ export class CrossDomainSession {
     }
     const host: HiddenWebHost | null = CrossDomainSession.host;
     if (host === null) {
-      // 宿主尚未挂载：请求根页面条件渲染 HiddenWeb，等 onHostAttached 后重新 pump
+      // 宿主尚未挂载：请求根页面条件渲染 HiddenWeb，等 onHostAttached/onHostReady 后重新 pump
       CrossDomainSession.requestHost();
+      return;
+    }
+    if (!CrossDomainSession.hostReady) {
+      // 宿主已 attach 但初始 about:blank 未加载完：此刻 loadUrl 会被静默吞掉，等 onHostReady 再拉
       return;
     }
     const req: Req | undefined = CrossDomainSession.queue.shift();
@@ -128,7 +146,7 @@ export class CrossDomainSession {
     CrossDomainSession.hostWaitTimer = setTimeout(() => {
       CrossDomainSession.hostWaitTimer = -1;
       CrossDomainSession.hostRequested = false;
-      AppLog.error(DOMAIN, TAG, 'hidden web host not attached in %{public}dms, drain queue', `${HOST_WAIT_TIMEOUT_MS}`);
+      AppLog.error(DOMAIN, TAG, 'hidden web host not ready in %{public}dms, drain queue', `${HOST_WAIT_TIMEOUT_MS}`);
       CrossDomainSession.drain(false);
     }, HOST_WAIT_TIMEOUT_MS);
     const callback: (() => void) | null = CrossDomainSession.hostRequestCallback;
