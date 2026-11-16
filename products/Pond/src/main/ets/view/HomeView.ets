@@ -323,24 +323,7 @@ export struct HomeView {
     Column() {
       HomeStudentCard({ student: this.student })
       if (this.dataMode !== 'preview') {
-        Row({ space: 12 }) {
-          HomeStatCard({
-            label: '校园卡',
-            valueText: this.balanceText(),
-            onClick: (): void => {
-            }
-          })
-          HomeStatCard({
-            label: '图书借阅',
-            valueText: this.loanCountText(),
-            onClick: (): void => {
-              this.goLibrary();
-            }
-          })
-        }
-        .width('100%')
-        .margin({ top: 12 })
-        .transition(cardEnterEffect(90))
+        this.statsRow(12, 0)
       }
       if (this.dataMode !== 'online') {
         this.loginFooter()
@@ -353,6 +336,30 @@ export struct HomeView {
     .width('100%')
     .geometryTransition('home-info')
     .transition(TransitionEffect.OPACITY)
+  }
+
+  /** 校园卡余额 + 图书借阅统计卡（HomeStatCard 各占一半随容器拉伸宽度；借阅卡点击进详情页）；
+   * 上下外边距由调用位置传入：窄屏原位在学生卡下方（上边距），宽屏在课表卡上方（下边距） */
+  @Builder
+  statsRow(topVp: number, bottomVp: number) {
+    Row({ space: 12 }) {
+      HomeStatCard({
+        label: '校园卡',
+        valueText: this.balanceText(),
+        onClick: (): void => {
+        }
+      })
+      HomeStatCard({
+        label: '图书借阅',
+        valueText: this.loanCountText(),
+        onClick: (): void => {
+          this.goLibrary();
+        }
+      })
+    }
+    .width('100%')
+    .margin({ top: topVp, bottom: bottomVp })
+    .transition(cardEnterEffect(90))
   }
 
   /** 该科目考试时刻（时间非法返回 null） */
@@ -437,6 +444,9 @@ export struct HomeView {
       }
       .width(360)
       Column() {
+        if (this.dataMode !== 'preview') {
+          this.statsRow(0, 12)
+        }
         this.scheduleCard()
       }
       .layoutWeight(1)
