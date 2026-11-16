@@ -1,6 +1,7 @@
 import { http } from '@kit.NetworkKit';
-import { webview } from '@kit.ArkWeb';
 import { AppLog } from './AppLog';
+// 冷启动优化 ③：Cookie 读写收口到 WebCookieOps（内部才 import webview），lazy 使 ArkWeb 不进冷启动模块图
+import lazy { WebCookieOps } from '../net/WebCookieOps';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { common } from '@kit.AbilityKit';
 import { fileIo as fs } from '@kit.CoreFileKit';
@@ -233,7 +234,7 @@ export class ZcpRepository {
   private static syncCookie(url: string): string {
     let cookie: string = '';
     try {
-      cookie = webview.WebCookieManager.fetchCookieSync(url);
+      cookie = WebCookieOps.fetchCookieSync(url);
       ZcpRepository.lastCookie = cookie;
     } catch (error) {
       const err: BusinessError = error as BusinessError;

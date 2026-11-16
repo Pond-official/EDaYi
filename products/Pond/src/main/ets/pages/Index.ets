@@ -1,7 +1,6 @@
 import { BreakpointSystem } from '@ohos/common';
 import { display, SymbolGlyphModifier, uiMaterial } from '@kit.ArkUI';
 import { deviceInfo } from '@kit.BasicServicesKit';
-import { webview } from '@kit.ArkWeb';
 import { HdsNavigation, HdsTabs, HdsTabsController, hdsMaterial, SystemMaterialParams } from '@kit.UIDesignKit';
 import { HomeView } from '../view/HomeView';
 // 非首屏页签视图延迟加载（lazy import）：冷启动不求值其模块图
@@ -9,6 +8,8 @@ import { HomeView } from '../view/HomeView';
 import lazy { GradeView } from '../view/GradeView';
 import lazy { ZcpView } from '../view/ZcpView';
 import lazy { SelectionView } from '../view/SelectionView';
+// 冷启动优化 ③：跨域换票隐藏 Web 宿主同样延迟加载，ArkWeb 实例首次换票时才创建
+import lazy { HiddenWeb } from '../view/HiddenWeb';
 import { SettingsEntryButton } from '../view/SettingsEntryButton';
 import { JwxtRepository } from '../data/JwxtRepository';
 import { MaterialUtils } from '../utils/MaterialUtils';
@@ -75,8 +76,10 @@ struct Index {
   private readonly hdsTabsController: HdsTabsController = new HdsTabsController();
   private readonly tabsController: TabsController = new TabsController();
   private readonly breakpointSystem: BreakpointSystem = new BreakpointSystem('mainBreakpoint');
-  /** 跨域会话换票用常驻隐藏 Web 的控制器（CrossDomainSession 全 App 唯一宿主） */
-  private readonly cross: webview.WebviewController = new webview.WebviewController();
+  /** 跨域换票隐藏 Web 宿主是否需要挂载（冷启动优化 ③）：
+   * CrossDomainSession 首次换票时经回调置 true（条件渲染 HiddenWeb），
+   * 只置 true 不复位 —— 宿主一旦挂载常驻主框架生命周期，不随换票结束卸载 */
+  @State crossHostNeeded: boolean = false;
 
   aboutToAppear(): void {
     this.breakpointSystem.register(this.getUIContext());
@@ -84,6 +87,9 @@ struct Index {
     this.hdsSupported = canIUse(HDS_SYSCAP);
     this.supportsFloatingBar = deviceInfo.distributionOSApiVersion >= IMMERSIVE_OS_API_VERSION;
     this.barMaterial = this.buildBarMaterial();
+    CrossDomainSession.setHostRequestCallback(() => {
+      this.crossHostNeeded = true;
+    });
     JwxtRepository.ensureLoaded();
     this.onTabChanged();
   }
@@ -263,32 +269,12 @@ struct Index {
 
   build() {
     Stack({ alignContent: Alignment.Bottom }) {
-      // 跨域会话换票用 1×1 隐藏 Web（任务 14）：全 App 唯一宿主，常驻整个主框架生命周期。
-      // 必须用 opacity(0.01) 隐藏（Visibility.None 可能导致 Web 不真正加载、onPageEnd 不触发），
-      // 也不能条件渲染（会产生新 controller 使 CrossDomainSession.attach 失效）。
-      Web({ src: 'about:blank', controller: this.cross })
-        .width(1)
-        .height(1)
-        .opacity(0.01)
-        .javaScriptAccess(true)
-        .domStorageAccess(true)
-        .onControllerAttached(() => {
-          CrossDomainSession.attach(this.cross);
-        })
-        .onPageEnd(() => {
-          let endedUrl: string = '';
-          try {
-            endedUrl = this.cross.getUrl();
-          } catch (error) {
-            endedUrl = '';
-          }
-          CrossDomainSession.onPageEnd(endedUrl);
-        })
-        .onErrorReceive((event: OnErrorReceiveEvent) => {
-          if (event.request.isMainFrame()) {
-            CrossDomainSession.onError();
-          }
-        })
+      // 跨域会话换票用 1×1 隐藏 Web（任务 14，冷启动优化 ③ 按需挂载版）：
+      // 首帧不创建 ArkWeb 实例，CrossDomainSession 首次换票时经回调置 crossHostNeeded
+      // 才条件渲染 HiddenWeb；挂载后常驻整个主框架生命周期（crossHostNeeded 不复位）。
+      if (this.crossHostNeeded) {
+        HiddenWeb()
+      }
 
       if (this.hdsSupported) {
         HdsNavigation() {

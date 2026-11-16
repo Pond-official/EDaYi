@@ -1,6 +1,7 @@
 import { http } from '@kit.NetworkKit';
-import { webview } from '@kit.ArkWeb';
 import { util } from '@kit.ArkTS';
+// 冷启动优化 ③：Cookie 读写收口到 WebCookieOps（内部才 import webview），lazy 使 ArkWeb 不进冷启动模块图
+import lazy { WebCookieOps } from './WebCookieOps';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { AppLog } from '../data/AppLog';
 
@@ -27,7 +28,7 @@ export interface LibSpToken {
 export function readLibTokenFromCookie(): LibSpToken | null {
   let cookie: string = '';
   try {
-    cookie = webview.WebCookieManager.fetchCookieSync(LIB_BASE + '/');
+    cookie = WebCookieOps.fetchCookieSync(LIB_BASE + '/');
   } catch (error) {
     const err: BusinessError = error as BusinessError;
     AppLog.error(DOMAIN, TAG, 'fetchCookieSync failed: %{public}s %{public}s', `${err.code}`, `${err.message}`);

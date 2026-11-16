@@ -1,5 +1,6 @@
-import { webview } from '@kit.ArkWeb';
 import { AppLog } from './AppLog';
+// 冷启动优化 ③：Cookie 读写收口到 WebCookieOps（内部才 import webview），lazy 使 ArkWeb 不进冷启动模块图
+import lazy { WebCookieOps } from '../net/WebCookieOps';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { common } from '@kit.AbilityKit';
 import { CardDataStore, ReminderSettings } from './CardDataStore';
@@ -82,7 +83,7 @@ export class JwxtSessionRepository {
   }
 
   static async fetchSessionCookie(): Promise<string> {
-    const cookie: string = webview.WebCookieManager.fetchCookieSync(JW_APP_ROOT + '/');
+    const cookie: string = WebCookieOps.fetchCookieSync(JW_APP_ROOT + '/');
     return cookie;
   }
 
@@ -238,12 +239,7 @@ export class JwxtSessionRepository {
    * 严格模式进一步清除桌面课表卡片等全部含课程信息的数据并刷新卡片。
    */
   static logout(): void {
-    try {
-      webview.WebCookieManager.clearAllCookiesSync();
-    } catch (error) {
-      const err: BusinessError = error as BusinessError;
-      AppLog.error(DOMAIN, TAG, "clearAllCookiesSync failed: %{public}s %{public}s", `${err.code}`, `${err.message}`);
-    }
+    WebCookieOps.clearAllCookiesSync();
     // Cookie 已清空，跨域换票就绪集必须同步失效，否则下次进综评会跳过引导直接撞 401
     CrossDomainSession.reset();
     clearLastCookie();

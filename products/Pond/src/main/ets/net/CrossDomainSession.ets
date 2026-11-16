@@ -1,9 +1,16 @@
-import { webview } from '@kit.ArkWeb';
 import { AppLog } from '../data/AppLog';
 import { DomainSpec } from './DomainSpec';
 
 const TAG: string = 'CrossDomainSession';
 const DOMAIN: number = 0x0000;
+/** 请求隐藏 Web 宿主挂载后的等待上限：超时按失败清空队列，保证 Promise 不悬挂 */
+const HOST_WAIT_TIMEOUT_MS: number = 10000;
+
+/** 隐藏 Web 宿主接口：只暴露静默加载能力，避免本模块依赖 webview 类型（冷启动优化 ③） */
+export interface HiddenWebHost {
+  /** 静默加载 URL；失败（controller 失效等）返回 false */
+  loadQuietly(url: string): boolean;
+}
 
 /** 一次跨域引导请求（目标域 + 完成回调 + 超时定时器句柄） */
 class Req {
@@ -24,24 +31,43 @@ class Req {
 /**
  * 跨域会话服务（任务 14）：全 App 唯一的隐藏 Web 换票服务。
  * 学校各系统分散在多个域名（jwxt/xgfw/ehall/jwxk），CAS 登录一次后仍需逐域「换票」；
- * 本服务借助根页面常驻的 1×1 隐藏 Web（见 pages/Index.ets）加载目标域入口页，
- * 由 WebView 完成 CAS 单点重定向链并把会话 Cookie 落入系统 Cookie 存储。
+ * 本服务借助根页面按需挂载的 1×1 隐藏 Web（见 view/HiddenWeb.ets 与 pages/Index.ets）
+ * 加载目标域入口页，由 WebView 完成 CAS 单点重定向链并把会话 Cookie 落入系统 Cookie 存储。
  *
- * 设计：
+ * 设计（冷启动优化 ③ 起）：
+ * - 本模块零 webview 依赖，宿主通过 HiddenWebHost 接口注入；
+ * - 宿主未挂载时由 setHostRequestCallback 注册的回调请求根页面条件渲染 HiddenWeb，
+ *   到点（HOST_WAIT_TIMEOUT_MS）未挂载则排队请求全部按失败返回；
  * - 同一域就绪后并发 ensure 只回 true 不重跑；不同域排队串行执行；
  * - 落到 CAS 登录页（URL 含 authserver）视为教务会话过期，返回 false；
  * - 超时/主文档加载失败返回 false；
  * - 登出/会话失效必须调用 reset()，否则会把过期会话当成已就绪。
  */
 export class CrossDomainSession {
-  private static controller: webview.WebviewController | null = null;
+  private static host: HiddenWebHost | null = null;
+  private static hostRequestCallback: (() => void) | null = null;
+  /** 已向宿主页请求挂载隐藏 Web（防重复请求；挂载成功或等待超时后复位） */
+  private static hostRequested: boolean = false;
+  private static hostWaitTimer: number = -1;
   private static ready: Set<string> = new Set<string>();
   private static queue: Req[] = [];
   private static current: Req | null = null;
 
-  /** 根页面隐藏 Web 的 controller 就绪后绑定（Index.onControllerAttached） */
-  static attach(controller: webview.WebviewController): void {
-    CrossDomainSession.controller = controller;
+  /** 根页面注册「需要挂载隐藏 Web」回调（Index.aboutToAppear，置 crossHostNeeded） */
+  static setHostRequestCallback(callback: () => void): void {
+    CrossDomainSession.hostRequestCallback = callback;
+  }
+
+  /** 隐藏 Web 宿主就绪后绑定（HiddenWeb.onControllerAttached） */
+  static onHostAttached(host: HiddenWebHost): void {
+    CrossDomainSession.host = host;
+    if (CrossDomainSession.hostWaitTimer >= 0) {
+      clearTimeout(CrossDomainSession.hostWaitTimer);
+      CrossDomainSession.hostWaitTimer = -1;
+    }
+    CrossDomainSession.hostRequested = false;
+    AppLog.info(DOMAIN, TAG, 'hidden web host attached');
+    CrossDomainSession.pump();
   }
 
   /** 该域会话是否已就绪（本进程内，reset() 前持续有效） */
@@ -65,9 +91,10 @@ export class CrossDomainSession {
     if (CrossDomainSession.current !== null || CrossDomainSession.queue.length === 0) {
       return;
     }
-    const controller: webview.WebviewController | null = CrossDomainSession.controller;
-    if (controller === null) {
-      CrossDomainSession.drain(false);
+    const host: HiddenWebHost | null = CrossDomainSession.host;
+    if (host === null) {
+      // 宿主尚未挂载：请求根页面条件渲染 HiddenWeb，等 onHostAttached 后重新 pump
+      CrossDomainSession.requestHost();
       return;
     }
     const req: Req | undefined = CrossDomainSession.queue.shift();
@@ -79,7 +106,7 @@ export class CrossDomainSession {
       CrossDomainSession.settle(false);
     }, req.spec.timeoutMs);
     CrossDomainSession.current = req;
-    if (!CrossDomainSession.loadQuietly(controller, req.spec.entryUrl)) {
+    if (!host.loadQuietly(req.spec.entryUrl)) {
       // loadUrl 抛出（controller 已失效等）：按失败结算，保证 Promise 不悬挂
       clearTimeout(req.timer);
       CrossDomainSession.current = null;
@@ -89,13 +116,25 @@ export class CrossDomainSession {
     }
   }
 
-  /** 静默加载：loadUrl 可能抛出（controller 失效等），失败返回 false 由调用方按失败结算 */
-  private static loadQuietly(controller: webview.WebviewController, url: string): boolean {
-    try {
-      controller.loadUrl(url);
-      return true;
-    } catch (error) {
-      return false;
+  /** 请求根页面挂载隐藏 Web 宿主（防重复请求；超时未挂载则清空队列全部按失败返回） */
+  private static requestHost(): void {
+    if (CrossDomainSession.hostRequested) {
+      return;
+    }
+    CrossDomainSession.hostRequested = true;
+    if (CrossDomainSession.hostWaitTimer >= 0) {
+      clearTimeout(CrossDomainSession.hostWaitTimer);
+    }
+    CrossDomainSession.hostWaitTimer = setTimeout(() => {
+      CrossDomainSession.hostWaitTimer = -1;
+      CrossDomainSession.hostRequested = false;
+      AppLog.error(DOMAIN, TAG, 'hidden web host not attached in %{public}dms, drain queue', `${HOST_WAIT_TIMEOUT_MS}`);
+      CrossDomainSession.drain(false);
+    }, HOST_WAIT_TIMEOUT_MS);
+    const callback: (() => void) | null = CrossDomainSession.hostRequestCallback;
+    if (callback !== null) {
+      AppLog.info(DOMAIN, TAG, 'request hidden web host mount');
+      callback();
     }
   }
 
@@ -147,8 +186,8 @@ export class CrossDomainSession {
       // 换票链已落到目标域：进入门户预热（加载门户页停留 warmupMs，让页面 JS 触发服务端数据聚合）
       cur.warming = true;
       clearTimeout(cur.timer);
-      const controller: webview.WebviewController | null = CrossDomainSession.controller;
-      if (controller === null || !CrossDomainSession.loadQuietly(controller, cur.spec.warmupUrl)) {
+      const host: HiddenWebHost | null = CrossDomainSession.host;
+      if (host === null || !host.loadQuietly(cur.spec.warmupUrl)) {
         // 无宿主或加载失败：会话已建立，按成功收尾（预热是尽力而为）
         CrossDomainSession.ready.add(cur.spec.key);
         CrossDomainSession.settle(true);
@@ -183,16 +222,16 @@ export class CrossDomainSession {
       cur.warmupTimer = -1;
     }
     CrossDomainSession.current = null;
-    const controller: webview.WebviewController | null = CrossDomainSession.controller;
-    if (controller !== null) {
-      CrossDomainSession.loadQuietly(controller, 'about:blank');
+    const host: HiddenWebHost | null = CrossDomainSession.host;
+    if (host !== null) {
+      host.loadQuietly('about:blank');
     }
     AppLog.info(DOMAIN, TAG, 'bootstrap domain: %{public}s -> %{public}s', cur.spec.key, ok ? 'ok' : 'fail');
     cur.resolve(ok);
     CrossDomainSession.pump();
   }
 
-  /** 无宿主 Web（controller 未 attach）时清空队列并全部按失败返回 */
+  /** 无宿主 Web 等待超时时清空队列并全部按失败返回 */
   private static drain(ok: boolean): void {
     while (CrossDomainSession.queue.length > 0) {
       const r: Req | undefined = CrossDomainSession.queue.shift();

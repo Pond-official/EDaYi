@@ -1,6 +1,7 @@
 import { http } from '@kit.NetworkKit';
-import { webview } from '@kit.ArkWeb';
 import { AppLog } from '../data/AppLog';
+// 冷启动优化 ③：Cookie 读写收口到 WebCookieOps（内部才 import webview），lazy 使 ArkWeb 不进冷启动模块图
+import lazy { WebCookieOps } from './WebCookieOps';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { common } from '@kit.AbilityKit';
 
@@ -33,7 +34,7 @@ export function clearLastCookie(): void {
 function syncCookie(): string {
   let cookie: string = '';
   try {
-    cookie = webview.WebCookieManager.fetchCookieSync(JW_APP_ROOT + '/');
+    cookie = WebCookieOps.fetchCookieSync(JW_APP_ROOT + '/');
     lastCookie = cookie;
   } catch (error) {
     const err: BusinessError = error as BusinessError;
