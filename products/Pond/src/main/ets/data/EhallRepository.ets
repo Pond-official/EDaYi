@@ -184,15 +184,25 @@ export class EhallRepository {
         AppLog.warn(DOMAIN, TAG, 'card list failed, fallback to builtin wids: %{public}s', `${listError}`);
       }
       // needRetrieve=1 的条目要等 ehall 服务端聚合上游（一卡通/图书馆）完成，
-      // 首次 detail 常返回 data:null，轮询重试直到出值
-      const balance: string =
-        await EhallRepository.fetchMainInfoUntilReady(balanceWid, EHALL_RETRIEVE_ATTEMPTS);
+      // 首次 detail 常返回 data:null，轮询重试直到出值；
+      // 余额与借阅数并行发起（同时触发两条服务端聚合，轮询窗口重合，总耗时近乎减半），
+      // 预挂兜底 catch：任一条先抛错时另一条的后续异常不会成为未观察拒绝
+      const balancePromise: Promise<string> =
+        EhallRepository.fetchMainInfoUntilReady(balanceWid, EHALL_RETRIEVE_ATTEMPTS);
+      const countPromise: Promise<string> =
+        EhallRepository.fetchMainInfoUntilReady(loanCountWid, EHALL_RETRIEVE_ATTEMPTS);
+      balancePromise.catch((error: BusinessError) => {
+        AppLog.warn(DOMAIN, TAG, 'balance detail failed: %{public}s', `${error}`);
+      });
+      countPromise.catch((error: BusinessError) => {
+        AppLog.warn(DOMAIN, TAG, 'loan count detail failed: %{public}s', `${error}`);
+      });
+      const balance: string = await balancePromise;
+      const countInfo: string = await countPromise;
       const balanceText: string = EhallRepository.parseValueText(balance);
       if (balanceText.length === 0) {
         throw new Error('余额数据解析失败');
       }
-      const countInfo: string =
-        await EhallRepository.fetchMainInfoUntilReady(loanCountWid, EHALL_RETRIEVE_ATTEMPTS);
       const loanCount: number = EhallRepository.parseCount(countInfo);
       AppStorage.setOrCreate<string>('jwEcardBalance', balanceText);
       AppStorage.setOrCreate<number>('jwLoanCount', loanCount);
