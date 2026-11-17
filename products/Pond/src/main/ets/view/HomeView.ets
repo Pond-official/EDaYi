@@ -332,33 +332,39 @@ export struct HomeView {
     });
   }
 
-  /** 周次选择下拉面板：全部周次胶囊，选中高亮、本周标注 */
+  /** 周次选择下拉面板：单列周次列表，选中高亮、本周标注，超高时面板内滚动 */
   @Builder
   weekMenuPanel() {
     Column() {
-      Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Center }) {
-        ForEach(this.weekList(), (week: number) => {
-          Text(this.weekMenuLabel(week))
-            .fontSize(12)
-            .fontWeight(week === this.selectedWeek() ? FontWeight.Bold : FontWeight.Normal)
-            .fontColor(week === this.selectedWeek() ? Color.White :
-              (week === this.termStatus.currentWeek ?
-                $r('sys.color.ohos_id_color_text_primary_activated') :
-                $r('sys.color.ohos_id_color_text_secondary')))
-            .backgroundColor(week === this.selectedWeek() ?
-              $r('sys.color.ohos_id_color_text_primary_activated') : Color.Transparent)
-            .borderRadius(13)
-            .padding({ left: 10, right: 10, top: 5, bottom: 5 })
-            .margin(3)
-            .onClick(() => {
-              this.scheduleWeekOffset = week - this.termStatus.currentWeek;
-              this.weekMenuVisible = false;
-            })
-        }, (week: number) => 'week' + week)
+      Scroll() {
+        Column() {
+          ForEach(this.weekList(), (week: number) => {
+            Text(this.weekMenuLabel(week))
+              .fontSize(13)
+              .fontWeight(week === this.selectedWeek() ? FontWeight.Bold : FontWeight.Normal)
+              .fontColor(week === this.selectedWeek() ? Color.White :
+                (week === this.termStatus.currentWeek ?
+                  $r('sys.color.ohos_id_color_text_primary_activated') :
+                  $r('sys.color.ohos_id_color_text_secondary')))
+              .backgroundColor(week === this.selectedWeek() ?
+                $r('sys.color.ohos_id_color_text_primary_activated') : Color.Transparent)
+              .borderRadius(10)
+              .width('100%')
+              .padding({ left: 14, right: 14, top: 7, bottom: 7 })
+              .margin({ top: 2, bottom: 2 })
+              .onClick(() => {
+                this.scheduleWeekOffset = week - this.termStatus.currentWeek;
+                this.weekMenuVisible = false;
+              })
+          }, (week: number) => 'week' + week)
+        }
+        .constraintSize({ minWidth: 176 })
       }
+      .scrollable(ScrollDirection.Vertical)
+      .scrollBar(BarState.Auto)
+      .constraintSize({ maxHeight: 384 })
     }
-    .constraintSize({ minWidth: 240, maxWidth: 320 })
-    .padding(10)
+    .padding(6)
   }
 
   @Builder
