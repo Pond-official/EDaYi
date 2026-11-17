@@ -13,7 +13,7 @@
  * 校验命令（项目根目录）：node tools/check_storage_keys.mjs
  */
 
-// ================================ AppStorage 键（28 个） ================================
+// ================================ AppStorage 键（30 个） ================================
 
 // [AppStorage] jwSafeTopPx | number | pondability/PondAbility（窗口避让安全高度） | pages/LoginIndex、pages/Index、pages/TrainingPlanIndex、pages/LibraryIndex、view/FrostBand、view/GradeView、view/HomeView、view/SelectionView、view/SettingsView、view/ZcpView（10 处）
 // [AppStorage] mainBreakpoint | string | common/utils/BreakpointSystem（pages/Index 注册，断点变化写入） | pages/TrainingPlanIndex、view/GradeView、view/HomeView、view/SelectionView、view/ZcpView（@StorageLink 5 处，双向）
@@ -43,8 +43,10 @@
 // [AppStorage] jwMaterialLevel | string（ADAPTIVE/EXQUISITE/GENTLE/SMOOTH） | data/JwxtSessionRepository、view/SettingsView | pages/Index（HDS SystemMaterialParams materialLevel）
 // [AppStorage] jwEcardBalance | string（校园卡余额，未获取为空串） | data/EhallRepository（ehall 聚合接口写入/缓存回放） | view/HomeView（首页统计小卡）
 // [AppStorage] jwLoanCount | number（在借图书数，-1 = 未获取） | data/EhallRepository（ehall 聚合接口写入/缓存回放/详情页回写）、pages/LibraryIndex（间接经 EhallRepository.updateLoanCount） | view/HomeView（首页统计小卡）
+// [AppStorage] jwCardNightEnabled | boolean（2*4 小卡"晚间显示明日课程"开关） | data/JwxtSessionRepository | view/SettingsView（@StorageLink，双向）
+// [AppStorage] jwCardNightMinutes | number（当日分钟数，开始默认展示明日课程的时刻） | data/JwxtSessionRepository | view/SettingsView（@StorageLink，双向）
 
-// ============================ 卡片 LocalStorage 键（15 个） ============================
+// ============================ 卡片 LocalStorage 键（16 个） ============================
 // 均由 data/CardDataStore 构造 formData，经 formBindingData 注入对应卡片 @Entry(LocalStorage)；
 // 刷新走 updateForm（卡片内 @Watch 监听 Json 字段变化重新解析）。
 
@@ -60,6 +62,7 @@
 // [LocalStorage] nextWeekCellsJson | string | data/CardDataStore（课表大卡） | widget/pages/ScheduleCardLarge
 // [LocalStorage] nextWeekText | string | data/CardDataStore（课表大卡） | widget/pages/ScheduleCardLarge
 // [LocalStorage] todayD | string（今日星期 1-7） | data/CardDataStore（课表大卡） | widget/pages/ScheduleCardLarge
+// [LocalStorage] tomorrowDefault | string（'true'=到"晚间显示明日课程"设定时刻，小卡默认展示明日课程） | data/CardDataStore（课表卡片） | widget/pages/ScheduleCard
 // [LocalStorage] privacyDisabledText | string（严格隐私模式提示，非空即禁用卡片） | data/CardDataStore（全部卡片） | widget/pages/ScheduleCard、ScheduleCardLarge、ExamCountdownCard
 // [LocalStorage] examsJson | string（考试列表 JSON） | data/CardDataStore（考试卡片） | widget/pages/ExamCountdownCard
 // [LocalStorage] totalText | string（"共N场考试"） | data/CardDataStore（考试卡片） | widget/pages/ExamCountdownCard

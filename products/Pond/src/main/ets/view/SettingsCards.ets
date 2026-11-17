@@ -151,6 +151,79 @@ export interface SettingsPrivacyCardParams {
   onSelect: (value: string) => void;
 }
 
+/** 桌面课表小卡设置卡入参（单参对象字面量按引用传递，开关/时间随设置刷新） */
+export interface SettingsCardNightParams {
+  enabled: boolean;
+  /** 当前开始时间文案（HH:mm） */
+  timeText: string;
+  onToggle: (isOn: boolean) => void;
+  onPickTime: () => void;
+}
+
+/** 桌面课表小卡设置卡：晚间显示明日课程开关与开始时间（onPickTime 打开时间选择器） */
+@Builder
+export function SettingsCardNightCard(params: SettingsCardNightParams) {
+  Column({ space: 12 }) {
+    Text('桌面课表小卡')
+      .fontSize(13)
+      .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+      .width('100%')
+
+    Row() {
+      Column({ space: 2 }) {
+        Text('晚间显示明日课程')
+          .fontSize(15)
+          .fontWeight(FontWeight.Medium)
+          .fontColor($r('sys.color.ohos_id_color_text_primary'))
+        Text('每天到设定时间后，2*4 课表小卡默认展示明日课程')
+          .fontSize(11)
+          .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+      }
+      .layoutWeight(1)
+      .alignItems(HorizontalAlign.Start)
+
+      Toggle({ type: ToggleType.Switch, isOn: params.enabled })
+        .onChange((isOn: boolean) => {
+          params.onToggle(isOn);
+        })
+    }
+    .width('100%')
+    .alignItems(VerticalAlign.Center)
+
+    if (params.enabled) {
+      Divider()
+        .color($r('sys.color.ohos_id_color_list_separator'))
+
+      Row() {
+        Text('开始时间')
+          .fontSize(15)
+          .fontWeight(FontWeight.Medium)
+          .fontColor($r('sys.color.ohos_id_color_text_primary'))
+          .layoutWeight(1)
+        Text(params.timeText)
+          .fontSize(15)
+          .fontWeight(FontWeight.Medium)
+          .fontColor($r('sys.color.ohos_id_color_text_primary_activated'))
+      }
+      .width('100%')
+      .alignItems(VerticalAlign.Center)
+      .onClick(() => {
+        params.onPickTime();
+      })
+    }
+
+    Text('到点后随卡片周期更新生效（最长约一小时），生效期间仍可点小卡上的"今天"手动切回。')
+      .fontSize(11)
+      .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+      .width('100%')
+  }
+  .width('100%')
+  .alignItems(HorizontalAlign.Start)
+  .padding(16)
+  .borderRadius(16)
+  .backgroundColor($r('app.color.card_background'))
+}
+
 /** 隐私模式卡（自 SettingsView 拆出；onSelect 选择模式；三行选项内联直读 params，选中态随绑定刷新） */
 @Builder
 export function SettingsPrivacyCard(params: SettingsPrivacyCardParams) {

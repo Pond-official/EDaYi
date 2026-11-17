@@ -21,6 +21,7 @@ const KEY_EXAM_FORM_IDS: string = 'examFormIds';
 const KEY_DEVELOPER_MODE: string = 'developerMode';
 const KEY_LIGHT_EFFECT_COLOR: string = 'lightEffectColor';
 const KEY_MATERIAL_LEVEL: string = 'materialLevel';
+const KEY_CARD_NIGHT: string = 'cardNightTomorrow';
 
 /** 持久化的课表单元格（紧凑字段，整学期数据，按周位图过滤展示） */
 export class CardCellItem {
@@ -67,6 +68,13 @@ export class ReminderSettings {
   agentEnabled: boolean = true;
 }
 
+/** 2*4 课表小卡"晚间显示明日课程"设置 */
+export class CardNightSetting {
+  enabled: boolean = false;
+  /** 每天开始默认展示明日课程的时刻（当日分钟数，0-1439，默认 1200=20:00） */
+  minutes: number = 1200;
+}
+
 /** 下发给期末倒计时卡片的条目（紧凑字段） */
 export class ExamCardItem {
   n: string = '';
@@ -98,6 +106,11 @@ interface ReminderSettingsRaw {
   enabled?: boolean;
   advance?: number;
   agent?: boolean;
+}
+
+interface CardNightRaw {
+  enabled?: boolean;
+  minutes?: number;
 }
 
 interface FinalExamRaw {
@@ -195,6 +208,36 @@ export class CardDataStore {
       pref.flushSync();
     } catch (error) {
       AppLog.error(DOMAIN, TAG, 'saveReminderSettings failed: %{public}s', `${error}`);
+    }
+  }
+
+  /** 读取小卡"晚间显示明日课程"设置（未配置时返回默认值：关闭、20:00） */
+  static loadCardNightSetting(context: common.Context): CardNightSetting {
+    const setting: CardNightSetting = new CardNightSetting();
+    try {
+      const pref: preferences.Preferences = CardDataStore.store(context);
+      const json: string = CardDataStore.readString(pref, KEY_CARD_NIGHT);
+      if (json.length > 0) {
+        const raw: CardNightRaw = JSON.parse(json) as CardNightRaw;
+        setting.enabled = typeof raw.enabled === 'boolean' ? raw.enabled : false;
+        setting.minutes = typeof raw.minutes === 'number' && raw.minutes >= 0 && raw.minutes <= 1439
+          ? Math.floor(raw.minutes) : 1200;
+      }
+    } catch (error) {
+      AppLog.error(DOMAIN, TAG, 'loadCardNightSetting failed: %{public}s', `${error}`);
+    }
+    return setting;
+  }
+
+  /** 保存小卡"晚间显示明日课程"设置 */
+  static saveCardNightSetting(context: common.Context, enabled: boolean, minutes: number): void {
+    try {
+      const pref: preferences.Preferences = CardDataStore.store(context);
+      const payload: CardNightRaw = { enabled: enabled, minutes: minutes };
+      pref.putSync(KEY_CARD_NIGHT, JSON.stringify(payload));
+      pref.flushSync();
+    } catch (error) {
+      AppLog.error(DOMAIN, TAG, 'saveCardNightSetting failed: %{public}s', `${error}`);
     }
   }
 
@@ -489,6 +532,7 @@ export class CardDataStore {
         'nextWeekCellsJson': '[]',
         'nextWeekText': '',
         'todayD': '0',
+        'tomorrowDefault': 'false',
         'privacyDisabledText': '当前隐私设置无法使用卡片'
       };
       return formBindingData.createFormBindingData(disabled);
@@ -516,10 +560,15 @@ export class CardDataStore {
         week += advanced;
       }
     }
-    const day: number = new Date().getDay();
+    const now: Date = new Date();
+    const day: number = now.getDay();
     const today: number = day === 0 ? 7 : day;
     const tomorrow: number = today === 7 ? 1 : today + 1;
     const tomorrowWeek: number = today === 7 ? week + 1 : week;
+    // 设置页"晚间显示明日课程"：到设定时刻后下发 tomorrowDefault=true，卡片据此默认展示明日课程
+    const night: CardNightSetting = CardDataStore.loadCardNightSetting(context);
+    const nowMinutes: number = now.getHours() * 60 + now.getMinutes();
+    const tomorrowDefault: boolean = night.enabled && nowMinutes >= night.minutes;
     const todayCells: CardCellItem[] = cells
       .filter((c: CardCellItem): boolean => c.d === today && CardDataStore.cellInWeek(c, week))
       .sort((a: CardCellItem, b: CardCellItem): number => a.s - b.s);
@@ -552,6 +601,7 @@ export class CardDataStore {
       'nextWeekCellsJson': JSON.stringify(nextGridCells),
       'nextWeekText': week > 0 ? '第' + (week + 1) + '周' : '',
       'todayD': `${today}`,
+      'tomorrowDefault': tomorrowDefault ? 'true' : 'false',
       'privacyDisabledText': ''
     };
     return formBindingData.createFormBindingData(data);

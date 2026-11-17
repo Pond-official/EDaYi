@@ -16,7 +16,9 @@ interface CardCourseRaw {
 
 /**
  * 课表服务卡片（2*4）：展示今日课程（最多 3 门）与当前周次，
- * 支持点击"明天"切换查看明日课程（再点"今天"切回）。
+ * 支持点击"明天"切换查看明日课程（再点"今天"切回）；
+ * 设置页开启"晚间显示明日课程"后，每天到设定时间（tomorrowDefault）
+ * 随卡片周期更新默认展示明日课程，仍可手动切回"今天"。
  * 数据由 ScheduleFormAbility 通过 formBindingData 注入 LocalStorage，
  * 必须以 @Entry(storage) 接收，否则卡片拿不到数据。
  * coursesJson/tomorrowJson 等属性变化时通过 @Watch 重新解析（updateForm 刷新路径）。
@@ -36,17 +38,31 @@ struct ScheduleCard {
   @LocalStorageProp('tomorrowWeekText') tomorrowWeekText: string = '';
   /** 严格隐私模式下非空：卡片不可用提示 */
   @LocalStorageProp('privacyDisabledText') privacyDisabledText: string = '';
-  /** 查看明日课程模式（点击"明天"开启、"今天"关闭） */
+  /** 每天到设置页"晚间显示明日课程"的设定时刻后为 'true'，作为默认展示明日课程的依据 */
+  @LocalStorageProp('tomorrowDefault') @Watch('onDefaultChanged') tomorrowDefault: string = 'false';
+  /** 查看明日课程模式（点击"明天"开启、"今天"关闭；到设定时刻默认翻转时跟随新默认） */
   @State showTomorrow: boolean = false;
+  /** 上次生效的默认值：跨过设定时刻翻转时应用新默认，其余刷新保留手动选择 */
+  private lastDefault: boolean = false;
   @State courses: CardCourse[] = [];
   @State tomorrowCourses: CardCourse[] = [];
 
   aboutToAppear(): void {
+    this.lastDefault = this.tomorrowDefault === 'true';
+    this.showTomorrow = this.lastDefault;
     this.parseCourses();
   }
 
   onDataChanged(): void {
     this.parseCourses();
+  }
+
+  onDefaultChanged(): void {
+    const next: boolean = this.tomorrowDefault === 'true';
+    if (next !== this.lastDefault) {
+      this.lastDefault = next;
+      this.showTomorrow = next;
+    }
   }
 
   private parseCourses(): void {

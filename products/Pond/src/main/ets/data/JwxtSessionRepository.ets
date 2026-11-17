@@ -3,7 +3,7 @@ import { AppLog } from './AppLog';
 import lazy { WebCookieOps } from '../net/WebCookieOps';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { common } from '@kit.AbilityKit';
-import { CardDataStore, ReminderSettings } from './CardDataStore';
+import { CardDataStore, CardNightSetting, ReminderSettings } from './CardDataStore';
 import { ReminderScheduler } from './ReminderScheduler';
 import { GradeCategory, GradeEntry, PlanCategory, ScheduleCellInfo, SectionTimeInfo, StudentProfile, TermStatus } from '../model/JwModels';
 import { CurrentUserRaw, GradeEnvelopeRaw, GradeReportRaw, ScheduleEnvelopeRaw, StudentEnvelopeRaw, TermQueryRaw, TermRowRaw } from '../model/JwRawModels';
@@ -61,6 +61,9 @@ export class JwxtSessionRepository {
     AppStorage.setOrCreate('jwReminderAdvance', settings.advanceMinutes);
     AppStorage.setOrCreate('jwReminderAgentEnabled', settings.agentEnabled);
     AppStorage.setOrCreate('jwReminderDisabledSessions', CardDataStore.loadDisabledSessions(context));
+    const night: CardNightSetting = CardDataStore.loadCardNightSetting(context);
+    AppStorage.setOrCreate('jwCardNightEnabled', night.enabled);
+    AppStorage.setOrCreate('jwCardNightMinutes', night.minutes);
     AppStorage.setOrCreate('jwFinalExams', CardDataStore.loadFinalExams(context));
     AppStorage.setOrCreate('jwPrivacyMode', CardDataStore.loadPrivacyMode(context));
     AppStorage.setOrCreate('jwDeveloperMode', CardDataStore.loadDeveloperMode(context));
@@ -76,6 +79,17 @@ export class JwxtSessionRepository {
     if (context !== null) {
       CardDataStore.saveLightEffectColor(context, color);
       CardDataStore.saveMaterialLevel(context, level);
+    }
+  }
+
+  /** 更新小卡"晚间显示明日课程"设置：写入 AppStorage、持久化并立即刷新桌面课表卡片 */
+  static updateCardNightSetting(enabled: boolean, minutes: number): void {
+    AppStorage.setOrCreate('jwCardNightEnabled', enabled);
+    AppStorage.setOrCreate('jwCardNightMinutes', minutes);
+    const context: common.UIAbilityContext | null = getContext();
+    if (context !== null) {
+      CardDataStore.saveCardNightSetting(context, enabled, minutes);
+      CardDataStore.refreshAllCards(context);
     }
   }
 

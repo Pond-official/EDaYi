@@ -6,7 +6,7 @@ import { getContext } from '../net/JwTransport';
 import { CloseButton } from './BackButton';
 import { AppLogCard } from './AppLogCard';
 import { FROST_BAND_HEIGHT, frostTopInsetVp } from './FrostBand';
-import { SettingsCacheCard, SettingsPrivacyCard, SettingsReminderCard, SettingsSectionTitle } from './SettingsCards';
+import { SettingsCacheCard, SettingsCardNightCard, SettingsPrivacyCard, SettingsReminderCard, SettingsSectionTitle } from './SettingsCards';
 import { ExamAddCandidate, ExamCourseItem, SettingsExamAddEntry, SettingsExamAddList,
   SettingsExamEntry, SettingsExamListCard, SettingsExamShareEntry } from './SettingsExamCards';
 import { FinalExamEntry, PlanCategory, PlanCourse, TermStatus } from '../model/JwModels';
@@ -66,6 +66,10 @@ export struct SettingsView {
   @StorageLink('jwLightEffectColor') lightEffectColor: string = '#FFFFFF';
   /** 底栏材质档位（开发者选项自定义，ADAPTIVE/EXQUISITE/GENTLE/SMOOTH） */
   @StorageLink('jwMaterialLevel') materialLevel: string = 'ADAPTIVE';
+  /** 2*4 课表小卡"晚间显示明日课程"开关 */
+  @StorageLink('jwCardNightEnabled') cardNightEnabled: boolean = false;
+  /** 每天开始默认展示明日课程的时刻（当日分钟数，默认 1200=20:00） */
+  @StorageLink('jwCardNightMinutes') cardNightMinutes: number = 1200;
   /** 版本号连续点击计数（开发者选项解锁用） */
   @State versionTapCount: number = 0;
   /** 自定义提前提醒时间输入弹层显隐 */
@@ -109,6 +113,28 @@ export struct SettingsView {
     }
     this.applySettings(this.reminderEnabled, minutes, this.reminderAgentEnabled);
     this.showAdvanceSheet = false;
+  }
+
+  /** 小卡"晚间显示明日课程"开始时间文案（当日分钟数转 HH:mm） */
+  private cardNightTimeText(): string {
+    const hours: number = Math.floor(this.cardNightMinutes / 60);
+    const minutes: number = this.cardNightMinutes % 60;
+    const hh: string = hours < 10 ? '0' + hours : `${hours}`;
+    const mm: string = minutes < 10 ? '0' + minutes : `${minutes}`;
+    return hh + ':' + mm;
+  }
+
+  /** 打开小卡晚间开始时间选择器（24 小时制，确认后写入设置并刷新桌面卡片） */
+  private openCardNightTimePicker(): void {
+    const selected: Date = new Date();
+    selected.setHours(Math.floor(this.cardNightMinutes / 60), this.cardNightMinutes % 60, 0, 0);
+    this.getUIContext().showTimePickerDialog({
+      selected: selected,
+      useMilitaryTime: true,
+      onAccept: (time: TimePickerResult) => {
+        JwxtRepository.updateCardNightSetting(this.cardNightEnabled, time.hour * 60 + time.minute);
+      }
+    });
   }
 
   /** 重新统计本地缓存大小并刷新显示 */
@@ -666,6 +692,17 @@ export struct SettingsView {
               this.getUIContext().animateTo({ duration: PAGE_PUSH_DURATION, curve: Curve.Friction }, () => {
                 this.subPage = SettingsSubPage.ExamSchedule;
               });
+            })
+            SettingsSectionTitle('桌面卡片')
+            SettingsCardNightCard({
+              enabled: this.cardNightEnabled,
+              timeText: this.cardNightTimeText(),
+              onToggle: (isOn: boolean): void => {
+                JwxtRepository.updateCardNightSetting(isOn, this.cardNightMinutes);
+              },
+              onPickTime: (): void => {
+                this.openCardNightTimePicker();
+              }
             })
             SettingsSectionTitle('隐私')
             SettingsPrivacyCard({

@@ -100,6 +100,11 @@ export class JwxtRepository {
     JwxtSessionRepository.updateLightEffectSettings(color, level);
   }
 
+  /** 更新小卡"晚间显示明日课程"设置（每天指定时刻后 2*4 卡默认展示明日课程），立即生效并持久化 */
+  static updateCardNightSetting(enabled: boolean, minutes: number): void {
+    JwxtSessionRepository.updateCardNightSetting(enabled, minutes);
+  }
+
   // ---------- 隐私与开发者选项（转发 PrivacyController） ----------
 
   /** 当前隐私模式：standard=缓存全部 / restricted=仅课表卡片 / strict=不缓存 */
