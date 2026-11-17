@@ -8,7 +8,7 @@ import { AppLogCard } from './AppLogCard';
 import { FROST_BAND_HEIGHT, frostTopInsetVp } from './FrostBand';
 import { SettingsCacheCard, SettingsPrivacyCard, SettingsReminderCard, SettingsSectionTitle } from './SettingsCards';
 import { ExamAddCandidate, ExamCourseItem, SettingsExamAddEntry, SettingsExamAddList,
-  SettingsExamEntry, SettingsExamListCard } from './SettingsExamCards';
+  SettingsExamEntry, SettingsExamListCard, SettingsExamShareEntry } from './SettingsExamCards';
 import { FinalExamEntry, PlanCategory, PlanCourse, TermStatus } from '../model/JwModels';
 import { ExamDateUtils } from '../utils/ExamDateUtils';
 import { GITHUB_URL, SettingsAboutEntry, SettingsAcknowledgementCard, SettingsDeveloperCard,
@@ -16,6 +16,8 @@ import { GITHUB_URL, SettingsAboutEntry, SettingsAcknowledgementCard, SettingsDe
 import { SettingsLightEffectCard } from './SettingsLightEffectCards';
 import { bundleManager, common } from '@kit.AbilityKit';
 import { pasteboard, BusinessError } from '@kit.BasicServicesKit';
+import { systemShare } from '@kit.ShareKit';
+import { uniformTypeDescriptor as utd } from '@kit.ArkData';
 
 const SETTING_DOMAIN: number = 0x0000;
 const SETTING_TAG: string = 'SettingsView';
@@ -350,6 +352,51 @@ export struct SettingsView {
     JwxtRepository.updateFinalExam(item.courseName, '');
   }
 
+  /**
+   * 分享期末倒计时：已设考试时间按时间升序拼为可读文本，
+   * 经系统分享面板（Share Kit）发送到其他设备或应用（华为分享/信息等渠道）。
+   */
+  private shareExamSchedule(): void {
+    const entries: FinalExamEntry[] = this.finalExams
+      .filter((entry: FinalExamEntry): boolean => entry.examDate.length > 0)
+      .sort((a: FinalExamEntry, b: FinalExamEntry): number =>
+        a.examDate < b.examDate ? -1 : (a.examDate > b.examDate ? 1 : 0));
+    if (entries.length === 0) {
+      this.getUIContext().getPromptAction().showToast({ message: '暂无可分享的考试时间' });
+      return;
+    }
+    const lines: string[] = ['【期末倒计时】'];
+    for (const entry of entries) {
+      const parsed: Date | null = ExamDateUtils.parseExamDate(entry.examDate);
+      const countdown: string = parsed !== null ? ExamDateUtils.countdownTextOf(parsed) : '时间无效';
+      lines.push(entry.courseName + '：' + entry.examDate + '（' + countdown + '）');
+    }
+    lines.push('—— 来自 EDaYi（E大医）');
+    const context: common.UIAbilityContext | null = JwxtRepository.getUiAbilityContext();
+    if (context === null) {
+      this.getUIContext().getPromptAction().showToast({ message: '分享失败' });
+      return;
+    }
+    try {
+      const data: systemShare.SharedData = new systemShare.SharedData({
+        utd: utd.UniformDataType.PLAIN_TEXT,
+        title: '期末倒计时',
+        content: lines.join('\n')
+      });
+      const controller: systemShare.ShareController = new systemShare.ShareController(data);
+      controller.show(context, {
+        selectionMode: systemShare.SelectionMode.SINGLE
+      })
+        .catch((error: BusinessError) => {
+          AppLog.info(SETTING_DOMAIN, SETTING_TAG, 'share exam schedule failed: %{public}s', JSON.stringify(error));
+          this.getUIContext().getPromptAction().showToast({ message: '分享失败' });
+        });
+    } catch (error) {
+      AppLog.info(SETTING_DOMAIN, SETTING_TAG, 'share exam schedule threw: %{public}s', `${error}`);
+      this.getUIContext().getPromptAction().showToast({ message: '分享失败' });
+    }
+  }
+
   /** 培养计划本学期课程查询（按课程名），未找到返回 null */
   private planCourseOf(courseName: string): PlanCourse | null {
     const termCode: string = this.termStatus.termCode;
@@ -511,6 +558,9 @@ export struct SettingsView {
             })
             SettingsExamAddEntry((): void => {
               this.showExamAddSheet = true;
+            })
+            SettingsExamShareEntry((): void => {
+              this.shareExamSchedule();
             })
             Text('考试课来自本学期培养计划（考核方式为"考试"）；点击科目设置考试日期与时间，到点后自动移除；考查课等非考试科目可点"添加科目"从培养计划中选择。')
               .fontSize(11)

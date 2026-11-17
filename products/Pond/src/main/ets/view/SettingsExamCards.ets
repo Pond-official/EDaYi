@@ -74,6 +74,32 @@ export function SettingsExamAddEntry(onAdd: () => void) {
   })
 }
 
+/** 分享期末倒计时入口（onShare 拉起系统分享面板，把已设考试时间分享给其他设备/应用） */
+@Builder
+export function SettingsExamShareEntry(onShare: () => void) {
+  Row({ space: 8 }) {
+    SymbolGlyph($r('sys.symbol.share'))
+      .fontSize(16)
+      .fontColor([$r('sys.color.ohos_id_color_text_primary_activated')])
+    Text('分享期末倒计时')
+      .fontSize(14)
+      .fontWeight(FontWeight.Medium)
+      .fontColor($r('sys.color.ohos_id_color_text_primary'))
+    Blank()
+    Text('分享给其他设备')
+      .fontSize(11)
+      .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+  }
+  .width('100%')
+  .padding(16)
+  .borderRadius(16)
+  .backgroundColor($r('app.color.card_background'))
+  .margin({ top: 12 })
+  .onClick(() => {
+    onShare();
+  })
+}
+
 /** 添加科目候选项（本学期培养计划中考核方式非"考试"的课程） */
 export class ExamAddCandidate {
   courseName: string = '';
