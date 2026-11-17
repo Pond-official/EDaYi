@@ -13,6 +13,8 @@ const LABEL_COLUMN_WIDTH: number = 58;
 const WEEK_FLIP_DISTANCE_VP: number = 64;
 /** 翻周平移手势的识别距离（vp） */
 const WEEK_FLIP_PAN_DISTANCE_VP: number = 12;
+/** 前台跨天检查间隔（毫秒）：挂起跨天时无系统事件，靠轮询刷新"今天"高亮 */
+const DAY_ROLLOVER_CHECK_INTERVAL_MS: number = 30000;
 
 /**
  * 周课表网格（原生 Row/Column 布局实现）：
@@ -53,6 +55,8 @@ export struct ScheduleBoard {
   private lastPanOffsetX: number = 0;
   private edgeOverflowX: number = 0;
   private weekFlipped: boolean = false;
+  /** 前台跨天轮询定时器句柄（-1 = 未启动） */
+  private rolloverTimerId: number = -1;
 
   aboutToAppear(): void {
     this.refreshToday();
@@ -64,6 +68,9 @@ export struct ScheduleBoard {
     };
     listener.on('change', this.wideQueryCallback);
     this.wideQueryListener = listener;
+    this.rolloverTimerId = setInterval((): void => {
+      this.checkDayRollover();
+    }, DAY_ROLLOVER_CHECK_INTERVAL_MS);
   }
 
   /** 应用回前台：跨天挂起后重算"今天"高亮 */
@@ -76,12 +83,25 @@ export struct ScheduleBoard {
     this.todayDay = day === 0 ? 7 : day;
   }
 
+  /** 前台跨天检查：星期变化时刷新"今天"高亮（周次推进由 HomeView 统一负责） */
+  private checkDayRollover(): void {
+    const day: number = new Date().getDay();
+    const todayNum: number = day === 0 ? 7 : day;
+    if (todayNum !== this.todayDay) {
+      this.refreshToday();
+    }
+  }
+
   aboutToDisappear(): void {
     if (this.wideQueryListener !== null && this.wideQueryCallback !== null) {
       this.wideQueryListener.off('change', this.wideQueryCallback);
     }
     this.wideQueryListener = null;
     this.wideQueryCallback = null;
+    if (this.rolloverTimerId >= 0) {
+      clearInterval(this.rolloverTimerId);
+      this.rolloverTimerId = -1;
+    }
   }
 
   private displayedWeek(): number {

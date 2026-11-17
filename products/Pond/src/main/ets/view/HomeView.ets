@@ -9,6 +9,9 @@ import { display, window } from '@kit.ArkUI';
 import { HomeOfflineBanner, HomeStudentCard, HomeSectionTitle, HomeStatCard, HomeTodayCard, HomeFinalExamCard } from './HomeCards';
 import { cardEnterEffect } from './CardEnter';
 
+/** 前台跨天检查间隔（毫秒）：挂起跨天/跨周时无系统事件，靠轮询发现 */
+const DAY_ROLLOVER_CHECK_INTERVAL_MS: number = 30000;
+
 /**
  * 首页：学生信息卡 + 今日课程 + 我的课表（原生 Row/Column 布局，三端自适应）。
  * 手机单列纵向排布；平板/电脑双列（左信息流、右课表）。
@@ -52,6 +55,8 @@ export struct HomeView {
       this.applyWindowSize(size.width, size.height);
     });
   };
+  /** 前台跨天轮询定时器句柄（-1 = 未启动） */
+  private rolloverTimerId: number = -1;
 
   aboutToAppear(): void {
     this.initWindowDims();
@@ -61,10 +66,12 @@ export struct HomeView {
     EhallRepository.ensureStatsLoaded();
     this.refreshToday();
     this.rebuildTodayCells();
+    this.startRolloverTimer();
   }
 
   aboutToDisappear(): void {
     this.unbindWindowHeight();
+    this.stopRolloverTimer();
   }
 
   onScheduleChanged(): void {
@@ -81,6 +88,33 @@ export struct HomeView {
   /** 应用回前台：跨天挂起后重算"今天"，刷新今日课程，检查已结束考试；
    *  跨周时本地推进学期周次，在线状态下再整包重取补全新开课程 */
   onForegroundTick(): void {
+    this.checkDayRollover();
+    this.refreshToday();
+    this.rebuildTodayCells();
+    this.checkFinishedExams();
+  }
+
+  /** 前台跨天轮询：挂起跨天/跨周（周日→周一）无系统事件，靠定时检查发现 */
+  private startRolloverTimer(): void {
+    this.rolloverTimerId = setInterval((): void => {
+      this.checkDayRollover();
+    }, DAY_ROLLOVER_CHECK_INTERVAL_MS);
+  }
+
+  private stopRolloverTimer(): void {
+    if (this.rolloverTimerId >= 0) {
+      clearInterval(this.rolloverTimerId);
+      this.rolloverTimerId = -1;
+    }
+  }
+
+  /** 跨天检查：星期变化时本地推进周次（跨周才实际推进，在线时整包重取补全新开课程），并刷新"今天"/今日课程/已结束考试 */
+  private checkDayRollover(): void {
+    const day: number = new Date().getDay();
+    const todayNum: number = day === 0 ? 7 : day;
+    if (todayNum === this.todayDay) {
+      return;
+    }
     if (JwxtRepository.advanceTermWeek() && this.dataMode === 'online') {
       JwxtRepository.reload();
     }
