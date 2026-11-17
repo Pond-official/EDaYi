@@ -8,6 +8,7 @@ import examDateUtilsTest from './ExamDateUtils.test';
 import libraryRepositoryTest from './LibraryRepository.test';
 import ehallRepositoryTest from './EhallRepository.test';
 import examShareTextTest from './ExamShareText.test';
+import termWeekUtilsTest from './TermWeekUtils.test';
 
 export default function testsuite() {
   localUnitTest();
@@ -20,4 +21,5 @@ export default function testsuite() {
   libraryRepositoryTest();
   ehallRepositoryTest();
   examShareTextTest();
+  termWeekUtilsTest();
 }

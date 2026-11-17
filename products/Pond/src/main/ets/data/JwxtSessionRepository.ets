@@ -11,6 +11,7 @@ import { parseScheduleCells, parseSections, filterCurrentAndNextWeek } from '../
 import { parseGrades, parseGradeCategories } from '../jwxt/parsers/GradeParser';
 import { parseTrainingPlan, extractPyfadm } from '../jwxt/parsers/TrainingPlanParser';
 import { parseStudent } from '../jwxt/parsers/StudentParser';
+import { TermWeekUtils } from '../utils/TermWeekUtils';
 import { ZcpRepository } from './ZcpRepository';
 import { PrivacyController } from './PrivacyController';
 import { JwxtCacheStore } from './JwxtCacheStore';
@@ -160,6 +161,8 @@ export class JwxtSessionRepository {
         JwxtSessionRepository.applyEmpty('offline');
       } else {
         JwxtSessionRepository.loadedOnce = true;
+        // 离线缓存可能跨周陈旧：按周一锚点本地推进周次，避免课表停留旧周
+        JwxtSessionRepository.advanceTermWeek();
       }
     } else {
       JwxtCacheStore.persistCardData();
@@ -167,6 +170,36 @@ export class JwxtSessionRepository {
     }
     JwxtSessionRepository.rescheduleReminders();
     return ok;
+  }
+
+  /**
+   * 本地推进学期周次：跨周未重新同步时（离线缓存回放/应用挂起跨周/回前台），
+   * 以最近同步时的周一锚点推算经过的整周数并推进当前周次。
+   * 推进成功时同步刷新离线缓存、桌面卡片与上课提醒并返回 true；
+   * 无锚点/未跨周/时钟回拨返回 false。
+   */
+  static advanceTermWeek(): boolean {
+    const term: TermStatus = AppStorage.get<TermStatus>('jwTerm') ?? new TermStatus();
+    if (term.currentWeek <= 0 || term.weekAnchorDate.length === 0) {
+      return false;
+    }
+    const weeks: number | null = TermWeekUtils.weeksBetween(term.weekAnchorDate, new Date());
+    if (weeks === null || weeks <= 0) {
+      return false;
+    }
+    const now: Date = new Date();
+    const updated: TermStatus = new TermStatus();
+    updated.termCode = term.termCode;
+    updated.termName = term.termName;
+    updated.currentWeek = term.currentWeek + weeks;
+    updated.weekAnchorDate = TermWeekUtils.mondayYmdOf(now);
+    AppStorage.setOrCreate<TermStatus>('jwTerm', updated);
+    AppLog.info(DOMAIN, TAG, 'term week advanced: +%{public}d -> week %{public}d',
+      `${weeks}`, `${updated.currentWeek}`);
+    JwxtCacheStore.persistAppCache();
+    JwxtCacheStore.persistCardData();
+    JwxtSessionRepository.rescheduleReminders();
+    return true;
   }
 
   /**
@@ -361,6 +394,8 @@ export class JwxtSessionRepository {
       term.termCode = termCode;
       term.termName = termName;
       term.currentWeek = currentWeek;
+      // 记录同步时所在周的周一锚点，供跨周未同步时本地推算周次
+      term.weekAnchorDate = TermWeekUtils.mondayYmdOf(new Date());
 
       AppStorage.setOrCreate<StudentProfile>('jwStudent', student);
       AppStorage.setOrCreate<ScheduleCellInfo[]>('jwSchedule', weeklyCells);

@@ -216,7 +216,8 @@ export class JwxtCacheStore {
       term: {
         termCode: term.termCode,
         termName: term.termName,
-        currentWeek: term.currentWeek
+        currentWeek: term.currentWeek,
+        weekAnchorDate: term.weekAnchorDate
       }
     };
     return JSON.stringify(raw);
@@ -321,6 +322,7 @@ export class JwxtCacheStore {
         term.termCode = termRaw.termCode ?? '';
         term.termName = termRaw.termName ?? '';
         term.currentWeek = termRaw.currentWeek ?? 0;
+        term.weekAnchorDate = termRaw.weekAnchorDate ?? '';
       }
       AppStorage.setOrCreate<StudentProfile>('jwStudent', student);
       AppStorage.setOrCreate<ScheduleCellInfo[]>('jwSchedule', cells);

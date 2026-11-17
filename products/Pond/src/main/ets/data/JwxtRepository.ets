@@ -57,6 +57,11 @@ export class JwxtRepository {
     return JwxtSessionRepository.reload();
   }
 
+  /** 本地推进学期周次（跨周未同步时按周一锚点推算），推进成功返回 true */
+  static advanceTermWeek(): boolean {
+    return JwxtSessionRepository.advanceTermWeek();
+  }
+
   /**
    * 退出登录：清除 WebView 会话 Cookie 与教务登录状态，按隐私模式分级处理数据。
    */

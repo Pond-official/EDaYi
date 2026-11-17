@@ -96,6 +96,8 @@ export class TermStatus {
   termCode: string = '';
   termName: string = '';
   currentWeek: number = 0;
+  /** 最近同步时所在周的周一（'YYYY-MM-DD'）：跨周未重新同步时按此锚点本地推进周次 */
+  weekAnchorDate: string = '';
 }
 
 /** 课程期末考试时间设置（按课程名，用户在"设置-期末倒计时"中设定） */

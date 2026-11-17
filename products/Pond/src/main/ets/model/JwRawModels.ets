@@ -240,4 +240,5 @@ export interface TermCacheRaw {
   termCode?: string;
   termName?: string;
   currentWeek?: number;
+  weekAnchorDate?: string;
 }

@@ -78,8 +78,12 @@ export struct HomeView {
     }
   }
 
-  /** 应用回前台：跨天挂起后重算"今天"，刷新今日课程，检查已结束考试 */
+  /** 应用回前台：跨天挂起后重算"今天"，刷新今日课程，检查已结束考试；
+   *  跨周时本地推进学期周次，在线状态下再整包重取补全新开课程 */
   onForegroundTick(): void {
+    if (JwxtRepository.advanceTermWeek() && this.dataMode === 'online') {
+      JwxtRepository.reload();
+    }
     this.refreshToday();
     this.rebuildTodayCells();
     this.checkFinishedExams();
