@@ -224,6 +224,63 @@ export function SettingsCardNightCard(params: SettingsCardNightParams) {
   .backgroundColor($r('app.color.card_background'))
 }
 
+/** 个性化背景卡入参（单参对象字面量按引用传递，预览随导入的背景路径刷新） */
+export interface SettingsBackgroundParams {
+  /** 当前背景图片沙箱路径（'' = 未自定义） */
+  backgroundUri: string;
+  onPick: () => void;
+  onReset: () => void;
+}
+
+/** 个性化背景卡：从相册选择自定义背景图片（onPick 拉起系统图库），onReset 恢复默认背景 */
+@Builder
+export function SettingsBackgroundCard(params: SettingsBackgroundParams) {
+  Column({ space: 12 }) {
+    Text('个性化背景')
+      .fontSize(13)
+      .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+      .width('100%')
+
+    if (params.backgroundUri !== '') {
+      Image('file://' + params.backgroundUri)
+        .width('100%')
+        .height(140)
+        .objectFit(ImageFit.Cover)
+        .borderRadius(12)
+    }
+
+    Button(params.backgroundUri === '' ? '选择背景图片' : '更换背景图片')
+      .fontSize(14)
+      .height(36)
+      .width('100%')
+      .onClick(() => {
+        params.onPick();
+      })
+
+    if (params.backgroundUri !== '') {
+      Button('恢复默认背景')
+        .fontSize(14)
+        .height(36)
+        .width('100%')
+        .backgroundColor($r('sys.color.ohos_id_color_button_normal'))
+        .fontColor($r('sys.color.ohos_id_color_text_primary'))
+        .onClick(() => {
+          params.onReset();
+        })
+    }
+
+    Text('自定义图片将作为应用内各页面的背景，裁剪铺满显示。')
+      .fontSize(11)
+      .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+      .width('100%')
+  }
+  .width('100%')
+  .alignItems(HorizontalAlign.Start)
+  .padding(16)
+  .borderRadius(16)
+  .backgroundColor($r('app.color.card_background'))
+}
+
 /** 隐私模式卡（自 SettingsView 拆出；onSelect 选择模式；三行选项内联直读 params，选中态随绑定刷新） */
 @Builder
 export function SettingsPrivacyCard(params: SettingsPrivacyCardParams) {

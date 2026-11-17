@@ -62,6 +62,8 @@ struct Index {
   @StorageProp('jwLightEffectColor') @Watch('onLightEffectColorChanged') lightEffectColor: string = '#FFFFFF';
   /** 底栏材质档位（开发者选项自定义，ADAPTIVE/EXQUISITE/GENTLE/SMOOTH） */
   @StorageProp('jwMaterialLevel') materialLevel: string = 'ADAPTIVE';
+  /** 自定义背景图片沙箱路径（'' = 未自定义；设置导入后各页签背景铺满显示） */
+  @StorageProp('jwBackgroundUri') backgroundUri: string = '';
   /** 设备是否具备 HDS 组件能力（UI Design Kit） */
   private hdsSupported: boolean = false;
   /** 当前设备是否支持悬浮页签栏 + 沉浸光感（API 26+），降级分支使用 */
@@ -390,6 +392,8 @@ struct Index {
     }
     .width('100%')
     .height('100%')
+    .backgroundImage(this.backgroundUri === '' ? '' : 'file://' + this.backgroundUri)
+    .backgroundImageSize(ImageSize.Cover)
     .backgroundColor($r('sys.color.ohos_id_color_sub_background'))
     .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
     .onAreaChange((oldArea: Area, newArea: Area) => {

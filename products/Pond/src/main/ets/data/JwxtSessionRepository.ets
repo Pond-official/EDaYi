@@ -69,6 +69,7 @@ export class JwxtSessionRepository {
     AppStorage.setOrCreate('jwDeveloperMode', CardDataStore.loadDeveloperMode(context));
     AppStorage.setOrCreate('jwLightEffectColor', CardDataStore.loadLightEffectColor(context));
     AppStorage.setOrCreate('jwMaterialLevel', CardDataStore.loadMaterialLevel(context));
+    AppStorage.setOrCreate('jwBackgroundUri', CardDataStore.loadBackgroundUri(context));
   }
 
   /** 更新底栏光效自定义（开发者选项）：立即写入 AppStorage 并持久化 */
@@ -91,6 +92,26 @@ export class JwxtSessionRepository {
       CardDataStore.saveCardNightSetting(context, enabled, minutes);
       CardDataStore.refreshAllCards(context);
     }
+  }
+
+  /** 应用自定义背景图片：从相册 URI 导入到应用沙箱并写入 AppStorage；返回沙箱路径（'' = 导入失败） */
+  static applyBackgroundImage(srcUri: string): string {
+    const context: common.UIAbilityContext | null = getContext();
+    if (context === null) {
+      return '';
+    }
+    const imported: string = CardDataStore.importBackgroundImage(context, srcUri);
+    AppStorage.setOrCreate('jwBackgroundUri', imported);
+    return imported;
+  }
+
+  /** 恢复默认背景：删除已导入的背景图片并清空 AppStorage */
+  static clearBackgroundImage(): void {
+    const context: common.UIAbilityContext | null = getContext();
+    if (context !== null) {
+      CardDataStore.clearBackgroundImage(context);
+    }
+    AppStorage.setOrCreate('jwBackgroundUri', '');
   }
 
   static loginUrl(): string {

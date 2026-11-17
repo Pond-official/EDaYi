@@ -1,6 +1,7 @@
 import { preferences } from '@kit.ArkData';
 import { formBindingData, formProvider } from '@kit.FormKit';
 import { common } from '@kit.AbilityKit';
+import { fileIo as fs } from '@kit.CoreFileKit';
 import { AppLog } from './AppLog';
 import { FinalExamEntry } from '../model/JwModels';
 import { ExamDateUtils } from '../utils/ExamDateUtils';
@@ -22,6 +23,7 @@ const KEY_DEVELOPER_MODE: string = 'developerMode';
 const KEY_LIGHT_EFFECT_COLOR: string = 'lightEffectColor';
 const KEY_MATERIAL_LEVEL: string = 'materialLevel';
 const KEY_CARD_NIGHT: string = 'cardNightTomorrow';
+const KEY_BACKGROUND_URI: string = 'appBackgroundUri';
 
 /** 持久化的课表单元格（紧凑字段，整学期数据，按周位图过滤展示） */
 export class CardCellItem {
@@ -445,6 +447,81 @@ export class CardDataStore {
     } catch (error) {
       AppLog.error(DOMAIN, TAG, 'saveMaterialLevel failed: %{public}s', `${error}`);
     }
+  }
+
+  /** 读取自定义背景图片沙箱路径（未设置返回空串） */
+  static loadBackgroundUri(context: common.Context): string {
+    let uri: string = '';
+    try {
+      const pref: preferences.Preferences = CardDataStore.store(context);
+      const stored: string = CardDataStore.readString(pref, KEY_BACKGROUND_URI);
+      if (stored.length > 0 && fs.accessSync(stored)) {
+        uri = stored;
+      }
+    } catch (error) {
+      AppLog.error(DOMAIN, TAG, 'loadBackgroundUri failed: %{public}s', `${error}`);
+    }
+    return uri;
+  }
+
+  /** 保存自定义背景图片沙箱路径（空串表示未设置） */
+  static saveBackgroundUri(context: common.Context, uri: string): void {
+    try {
+      const pref: preferences.Preferences = CardDataStore.store(context);
+      pref.putSync(KEY_BACKGROUND_URI, uri);
+      pref.flushSync();
+    } catch (error) {
+      AppLog.error(DOMAIN, TAG, 'saveBackgroundUri failed: %{public}s', `${error}`);
+    }
+  }
+
+  /** 删除沙箱内已导入的背景图片文件（保留 keepPath 指定的文件） */
+  private static removeBackgroundFiles(context: common.Context, keepPath: string): void {
+    try {
+      const names: string[] = fs.listFileSync(context.filesDir);
+      for (let i: number = 0; i < names.length; i++) {
+        if (names[i].startsWith('app_background.')) {
+          const filePath: string = `${context.filesDir}/${names[i]}`;
+          if (filePath !== keepPath) {
+            try {
+              fs.unlinkSync(filePath);
+            } catch (unlinkError) {
+              AppLog.warn(DOMAIN, TAG, 'removeBackgroundFiles unlink failed: %{public}s', `${unlinkError}`);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      AppLog.warn(DOMAIN, TAG, 'removeBackgroundFiles failed: %{public}s', `${error}`);
+    }
+  }
+
+  /** 从相册 URI 导入背景图片到应用沙箱（filesDir），持久化并返回沙箱路径（失败返回空串） */
+  static importBackgroundImage(context: common.Context, srcUri: string): string {
+    try {
+      const extStart: number = srcUri.lastIndexOf('.');
+      const rawExt: string = extStart >= 0 ? srcUri.substring(extStart + 1).toLowerCase() : '';
+      const ext: string = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'heic'].indexOf(rawExt) >= 0 ? rawExt : 'jpg';
+      const destPath: string = `${context.filesDir}/app_background.${ext}`;
+      const srcFile: fs.File = fs.openSync(srcUri, fs.OpenMode.READ_ONLY);
+      try {
+        fs.copyFileSync(srcFile.fd, destPath);
+      } finally {
+        fs.closeSync(srcFile);
+      }
+      CardDataStore.removeBackgroundFiles(context, destPath);
+      CardDataStore.saveBackgroundUri(context, destPath);
+      return destPath;
+    } catch (error) {
+      AppLog.error(DOMAIN, TAG, 'importBackgroundImage failed: %{public}s', `${error}`);
+      return '';
+    }
+  }
+
+  /** 恢复默认背景：删除已导入的背景图片并清空持久化路径 */
+  static clearBackgroundImage(context: common.Context): void {
+    CardDataStore.removeBackgroundFiles(context, '');
+    CardDataStore.saveBackgroundUri(context, '');
   }
 
   /** 清除持久化的卡片课表数据（严格隐私模式启用或退至后台时调用） */

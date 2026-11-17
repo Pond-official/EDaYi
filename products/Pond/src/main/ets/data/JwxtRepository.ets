@@ -105,6 +105,16 @@ export class JwxtRepository {
     JwxtSessionRepository.updateCardNightSetting(enabled, minutes);
   }
 
+  /** 应用自定义背景图片（相册 URI 导入沙箱），立即生效并持久化；返回沙箱路径（'' = 导入失败） */
+  static applyBackgroundImage(srcUri: string): string {
+    return JwxtSessionRepository.applyBackgroundImage(srcUri);
+  }
+
+  /** 恢复默认背景：删除已导入的背景图片，立即生效并持久化 */
+  static clearBackgroundImage(): void {
+    JwxtSessionRepository.clearBackgroundImage();
+  }
+
   // ---------- 隐私与开发者选项（转发 PrivacyController） ----------
 
   /** 当前隐私模式：standard=缓存全部 / restricted=仅课表卡片 / strict=不缓存 */

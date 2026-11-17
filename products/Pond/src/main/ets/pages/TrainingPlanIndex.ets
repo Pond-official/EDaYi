@@ -44,6 +44,8 @@ struct TrainingPlanIndex {
   @State visibleSections: PlanSectionData[] = [];
   /** 状态栏避让区高度（px）：沉浸式全屏下内容顶部让位计算用 */
   @StorageProp('jwSafeTopPx') safeTopPx: number = 0;
+  /** 自定义背景图片沙箱路径（'' = 未自定义；设置导入后作为页面背景铺满显示） */
+  @StorageProp('jwBackgroundUri') backgroundUri: string = '';
   /** 用户是否已切换过筛选：置位后分组不再重播启动级联上滑（降级为纯透明度过渡） */
   @State filterTouched: boolean = false;
 
@@ -527,6 +529,8 @@ struct TrainingPlanIndex {
     }
     .width('100%')
     .height('100%')
+    .backgroundImage(this.backgroundUri === '' ? '' : 'file://' + this.backgroundUri)
+    .backgroundImageSize(ImageSize.Cover)
     .backgroundColor($r('sys.color.ohos_id_color_sub_background'))
     .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
   }

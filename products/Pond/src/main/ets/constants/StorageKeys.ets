@@ -13,7 +13,7 @@
  * 校验命令（项目根目录）：node tools/check_storage_keys.mjs
  */
 
-// ================================ AppStorage 键（30 个） ================================
+// ================================ AppStorage 键（31 个） ================================
 
 // [AppStorage] jwSafeTopPx | number | pondability/PondAbility（窗口避让安全高度） | pages/LoginIndex、pages/Index、pages/TrainingPlanIndex、pages/LibraryIndex、view/FrostBand、view/GradeView、view/HomeView、view/SelectionView、view/SettingsView、view/ZcpView（10 处）
 // [AppStorage] mainBreakpoint | string | common/utils/BreakpointSystem（pages/Index 注册，断点变化写入） | pages/TrainingPlanIndex、view/GradeView、view/HomeView、view/SelectionView、view/ZcpView（@StorageLink 5 处，双向）
@@ -45,6 +45,7 @@
 // [AppStorage] jwLoanCount | number（在借图书数，-1 = 未获取） | data/EhallRepository（ehall 聚合接口写入/缓存回放/详情页回写）、pages/LibraryIndex（间接经 EhallRepository.updateLoanCount） | view/HomeView（首页统计小卡）
 // [AppStorage] jwCardNightEnabled | boolean（2*4 小卡"晚间显示明日课程"开关） | data/JwxtSessionRepository | view/SettingsView（@StorageLink，双向）
 // [AppStorage] jwCardNightMinutes | number（当日分钟数，开始默认展示明日课程的时刻） | data/JwxtSessionRepository | view/SettingsView（@StorageLink，双向）
+// [AppStorage] jwBackgroundUri | string（自定义背景图片沙箱路径，'' = 未自定义） | data/JwxtSessionRepository（attachContext 载入/导入/恢复默认） | pages/Index、pages/SettingsIndex、pages/TrainingPlanIndex、pages/LibraryIndex（背景渲染）、view/SettingsView（@StorageLink 双向）
 
 // ============================ 卡片 LocalStorage 键（16 个） ============================
 // 均由 data/CardDataStore 构造 formData，经 formBindingData 注入对应卡片 @Entry(LocalStorage)；
