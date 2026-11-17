@@ -65,7 +65,7 @@ export class JwxtCacheStore {
   }
 
   /**
-   * 把本周/下周课表持久化到应用级 preferences（单 key 覆盖旧数据），
+   * 把整学期课表与周次锚点持久化到应用级 preferences（单 key 覆盖旧数据），
    * 并刷新已添加的服务卡片。仅在同步成功后调用；
    * 退出登录或离线失败时不清除，卡片继续显示最近一次课表。
    */
@@ -82,6 +82,7 @@ export class JwxtCacheStore {
     const term: TermStatus = AppStorage.get<TermStatus>('jwTerm') ?? new TermStatus();
     const payload: Record<string, Object> = {
       'week': term.currentWeek,
+      'anchor': term.weekAnchorDate,
       'cells': JwxtCacheStore.toCardCells(cells)
     };
     CardDataStore.saveAndRefresh(context, JSON.stringify(payload));

@@ -4,6 +4,7 @@ import { common } from '@kit.AbilityKit';
 import { AppLog } from './AppLog';
 import { FinalExamEntry } from '../model/JwModels';
 import { ExamDateUtils } from '../utils/ExamDateUtils';
+import { TermWeekUtils } from '../utils/TermWeekUtils';
 
 const TAG: string = 'CardDataStore';
 const DOMAIN: number = 0x0000;
@@ -21,7 +22,7 @@ const KEY_DEVELOPER_MODE: string = 'developerMode';
 const KEY_LIGHT_EFFECT_COLOR: string = 'lightEffectColor';
 const KEY_MATERIAL_LEVEL: string = 'materialLevel';
 
-/** 持久化的课表单元格（紧凑字段，仅本周与下周数据） */
+/** 持久化的课表单元格（紧凑字段，整学期数据，按周位图过滤展示） */
 export class CardCellItem {
   d: number = 1;
   s: number = 1;
@@ -84,6 +85,7 @@ class ExamUpcomingItem {
 
 interface CardPayloadRaw {
   week?: number;
+  anchor?: string;
   cells?: CardCellItem[];
 }
 
@@ -105,8 +107,9 @@ interface FinalExamRaw {
 
 /**
  * 服务卡片数据仓库：
- * 主应用同步后把本周/下周课表持久化到 preferences（应用级目录），
- * FormExtensionAbility 在添加/更新卡片时读取并计算"今日课程"推送到卡片。
+ * 主应用同步后把整学期课表（含周次与周一锚点）持久化到 preferences（应用级目录），
+ * FormExtensionAbility 在添加/更新卡片时读取，按锚点自推算当前周次，
+ * 计算"今日课程"与本周/下周网格推送到卡片。
  */
 export class CardDataStore {
   /** 2*4 卡片最多展示课程数 */
@@ -466,7 +469,9 @@ export class CardDataStore {
   }
 
   /**
-   * 构建卡片绑定数据：解析持久化课表，计算今日/明日课程（按卡片上限截断，超出记余量）
+   * 构建卡片绑定数据：解析持久化的整学期课表，按周一锚点自推算当前周次
+   * （卡片更新不依赖打开应用，跨周时与主应用同规则推进），
+   * 计算今日/明日课程（按卡片上限截断，超出记余量）
    * 与本周/下周周网格数据（供卡片切换查看下周、明天）。
    */
   static buildBindingData(context: common.Context, maxCourses: number): formBindingData.FormBindingData {
@@ -489,6 +494,7 @@ export class CardDataStore {
       return formBindingData.createFormBindingData(disabled);
     }
     let week: number = 0;
+    let anchor: string = '';
     let cells: CardCellItem[] = [];
     try {
       const pref: preferences.Preferences = CardDataStore.store(context);
@@ -496,10 +502,19 @@ export class CardDataStore {
       if (payloadJson.length > 0) {
         const raw: CardPayloadRaw = JSON.parse(payloadJson) as CardPayloadRaw;
         week = raw.week ?? 0;
+        anchor = raw.anchor ?? '';
         cells = raw.cells ?? [];
       }
     } catch (error) {
       AppLog.error(DOMAIN, TAG, 'read payload failed: %{public}s', `${error}`);
+    }
+    // 跨周自推进：卡片更新由系统周期触发（约每小时），不依赖打开应用；
+    // 以最近同步的周一锚点推算经过的整周数，与应用内 advanceTermWeek 同规则
+    if (anchor.length > 0) {
+      const advanced: number | null = TermWeekUtils.weeksBetween(anchor, new Date());
+      if (advanced !== null && advanced > 0) {
+        week += advanced;
+      }
     }
     const day: number = new Date().getDay();
     const today: number = day === 0 ? 7 : day;

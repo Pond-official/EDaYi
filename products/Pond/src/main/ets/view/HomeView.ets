@@ -277,32 +277,6 @@ export struct HomeView {
     return this.termStatus.currentWeek + this.scheduleWeekOffset;
   }
 
-  /** 周胶囊文本：选中周为本周时带"（本周）"后缀 */
-  private weekCapsuleLabel(): string {
-    const label: string = '第' + this.selectedWeek() + '周';
-    return this.scheduleWeekOffset === 0 ? label + '（本周）' : label;
-  }
-
-  /** 下拉面板内单周文本：本周额外标注 */
-  private weekMenuLabel(week: number): string {
-    return week === this.termStatus.currentWeek ? '第' + week + '周·本周' : '第' + week + '周';
-  }
-
-  /** 周次下拉选项：第 1 周 .. 学期最后一周（本周标注） */
-  private weekOptions(): SelectOption[] {
-    const total: number = this.semesterWeeks();
-    const options: SelectOption[] = [];
-    for (let week: number = 1; week <= total; week++) {
-      options.push({ value: this.weekMenuLabel(week) });
-    }
-    return options;
-  }
-
-  /** 当前选中周次在下拉选项中的索引（周次从 1 起，索引从 0 起） */
-  private selectedWeekIndex(): number {
-    return Math.max(this.selectedWeek() - 1, 0);
-  }
-
   /** 课表边缘滑动翻周：钳制在第 1 周 .. 学期最后一周内（周次未知时忽略） */
   private applyWeekOverflow(delta: number): void {
     if (this.termStatus.currentWeek <= 0) {
@@ -379,19 +353,10 @@ export struct HomeView {
           .fontColor($r('sys.color.ohos_id_color_text_primary'))
         Blank()
         if (this.termStatus.currentWeek > 0) {
-          Select(this.weekOptions())
-            .selected(this.selectedWeekIndex())
-            .value(this.weekCapsuleLabel())
-            .font({ size: 11 })
-            .fontColor($r('sys.color.ohos_id_color_text_primary'))
-            .optionFont({ size: 12 })
-            .optionFontColor($r('sys.color.ohos_id_color_text_primary'))
-            .selectedOptionFontColor($r('sys.color.ohos_id_color_text_primary_activated'))
-            .selectedOptionBgColor($r('sys.color.ohos_id_color_button_normal'))
-            .optionWidth(148)
-            .onSelect((index: number) => {
-              this.scheduleWeekOffset = index + 1 - this.termStatus.currentWeek;
-            })
+          Text('第' + this.selectedWeek() + '周' +
+            (this.scheduleWeekOffset === 0 ? '（本周）' : ''))
+            .fontSize(11)
+            .fontColor($r('sys.color.ohos_id_color_text_secondary'))
         }
       }
       .width('100%')

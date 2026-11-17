@@ -5,8 +5,8 @@ import { CardDataStore } from '../data/CardDataStore';
 
 /**
  * 课表服务卡片生命周期：
- * onAddForm 读取持久化的本周/下周课表计算今日课程并下发（按卡片尺寸决定展示门数）；
- * onUpdateForm 由系统周期触发（约每小时）刷新"今日课程"；
+ * onAddForm 读取持久化的整学期课表，按周一锚点自推算当前周次并计算今日课程下发（按卡片尺寸决定展示门数）；
+ * onUpdateForm 由系统周期触发（约每小时）刷新"今日课程"，跨周时自推进周次；
  * onRemoveForm 清理已删除卡片的登记记录。
  */
 export default class ScheduleFormAbility extends FormExtensionAbility {
