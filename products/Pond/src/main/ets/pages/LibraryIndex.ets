@@ -32,6 +32,8 @@ struct LibraryIndex {
   @StorageProp('jwSafeTopPx') safeTopPx: number = 0;
   /** 自定义背景图片沙箱路径（'' = 未自定义；设置导入后作为页面背景铺满显示） */
   @StorageProp('jwBackgroundUri') backgroundUri: string = '';
+  /** 背景模式：system=跟随系统 / white=纯白 / image=自定义图片 */
+  @StorageProp('jwBackgroundMode') backgroundMode: string = 'system';
   /** idle=未加载 bootstrap=跨域换票中 loading=业务拉取中 error=失败 */
   @State phase: string = 'idle';
   @State errorText: string = '';
@@ -297,9 +299,11 @@ struct LibraryIndex {
     }
     .width('100%')
     .height('100%')
-    .backgroundImage(this.backgroundUri === '' ? '' : 'file://' + this.backgroundUri)
+    .backgroundImage(this.backgroundMode === 'image' && this.backgroundUri !== '' ?
+      'file://' + this.backgroundUri : '')
     .backgroundImageSize(ImageSize.Cover)
-    .backgroundColor($r('sys.color.ohos_id_color_sub_background'))
+    .backgroundColor(this.backgroundMode === 'white' ? Color.White :
+      $r('sys.color.ohos_id_color_sub_background'))
     .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
   }
 }

@@ -224,15 +224,17 @@ export function SettingsCardNightCard(params: SettingsCardNightParams) {
   .backgroundColor($r('app.color.card_background'))
 }
 
-/** 个性化背景卡入参（单参对象字面量按引用传递，预览随导入的背景路径刷新） */
+/** 个性化背景卡入参（单参对象字面量按引用传递，选中 Radio 与预览随设置刷新） */
 export interface SettingsBackgroundParams {
-  /** 当前背景图片沙箱路径（'' = 未自定义） */
+  /** 背景模式：system=跟随系统 / white=纯白 / image=自定义图片 */
+  backgroundMode: string;
+  /** 已导入的背景图片沙箱路径（'' = 未导入） */
   backgroundUri: string;
+  onSelectMode: (mode: string) => void;
   onPick: () => void;
-  onReset: () => void;
 }
 
-/** 个性化背景卡：从相册选择自定义背景图片（onPick 拉起系统图库），onReset 恢复默认背景 */
+/** 个性化背景卡：跟随系统 / 纯白 / 自定义图片三选一（onPick 拉起系统图库，导入成功自动切到自定义） */
 @Builder
 export function SettingsBackgroundCard(params: SettingsBackgroundParams) {
   Column({ space: 12 }) {
@@ -240,6 +242,81 @@ export function SettingsBackgroundCard(params: SettingsBackgroundParams) {
       .fontSize(13)
       .fontColor($r('sys.color.ohos_id_color_text_secondary'))
       .width('100%')
+
+    Row({ space: 12 }) {
+      Column({ space: 2 }) {
+        Text('跟随系统')
+          .fontSize(15)
+          .fontWeight(FontWeight.Medium)
+          .fontColor($r('sys.color.ohos_id_color_text_primary'))
+        Text('使用系统默认页面背景')
+          .fontSize(11)
+          .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+      }
+      .layoutWeight(1)
+      .alignItems(HorizontalAlign.Start)
+
+      Radio({ value: 'system', group: 'backgroundMode' })
+        .checked(params.backgroundMode === 'system')
+        .hitTestBehavior(HitTestMode.None)
+    }
+    .width('100%')
+    .alignItems(VerticalAlign.Center)
+    .onClick(() => {
+      params.onSelectMode('system');
+    })
+
+    Divider()
+      .color($r('sys.color.ohos_id_color_list_separator'))
+
+    Row({ space: 12 }) {
+      Column({ space: 2 }) {
+        Text('纯白背景')
+          .fontSize(15)
+          .fontWeight(FontWeight.Medium)
+          .fontColor($r('sys.color.ohos_id_color_text_primary'))
+        Text('各页面使用纯白背景')
+          .fontSize(11)
+          .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+      }
+      .layoutWeight(1)
+      .alignItems(HorizontalAlign.Start)
+
+      Radio({ value: 'white', group: 'backgroundMode' })
+        .checked(params.backgroundMode === 'white')
+        .hitTestBehavior(HitTestMode.None)
+    }
+    .width('100%')
+    .alignItems(VerticalAlign.Center)
+    .onClick(() => {
+      params.onSelectMode('white');
+    })
+
+    Divider()
+      .color($r('sys.color.ohos_id_color_list_separator'))
+
+    Row({ space: 12 }) {
+      Column({ space: 2 }) {
+        Text('自定义图片')
+          .fontSize(15)
+          .fontWeight(FontWeight.Medium)
+          .fontColor($r('sys.color.ohos_id_color_text_primary'))
+        Text('从图库选择图片作为背景，裁剪铺满显示')
+          .fontSize(11)
+          .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+      }
+      .layoutWeight(1)
+      .alignItems(HorizontalAlign.Start)
+
+      Radio({ value: 'image', group: 'backgroundMode' })
+        .checked(params.backgroundMode === 'image')
+        .hitTestBehavior(HitTestMode.None)
+    }
+    .width('100%')
+    .alignItems(VerticalAlign.Center)
+    .onClick(() => {
+      params.onSelectMode('image');
+    })
 
     if (params.backgroundUri !== '') {
       Image('file://' + params.backgroundUri)
@@ -249,7 +326,7 @@ export function SettingsBackgroundCard(params: SettingsBackgroundParams) {
         .borderRadius(12)
     }
 
-    Button(params.backgroundUri === '' ? '选择背景图片' : '更换背景图片')
+    Button(params.backgroundMode === 'image' ? '更换背景图片' : '选择背景图片')
       .fontSize(14)
       .height(36)
       .width('100%')
@@ -257,19 +334,7 @@ export function SettingsBackgroundCard(params: SettingsBackgroundParams) {
         params.onPick();
       })
 
-    if (params.backgroundUri !== '') {
-      Button('恢复默认背景')
-        .fontSize(14)
-        .height(36)
-        .width('100%')
-        .backgroundColor($r('sys.color.ohos_id_color_button_normal'))
-        .fontColor($r('sys.color.ohos_id_color_text_primary'))
-        .onClick(() => {
-          params.onReset();
-        })
-    }
-
-    Text('自定义图片将作为应用内各页面的背景，裁剪铺满显示。')
+    Text('选择图片后自动切换到"自定义图片"模式；切换到其他模式会保留已导入的图片。')
       .fontSize(11)
       .fontColor($r('sys.color.ohos_id_color_text_secondary'))
       .width('100%')

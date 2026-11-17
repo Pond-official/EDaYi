@@ -70,6 +70,7 @@ export class JwxtSessionRepository {
     AppStorage.setOrCreate('jwLightEffectColor', CardDataStore.loadLightEffectColor(context));
     AppStorage.setOrCreate('jwMaterialLevel', CardDataStore.loadMaterialLevel(context));
     AppStorage.setOrCreate('jwBackgroundUri', CardDataStore.loadBackgroundUri(context));
+    AppStorage.setOrCreate('jwBackgroundMode', CardDataStore.loadBackgroundMode(context));
   }
 
   /** 更新底栏光效自定义（开发者选项）：立即写入 AppStorage 并持久化 */
@@ -94,7 +95,7 @@ export class JwxtSessionRepository {
     }
   }
 
-  /** 应用自定义背景图片：从相册 URI 导入到应用沙箱并写入 AppStorage；返回沙箱路径（'' = 导入失败） */
+  /** 应用自定义背景图片：从相册 URI 导入到应用沙箱并写入 AppStorage（同时切到 image 模式）；返回沙箱路径（'' = 导入失败） */
   static applyBackgroundImage(srcUri: string): string {
     const context: common.UIAbilityContext | null = getContext();
     if (context === null) {
@@ -102,16 +103,20 @@ export class JwxtSessionRepository {
     }
     const imported: string = CardDataStore.importBackgroundImage(context, srcUri);
     AppStorage.setOrCreate('jwBackgroundUri', imported);
+    if (imported !== '') {
+      AppStorage.setOrCreate('jwBackgroundMode', 'image');
+      CardDataStore.saveBackgroundMode(context, 'image');
+    }
     return imported;
   }
 
-  /** 恢复默认背景：删除已导入的背景图片并清空 AppStorage */
-  static clearBackgroundImage(): void {
+  /** 切换背景模式（system=跟随系统 / white=纯白 / image=自定义图片），立即生效并持久化 */
+  static updateBackgroundMode(mode: string): void {
+    AppStorage.setOrCreate('jwBackgroundMode', mode);
     const context: common.UIAbilityContext | null = getContext();
     if (context !== null) {
-      CardDataStore.clearBackgroundImage(context);
+      CardDataStore.saveBackgroundMode(context, mode);
     }
-    AppStorage.setOrCreate('jwBackgroundUri', '');
   }
 
   static loginUrl(): string {

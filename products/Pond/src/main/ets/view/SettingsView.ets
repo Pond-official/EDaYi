@@ -71,8 +71,10 @@ export struct SettingsView {
   @StorageLink('jwCardNightEnabled') cardNightEnabled: boolean = false;
   /** 每天开始默认展示明日课程的时刻（当日分钟数，默认 1200=20:00） */
   @StorageLink('jwCardNightMinutes') cardNightMinutes: number = 1200;
-  /** 自定义背景图片沙箱路径（'' = 未自定义） */
+  /** 自定义背景图片沙箱路径（'' = 未导入） */
   @StorageLink('jwBackgroundUri') backgroundUri: string = '';
+  /** 背景模式：system=跟随系统 / white=纯白 / image=自定义图片 */
+  @StorageLink('jwBackgroundMode') backgroundMode: string = 'system';
   /** 版本号连续点击计数（开发者选项解锁用） */
   @State versionTapCount: number = 0;
   /** 自定义提前提醒时间输入弹层显隐 */
@@ -161,10 +163,12 @@ export struct SettingsView {
     }
   }
 
-  /** 恢复默认背景：删除已导入图片并清空设置 */
-  private resetBackgroundImage(): void {
-    JwxtRepository.clearBackgroundImage();
-    this.getUIContext().getPromptAction().showToast({ message: '已恢复默认背景' });
+  /** 切换背景模式：选中"自定义图片"且尚未导入过图片时直接拉起图库 */
+  private selectBackgroundMode(mode: string): void {
+    JwxtRepository.updateBackgroundMode(mode);
+    if (mode === 'image' && this.backgroundUri === '') {
+      this.pickBackgroundImage();
+    }
   }
 
   /** 重新统计本地缓存大小并刷新显示 */
@@ -736,12 +740,13 @@ export struct SettingsView {
             })
             SettingsSectionTitle('个性化')
             SettingsBackgroundCard({
+              backgroundMode: this.backgroundMode,
               backgroundUri: this.backgroundUri,
+              onSelectMode: (mode: string): void => {
+                this.selectBackgroundMode(mode);
+              },
               onPick: (): void => {
                 this.pickBackgroundImage();
-              },
-              onReset: (): void => {
-                this.resetBackgroundImage();
               }
             })
             SettingsSectionTitle('隐私')

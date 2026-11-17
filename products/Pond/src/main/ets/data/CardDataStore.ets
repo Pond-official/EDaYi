@@ -24,6 +24,7 @@ const KEY_LIGHT_EFFECT_COLOR: string = 'lightEffectColor';
 const KEY_MATERIAL_LEVEL: string = 'materialLevel';
 const KEY_CARD_NIGHT: string = 'cardNightTomorrow';
 const KEY_BACKGROUND_URI: string = 'appBackgroundUri';
+const KEY_BACKGROUND_MODE: string = 'appBackgroundMode';
 
 /** 持久化的课表单元格（紧凑字段，整学期数据，按周位图过滤展示） */
 export class CardCellItem {
@@ -496,6 +497,35 @@ export class CardDataStore {
     }
   }
 
+  /** 读取自定义背景模式（system=跟随系统 / white=纯白 / image=自定义图片），mode=image 且图片缺失时回退 system */
+  static loadBackgroundMode(context: common.Context): string {
+    let mode: string = 'system';
+    try {
+      const pref: preferences.Preferences = CardDataStore.store(context);
+      const stored: string = CardDataStore.readString(pref, KEY_BACKGROUND_MODE);
+      if (stored === 'system' || stored === 'white' || stored === 'image') {
+        mode = stored;
+      }
+      if (mode === 'image' && CardDataStore.loadBackgroundUri(context) === '') {
+        mode = 'system';
+      }
+    } catch (error) {
+      AppLog.error(DOMAIN, TAG, 'loadBackgroundMode failed: %{public}s', `${error}`);
+    }
+    return mode;
+  }
+
+  /** 保存背景模式（system/white/image） */
+  static saveBackgroundMode(context: common.Context, mode: string): void {
+    try {
+      const pref: preferences.Preferences = CardDataStore.store(context);
+      pref.putSync(KEY_BACKGROUND_MODE, mode);
+      pref.flushSync();
+    } catch (error) {
+      AppLog.error(DOMAIN, TAG, 'saveBackgroundMode failed: %{public}s', `${error}`);
+    }
+  }
+
   /** 从相册 URI 导入背景图片到应用沙箱（filesDir），持久化并返回沙箱路径（失败返回空串） */
   static importBackgroundImage(context: common.Context, srcUri: string): string {
     try {
@@ -516,12 +546,6 @@ export class CardDataStore {
       AppLog.error(DOMAIN, TAG, 'importBackgroundImage failed: %{public}s', `${error}`);
       return '';
     }
-  }
-
-  /** 恢复默认背景：删除已导入的背景图片并清空持久化路径 */
-  static clearBackgroundImage(context: common.Context): void {
-    CardDataStore.removeBackgroundFiles(context, '');
-    CardDataStore.saveBackgroundUri(context, '');
   }
 
   /** 清除持久化的卡片课表数据（严格隐私模式启用或退至后台时调用） */

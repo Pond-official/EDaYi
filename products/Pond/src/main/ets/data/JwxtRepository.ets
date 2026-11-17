@@ -105,14 +105,14 @@ export class JwxtRepository {
     JwxtSessionRepository.updateCardNightSetting(enabled, minutes);
   }
 
-  /** 应用自定义背景图片（相册 URI 导入沙箱），立即生效并持久化；返回沙箱路径（'' = 导入失败） */
+  /** 应用自定义背景图片（相册 URI 导入沙箱并切换到 image 模式），立即生效并持久化；返回沙箱路径（'' = 导入失败） */
   static applyBackgroundImage(srcUri: string): string {
     return JwxtSessionRepository.applyBackgroundImage(srcUri);
   }
 
-  /** 恢复默认背景：删除已导入的背景图片，立即生效并持久化 */
-  static clearBackgroundImage(): void {
-    JwxtSessionRepository.clearBackgroundImage();
+  /** 切换背景模式（system=跟随系统 / white=纯白 / image=自定义图片），立即生效并持久化 */
+  static updateBackgroundMode(mode: string): void {
+    JwxtSessionRepository.updateBackgroundMode(mode);
   }
 
   // ---------- 隐私与开发者选项（转发 PrivacyController） ----------
