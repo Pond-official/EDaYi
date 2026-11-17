@@ -36,8 +36,6 @@ export struct HomeView {
   @State todayCells: ScheduleCellInfo[] = [];
   /** 课表所选周相对本周的偏移（0=本周，负数为过去周，正数为未来周） */
   @State scheduleWeekOffset: number = 0;
-  /** 课表周次选择下拉面板是否展开 */
-  @State weekMenuVisible: boolean = false;
   /** 下拉刷新进行中（仅登录后实际刷新，未登录提示后立即收起） */
   @State isRefreshing: boolean = false;
   /** 状态栏避让区高度（px）：沉浸式全屏下内容顶部让位计算用 */
@@ -256,14 +254,19 @@ export struct HomeView {
     return week === this.termStatus.currentWeek ? '第' + week + '周·本周' : '第' + week + '周';
   }
 
-  /** 下拉面板周次列表：第 1 周 .. 学期最后一周 */
-  private weekList(): number[] {
+  /** 周次下拉选项：第 1 周 .. 学期最后一周（本周标注） */
+  private weekOptions(): SelectOption[] {
     const total: number = this.semesterWeeks();
-    const list: number[] = [];
+    const options: SelectOption[] = [];
     for (let week: number = 1; week <= total; week++) {
-      list.push(week);
+      options.push({ value: this.weekMenuLabel(week) });
     }
-    return list;
+    return options;
+  }
+
+  /** 当前选中周次在下拉选项中的索引（周次从 1 起，索引从 0 起） */
+  private selectedWeekIndex(): number {
+    return Math.max(this.selectedWeek() - 1, 0);
   }
 
   /** 课表边缘滑动翻周：钳制在第 1 周 .. 学期最后一周内（周次未知时忽略） */
@@ -332,41 +335,6 @@ export struct HomeView {
     });
   }
 
-  /** 周次选择下拉面板：单列周次列表，选中高亮、本周标注，超高时面板内滚动 */
-  @Builder
-  weekMenuPanel() {
-    Column() {
-      Scroll() {
-        Column() {
-          ForEach(this.weekList(), (week: number) => {
-            Text(this.weekMenuLabel(week))
-              .fontSize(13)
-              .fontWeight(week === this.selectedWeek() ? FontWeight.Bold : FontWeight.Normal)
-              .fontColor(week === this.selectedWeek() ? Color.White :
-                (week === this.termStatus.currentWeek ?
-                  $r('sys.color.ohos_id_color_text_primary_activated') :
-                  $r('sys.color.ohos_id_color_text_secondary')))
-              .backgroundColor(week === this.selectedWeek() ?
-                $r('sys.color.ohos_id_color_text_primary_activated') : Color.Transparent)
-              .borderRadius(10)
-              .width('100%')
-              .padding({ left: 14, right: 14, top: 7, bottom: 7 })
-              .margin({ top: 2, bottom: 2 })
-              .onClick(() => {
-                this.scheduleWeekOffset = week - this.termStatus.currentWeek;
-                this.weekMenuVisible = false;
-              })
-          }, (week: number) => 'week' + week)
-        }
-        .constraintSize({ minWidth: 176 })
-      }
-      .scrollable(ScrollDirection.Vertical)
-      .scrollBar(BarState.Auto)
-      .constraintSize({ maxHeight: 384 })
-    }
-    .padding(6)
-  }
-
   @Builder
   scheduleCard() {
     Column() {
@@ -377,35 +345,19 @@ export struct HomeView {
           .fontColor($r('sys.color.ohos_id_color_text_primary'))
         Blank()
         if (this.termStatus.currentWeek > 0) {
-          Row({ space: 3 }) {
-            Text(this.weekCapsuleLabel())
-              .fontSize(11)
-              .fontWeight(FontWeight.Medium)
-              .fontColor($r('sys.color.ohos_id_color_text_primary'))
-            SymbolGlyph($r('sys.symbol.chevron_down'))
-              .fontSize(11)
-              .fontColor([$r('sys.color.ohos_id_color_text_secondary')])
-              .rotate({ angle: this.weekMenuVisible ? 180 : 0 })
-          }
-          .padding({ left: 12, right: 10, top: 5, bottom: 5 })
-          .borderRadius(14)
-          .backgroundColor($r('sys.color.ohos_id_color_button_normal'))
-          .onClick(() => {
-            this.weekMenuVisible = !this.weekMenuVisible;
-          })
-          .bindPopup(this.weekMenuVisible, {
-            builder: this.weekMenuPanel,
-            placement: Placement.Bottom,
-            popupColor: $r('app.color.card_background'),
-            radius: 16,
-            enableArrow: false,
-            autoCancel: true,
-            onStateChange: (event) => {
-              if (!event.isVisible) {
-                this.weekMenuVisible = false;
-              }
-            }
-          })
+          Select(this.weekOptions())
+            .selected(this.selectedWeekIndex())
+            .value(this.weekCapsuleLabel())
+            .font({ size: 11 })
+            .fontColor($r('sys.color.ohos_id_color_text_primary'))
+            .optionFont({ size: 12 })
+            .optionFontColor($r('sys.color.ohos_id_color_text_primary'))
+            .selectedOptionFontColor($r('sys.color.ohos_id_color_text_primary_activated'))
+            .selectedOptionBgColor($r('sys.color.ohos_id_color_button_normal'))
+            .optionWidth(148)
+            .onSelect((index: number) => {
+              this.scheduleWeekOffset = index + 1 - this.termStatus.currentWeek;
+            })
         }
       }
       .width('100%')
