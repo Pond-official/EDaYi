@@ -322,7 +322,8 @@ export struct HomeView {
   infoColumn() {
     Column() {
       HomeStudentCard({ student: this.student })
-      if (this.dataMode !== 'preview') {
+      // 宽屏双列时统计卡仅由右列渲染（课表卡上方），此处跳过避免一卡通余额/图书借阅重复出现
+      if (this.dataMode !== 'preview' && !this.isWide()) {
         this.statsRow(12, 0)
       }
       if (this.dataMode !== 'online') {
