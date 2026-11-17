@@ -40,7 +40,9 @@ interface WeekCourseRaw {
  * 数据由 ScheduleFormAbility 通过 formBindingData 注入 LocalStorage，
  * 必须以 @Entry(largeStorage) 接收；数据来自最近一次成功同步的离线存储。
  * 点击卡片其他区域通过 postCardAction router 拉起 PondAbility 进入应用；
- * 切换胶囊自身绑定 onClick，点击时优先于整卡 router（父子手势竞争，内层胜出）。
+ * 切换胶囊自身绑定 onClick，点击时优先于整卡 router（父子手势竞争，内层胜出）；
+ * 胶囊外围包一层 padding 安全区并绑定空 onClick 吞掉点击，顶部切换行同样划为安全区，
+ * 安全区内点击不拉起应用。
  */
 @Entry(largeStorage)
 @Component
@@ -187,47 +189,53 @@ struct ScheduleCardLarge {
   }
 
   // 高亮状态在 Builder 体内直读 this.showNextWeek：按值传参不随状态刷新，经参数传递会导致指示器不更新
-  /** 本周/下周切换胶囊：单容器包裹两个选项，选中指示器随状态左右滑动（属性动画） */
+  /** 本周/下周切换胶囊：单容器包裹两个选项，选中指示器随状态左右滑动（属性动画）；
+   * 外层 padding 安全区绑定空 onClick，安全区内点击不触发整卡 router 拉起应用 */
   @Builder
   weekToggle() {
-    Stack({ alignContent: Alignment.Start }) {
-      Column()
-        .width('50%')
+    Column() {
+      Stack({ alignContent: Alignment.Start }) {
+        Column()
+          .width('50%')
+          .height('100%')
+          .borderRadius(12)
+          .backgroundColor(WIDGET_SELECTED_COLOR)
+          .translate({ x: this.showNextWeek ? '100%' : '0%' })
+          .animation({ duration: 200, curve: Curve.EaseOut })
+        Row() {
+          Text('本周')
+            .fontSize(10)
+            .fontWeight(this.showNextWeek ? FontWeight.Normal : FontWeight.Bold)
+            .fontColor(this.showNextWeek ?
+              $r('sys.color.ohos_id_color_text_secondary') : Color.White)
+            .height('100%')
+            .layoutWeight(1)
+            .textAlign(TextAlign.Center)
+            .onClick(() => {
+              this.showNextWeek = false;
+            })
+          Text('下周')
+            .fontSize(10)
+            .fontWeight(this.showNextWeek ? FontWeight.Bold : FontWeight.Normal)
+            .fontColor(this.showNextWeek ? Color.White : $r('sys.color.ohos_id_color_text_secondary'))
+            .height('100%')
+            .layoutWeight(1)
+            .textAlign(TextAlign.Center)
+            .onClick(() => {
+              this.showNextWeek = true;
+            })
+        }
+        .width('100%')
         .height('100%')
-        .borderRadius(12)
-        .backgroundColor(WIDGET_SELECTED_COLOR)
-        .translate({ x: this.showNextWeek ? '100%' : '0%' })
-        .animation({ duration: 200, curve: Curve.EaseOut })
-      Row() {
-        Text('本周')
-          .fontSize(10)
-          .fontWeight(this.showNextWeek ? FontWeight.Normal : FontWeight.Bold)
-          .fontColor(this.showNextWeek ?
-            $r('sys.color.ohos_id_color_text_secondary') : Color.White)
-          .height('100%')
-          .layoutWeight(1)
-          .textAlign(TextAlign.Center)
-          .onClick(() => {
-            this.showNextWeek = false;
-          })
-        Text('下周')
-          .fontSize(10)
-          .fontWeight(this.showNextWeek ? FontWeight.Bold : FontWeight.Normal)
-          .fontColor(this.showNextWeek ? Color.White : $r('sys.color.ohos_id_color_text_secondary'))
-          .height('100%')
-          .layoutWeight(1)
-          .textAlign(TextAlign.Center)
-          .onClick(() => {
-            this.showNextWeek = true;
-          })
       }
-      .width('100%')
-      .height('100%')
+      .width(68)
+      .height(24)
+      .borderRadius(12)
+      .backgroundColor($r('sys.color.ohos_id_color_button_normal'))
     }
-    .width(68)
-    .height(24)
-    .borderRadius(12)
-    .backgroundColor($r('sys.color.ohos_id_color_button_normal'))
+    .padding({ left: 8, right: 8, top: 4, bottom: 4 })
+    .onClick(() => {
+    })
   }
 
   @Builder
@@ -306,6 +314,8 @@ struct ScheduleCardLarge {
         .width('100%')
         .justifyContent(FlexAlign.End)
         .margin({ bottom: 4 })
+        .onClick(() => {
+        })
         if (this.activeCells().length === 0) {
           Text(this.showNextWeek ? '下周暂无课程安排' : '本周暂无课程安排')
             .fontSize(13)

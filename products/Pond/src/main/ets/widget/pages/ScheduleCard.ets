@@ -23,7 +23,8 @@ interface CardCourseRaw {
  * 必须以 @Entry(storage) 接收，否则卡片拿不到数据。
  * coursesJson/tomorrowJson 等属性变化时通过 @Watch 重新解析（updateForm 刷新路径）。
  * 点击卡片其他区域通过 postCardAction router 拉起 PondAbility 进入应用；
- * 切换胶囊自身绑定 onClick，点击时优先于整卡 router（父子手势竞争，内层胜出）。
+ * 切换胶囊自身绑定 onClick，点击时优先于整卡 router（父子手势竞争，内层胜出）；
+ * 胶囊外围包一层 padding 安全区并绑定空 onClick 吞掉点击，安全区内误触不拉起应用。
  */
 @Entry(storage)
 @Component
@@ -120,48 +121,53 @@ struct ScheduleCard {
   }
 
   // 高亮状态在 Builder 体内直读 this.showTomorrow：按值传参不随状态刷新，经参数传递会导致指示器不更新
-  /** 今天/明天切换胶囊：单容器包裹两个选项，选中指示器随状态左右滑动（属性动画） */
+  /** 今天/明天切换胶囊：单容器包裹两个选项，选中指示器随状态左右滑动（属性动画）；
+   * 外层 padding 安全区绑定空 onClick，安全区内点击不触发整卡 router 拉起应用 */
   @Builder
   dayToggle() {
-    Stack({ alignContent: Alignment.Start }) {
-      Column()
-        .width('50%')
+    Column() {
+      Stack({ alignContent: Alignment.Start }) {
+        Column()
+          .width('50%')
+          .height('100%')
+          .borderRadius(11)
+          .backgroundColor(WIDGET_SELECTED_COLOR)
+          .translate({ x: this.showTomorrow ? '100%' : '0%' })
+          .animation({ duration: 200, curve: Curve.EaseOut })
+        Row() {
+          Text('今天')
+            .fontSize(10)
+            .fontWeight(this.showTomorrow ? FontWeight.Normal : FontWeight.Bold)
+            .fontColor(this.showTomorrow ?
+              $r('sys.color.ohos_id_color_text_secondary') : Color.White)
+            .height('100%')
+            .layoutWeight(1)
+            .textAlign(TextAlign.Center)
+            .onClick(() => {
+              this.showTomorrow = false;
+            })
+          Text('明天')
+            .fontSize(10)
+            .fontWeight(this.showTomorrow ? FontWeight.Bold : FontWeight.Normal)
+            .fontColor(this.showTomorrow ? Color.White : $r('sys.color.ohos_id_color_text_secondary'))
+            .height('100%')
+            .layoutWeight(1)
+            .textAlign(TextAlign.Center)
+            .onClick(() => {
+              this.showTomorrow = true;
+            })
+        }
+        .width('100%')
         .height('100%')
-        .borderRadius(11)
-        .backgroundColor(WIDGET_SELECTED_COLOR)
-        .translate({ x: this.showTomorrow ? '100%' : '0%' })
-        .animation({ duration: 200, curve: Curve.EaseOut })
-      Row() {
-        Text('今天')
-          .fontSize(10)
-          .fontWeight(this.showTomorrow ? FontWeight.Normal : FontWeight.Bold)
-          .fontColor(this.showTomorrow ?
-            $r('sys.color.ohos_id_color_text_secondary') : Color.White)
-          .height('100%')
-          .layoutWeight(1)
-          .textAlign(TextAlign.Center)
-          .onClick(() => {
-            this.showTomorrow = false;
-          })
-        Text('明天')
-          .fontSize(10)
-          .fontWeight(this.showTomorrow ? FontWeight.Bold : FontWeight.Normal)
-          .fontColor(this.showTomorrow ? Color.White : $r('sys.color.ohos_id_color_text_secondary'))
-          .height('100%')
-          .layoutWeight(1)
-          .textAlign(TextAlign.Center)
-          .onClick(() => {
-            this.showTomorrow = true;
-          })
       }
-      .width('100%')
-      .height('100%')
+      .width(64)
+      .height(22)
+      .borderRadius(11)
+      .backgroundColor($r('sys.color.ohos_id_color_button_normal'))
     }
-    .width(64)
-    .height(22)
-    .borderRadius(11)
-    .backgroundColor($r('sys.color.ohos_id_color_button_normal'))
-    .margin({ left: 6 })
+    .padding({ left: 8, right: 8, top: 4, bottom: 4 })
+    .onClick(() => {
+    })
   }
 
   build() {
