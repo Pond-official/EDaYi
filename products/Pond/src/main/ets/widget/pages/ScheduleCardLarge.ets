@@ -186,19 +186,48 @@ struct ScheduleCardLarge {
     .justifyContent(FlexAlign.Center)
   }
 
-  // 高亮状态在 Builder 体内直读 this.showNextWeek：按值传参不随状态刷新，经参数传递会导致 chip 高亮不更新
+  // 高亮状态在 Builder 体内直读 this.showNextWeek：按值传参不随状态刷新，经参数传递会导致指示器不更新
+  /** 本周/下周切换胶囊：单容器包裹两个选项，选中指示器随状态左右滑动（属性动画） */
   @Builder
-  weekChip(label: string, isNext: boolean) {
-    Text(label)
-      .fontSize(10)
-      .fontWeight(this.showNextWeek === isNext ? FontWeight.Bold : FontWeight.Normal)
-      .fontColor(this.showNextWeek === isNext ? Color.White : $r('sys.color.ohos_id_color_text_secondary'))
-      .backgroundColor(this.showNextWeek === isNext ? WIDGET_SELECTED_COLOR : $r('sys.color.ohos_id_color_button_normal'))
-      .borderRadius(9)
-      .padding({ left: 8, right: 8, top: 3, bottom: 3 })
-      .onClick(() => {
-        this.showNextWeek = isNext;
-      })
+  weekToggle() {
+    Stack({ alignContent: Alignment.Start }) {
+      Column()
+        .width('50%')
+        .height('100%')
+        .borderRadius(12)
+        .backgroundColor(WIDGET_SELECTED_COLOR)
+        .translate({ x: this.showNextWeek ? '100%' : '0%' })
+        .animation({ duration: 200, curve: Curve.EaseOut })
+      Row() {
+        Text('本周')
+          .fontSize(10)
+          .fontWeight(this.showNextWeek ? FontWeight.Normal : FontWeight.Bold)
+          .fontColor(this.showNextWeek ?
+            $r('sys.color.ohos_id_color_text_secondary') : Color.White)
+          .height('100%')
+          .layoutWeight(1)
+          .textAlign(TextAlign.Center)
+          .onClick(() => {
+            this.showNextWeek = false;
+          })
+        Text('下周')
+          .fontSize(10)
+          .fontWeight(this.showNextWeek ? FontWeight.Bold : FontWeight.Normal)
+          .fontColor(this.showNextWeek ? Color.White : $r('sys.color.ohos_id_color_text_secondary'))
+          .height('100%')
+          .layoutWeight(1)
+          .textAlign(TextAlign.Center)
+          .onClick(() => {
+            this.showNextWeek = true;
+          })
+      }
+      .width('100%')
+      .height('100%')
+    }
+    .width(68)
+    .height(24)
+    .borderRadius(12)
+    .backgroundColor($r('sys.color.ohos_id_color_button_normal'))
   }
 
   @Builder
@@ -271,12 +300,11 @@ struct ScheduleCardLarge {
           .fontSize(13)
           .fontColor($r('sys.color.ohos_id_color_text_secondary'))
       } else {
-        Row({ space: 4 }) {
-          this.weekChip('本周', false)
-          this.weekChip('下周', true)
+        Row() {
+          this.weekToggle()
         }
         .width('100%')
-        .justifyContent(FlexAlign.Center)
+        .justifyContent(FlexAlign.End)
         .margin({ bottom: 4 })
         if (this.activeCells().length === 0) {
           Text(this.showNextWeek ? '下周暂无课程安排' : '本周暂无课程安排')

@@ -103,20 +103,49 @@ struct ScheduleCard {
     return this.showTomorrow ? this.tomorrowMoreText : this.moreText;
   }
 
-  // 高亮状态在 Builder 体内直读 this.showTomorrow：按值传参不随状态刷新，经参数传递会导致 chip 高亮不更新
+  // 高亮状态在 Builder 体内直读 this.showTomorrow：按值传参不随状态刷新，经参数传递会导致指示器不更新
+  /** 今天/明天切换胶囊：单容器包裹两个选项，选中指示器随状态左右滑动（属性动画） */
   @Builder
-  dayChip(label: string, isTomorrow: boolean) {
-    Text(label)
-      .fontSize(10)
-      .fontWeight(this.showTomorrow === isTomorrow ? FontWeight.Bold : FontWeight.Normal)
-      .fontColor(this.showTomorrow === isTomorrow ? Color.White : $r('sys.color.ohos_id_color_text_secondary'))
-      .backgroundColor(this.showTomorrow === isTomorrow ? WIDGET_SELECTED_COLOR : $r('sys.color.ohos_id_color_button_normal'))
-      .borderRadius(9)
-      .padding({ left: 8, right: 8, top: 3, bottom: 3 })
-      .margin({ left: 4 })
-      .onClick(() => {
-        this.showTomorrow = isTomorrow;
-      })
+  dayToggle() {
+    Stack({ alignContent: Alignment.Start }) {
+      Column()
+        .width('50%')
+        .height('100%')
+        .borderRadius(11)
+        .backgroundColor(WIDGET_SELECTED_COLOR)
+        .translate({ x: this.showTomorrow ? '100%' : '0%' })
+        .animation({ duration: 200, curve: Curve.EaseOut })
+      Row() {
+        Text('今天')
+          .fontSize(10)
+          .fontWeight(this.showTomorrow ? FontWeight.Normal : FontWeight.Bold)
+          .fontColor(this.showTomorrow ?
+            $r('sys.color.ohos_id_color_text_secondary') : Color.White)
+          .height('100%')
+          .layoutWeight(1)
+          .textAlign(TextAlign.Center)
+          .onClick(() => {
+            this.showTomorrow = false;
+          })
+        Text('明天')
+          .fontSize(10)
+          .fontWeight(this.showTomorrow ? FontWeight.Bold : FontWeight.Normal)
+          .fontColor(this.showTomorrow ? Color.White : $r('sys.color.ohos_id_color_text_secondary'))
+          .height('100%')
+          .layoutWeight(1)
+          .textAlign(TextAlign.Center)
+          .onClick(() => {
+            this.showTomorrow = true;
+          })
+      }
+      .width('100%')
+      .height('100%')
+    }
+    .width(64)
+    .height(22)
+    .borderRadius(11)
+    .backgroundColor($r('sys.color.ohos_id_color_button_normal'))
+    .margin({ left: 6 })
   }
 
   build() {
@@ -135,8 +164,7 @@ struct ScheduleCard {
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
         if (this.privacyDisabledText.length === 0 && this.synced()) {
-          this.dayChip('今天', false)
-          this.dayChip('明天', true)
+          this.dayToggle()
         }
       }
       .width('100%')
