@@ -20,7 +20,7 @@
 ## 技术栈
 
 - **HarmonyOS** / ArkTS / ArkUI（Stage 模型）
-- **hvigor** 构建体系，**hypium** 单元测试（78 用例）
+- **hvigor** 构建体系，**hypium** 单元测试（84 用例）
 - 原生能力：Asset 凭据存储、通知 / 代理提醒、日历读写、服务卡片 Form、ArkWeb 隐藏页面换票、跨域 SSO 会话
 - 冷启动优化：非首屏模块按需加载、登录后并行预载、Web 宿主延迟挂载
 - 动画：卡片级联上滑入场（360ms EaseOut 错峰）、全页滚动回弹、页签切换渐入
@@ -52,7 +52,7 @@ products/Pond/                主应用模块
     *formability/             各卡片 FormAbility（课表 / 期末倒计时）
     theme/                    具名颜色常量（视图层禁硬编码 hex）
     constants/                路由 / 常量 / 状态键登记
-  src/test/                   单元测试（78 用例）
+  src/test/                   单元测试（84 用例）
 common/                       公共 HAR 模块（断点系统）
 scripts/verify.ps1            提交前三关卡校验脚本
 tools/check_storage_keys.mjs  状态键契约校验
@@ -87,7 +87,7 @@ powershell -ExecutionPolicy Bypass -File scripts\verify.ps1
 
 1. **状态键契约校验**：`@StorageProp` 等装饰器状态键必须先在 `constants/StorageKeys.ets` 登记；
 2. **Code Linter**：Error 级问题拦截，Warning 仅报告；
-3. **单元测试**：hypium 78 用例全过。
+3. **单元测试**：hypium 84 用例全过。
 
 ## 权限说明
 

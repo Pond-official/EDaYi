@@ -7,6 +7,7 @@ import studentParserTest from './StudentParser.test';
 import examDateUtilsTest from './ExamDateUtils.test';
 import libraryRepositoryTest from './LibraryRepository.test';
 import ehallRepositoryTest from './EhallRepository.test';
+import examShareTextTest from './ExamShareText.test';
 
 export default function testsuite() {
   localUnitTest();
@@ -18,4 +19,5 @@ export default function testsuite() {
   examDateUtilsTest();
   libraryRepositoryTest();
   ehallRepositoryTest();
+  examShareTextTest();
 }

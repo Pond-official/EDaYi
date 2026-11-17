@@ -33,6 +33,14 @@
       "value": "按考试时间从近到远展示期末考试倒计时"
     },
     {
+      "name": "share_exam_label",
+      "value": "导入期末倒计时"
+    },
+    {
+      "name": "share_exam_desc",
+      "value": "接收分享的期末考试时间并导入本机期末倒计时"
+    },
+    {
       "name": "calendar_permission_reason",
       "value": "用于将本周与下周课程写入系统日历并在上课前提醒您"
     },

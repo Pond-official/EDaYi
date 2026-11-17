@@ -265,6 +265,38 @@ export class CardDataStore {
     }
   }
 
+  /**
+   * 合并导入期末考试时间（分享目标页确认导入时调用）：按课程名 upsert，返回发生变化的条目数。
+   * 基线取本机持久化数据（主应用可能未运行，AppStorage 基线可能为空，不能以之为准覆盖落盘）；
+   * 始终同步 AppStorage（主应用在运行则页面/卡片即时刷新）；
+   * 标准隐私模式才持久化并刷新期末倒计时卡片，限制/严格模式与主应用「设置考试时间」行为一致（不落盘）。
+   */
+  static importFinalExams(context: common.Context, incoming: FinalExamEntry[]): number {
+    const mode: string = CardDataStore.loadPrivacyMode(context);
+    const merged: FinalExamEntry[] = mode === 'standard'
+      ? CardDataStore.loadFinalExams(context)
+      : (AppStorage.get<FinalExamEntry[]>('jwFinalExams') ?? []).slice();
+    let changed: number = 0;
+    for (const entry of incoming) {
+      const index: number = merged.findIndex((e: FinalExamEntry): boolean => e.courseName === entry.courseName);
+      if (index >= 0) {
+        if (merged[index].examDate !== entry.examDate) {
+          merged[index] = entry;
+          changed += 1;
+        }
+      } else {
+        merged.push(entry);
+        changed += 1;
+      }
+    }
+    AppStorage.setOrCreate('jwFinalExams', merged);
+    if (mode === 'standard') {
+      CardDataStore.saveFinalExams(context, merged);
+      CardDataStore.refreshExamCards(context);
+    }
+    return changed;
+  }
+
   /** 读取隐私模式（standard=缓存全部 / restricted=仅课表卡片 / strict=不缓存，未配置默认 standard） */
   static loadPrivacyMode(context: common.Context): string {
     let mode: string = 'standard';

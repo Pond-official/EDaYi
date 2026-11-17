@@ -4,6 +4,7 @@
     "pages/LoginIndex",
     "pages/SettingsIndex",
     "pages/TrainingPlanIndex",
-    "pages/LibraryIndex"
+    "pages/LibraryIndex",
+    "pages/ExamShareImport"
   ]
 }

@@ -11,6 +11,7 @@ import { ExamAddCandidate, ExamCourseItem, SettingsExamAddEntry, SettingsExamAdd
   SettingsExamEntry, SettingsExamListCard, SettingsExamShareEntry } from './SettingsExamCards';
 import { FinalExamEntry, PlanCategory, PlanCourse, TermStatus } from '../model/JwModels';
 import { ExamDateUtils } from '../utils/ExamDateUtils';
+import { ExamShareText } from '../utils/ExamShareText';
 import { GITHUB_URL, SettingsAboutEntry, SettingsAcknowledgementCard, SettingsDeveloperCard,
   SettingsDeveloperEntry, SettingsDeveloperModeCard, SettingsOpenSourceCard, SettingsVersionCard } from './SettingsAboutCards';
 import { SettingsLightEffectCard } from './SettingsLightEffectCards';
@@ -353,7 +354,7 @@ export struct SettingsView {
   }
 
   /**
-   * 分享期末倒计时：已设考试时间按时间升序拼为可读文本，
+   * 分享期末倒计时：已设考试时间按时间升序拼为可读文本（ExamShareText，与导入解析共用格式），
    * 经系统分享面板（Share Kit）发送到其他设备或应用（华为分享/信息等渠道）。
    */
   private shareExamSchedule(): void {
@@ -365,13 +366,6 @@ export struct SettingsView {
       this.getUIContext().getPromptAction().showToast({ message: '暂无可分享的考试时间' });
       return;
     }
-    const lines: string[] = ['【期末倒计时】'];
-    for (const entry of entries) {
-      const parsed: Date | null = ExamDateUtils.parseExamDate(entry.examDate);
-      const countdown: string = parsed !== null ? ExamDateUtils.countdownTextOf(parsed) : '时间无效';
-      lines.push(entry.courseName + '：' + entry.examDate + '（' + countdown + '）');
-    }
-    lines.push('—— 来自 EDaYi（E大医）');
     const context: common.UIAbilityContext | null = JwxtRepository.getUiAbilityContext();
     if (context === null) {
       this.getUIContext().getPromptAction().showToast({ message: '分享失败' });
@@ -381,7 +375,7 @@ export struct SettingsView {
       const data: systemShare.SharedData = new systemShare.SharedData({
         utd: utd.UniformDataType.PLAIN_TEXT,
         title: '期末倒计时',
-        content: lines.join('\n')
+        content: ExamShareText.buildShareText(entries)
       });
       const controller: systemShare.ShareController = new systemShare.ShareController(data);
       controller.show(context, {

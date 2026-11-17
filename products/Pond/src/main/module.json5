@@ -112,6 +112,29 @@
             "resource": "$profile:exam_card_config"
           }
         ]
+      },
+      {
+        "name": "ExamShareAbility",
+        "srcEntry": "./ets/examshareability/ExamShareAbility.ets",
+        "label": "$string:share_exam_label",
+        "description": "$string:share_exam_desc",
+        "type": "share",
+        "exported": true,
+        "icon": "$media:layered_image",
+        "skills": [
+          {
+            "actions": [
+              "ohos.want.action.sendData"
+            ],
+            "uris": [
+              {
+                "scheme": "file",
+                "utd": "general.text",
+                "maxFileSupported": 1
+              }
+            ]
+          }
+        ]
       }
     ]
   }
