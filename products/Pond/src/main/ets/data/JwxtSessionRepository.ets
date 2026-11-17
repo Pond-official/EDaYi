@@ -7,7 +7,7 @@ import { CardDataStore, ReminderSettings } from './CardDataStore';
 import { ReminderScheduler } from './ReminderScheduler';
 import { GradeCategory, GradeEntry, PlanCategory, ScheduleCellInfo, SectionTimeInfo, StudentProfile, TermStatus } from '../model/JwModels';
 import { CurrentUserRaw, GradeEnvelopeRaw, GradeReportRaw, ScheduleEnvelopeRaw, StudentEnvelopeRaw, TermQueryRaw, TermRowRaw } from '../model/JwRawModels';
-import { parseScheduleCells, parseSections, filterCurrentAndNextWeek } from '../jwxt/parsers/ScheduleParser';
+import { parseScheduleCells, parseSections } from '../jwxt/parsers/ScheduleParser';
 import { parseGrades, parseGradeCategories } from '../jwxt/parsers/GradeParser';
 import { parseTrainingPlan, extractPyfadm } from '../jwxt/parsers/TrainingPlanParser';
 import { parseStudent } from '../jwxt/parsers/StudentParser';
@@ -367,13 +367,10 @@ export class JwxtSessionRepository {
       const sectionsEnvelope: ScheduleEnvelopeRaw = JSON.parse(sectionsText) as ScheduleEnvelopeRaw;
       const sections: SectionTimeInfo[] =
         parseSections(scheduleCells, sectionsEnvelope.datas?.getMySectionList);
-      // 仅保留当前周与下一周的课程，不保存整学期课表
-      const weeklyCells: ScheduleCellInfo[] =
-        filterCurrentAndNextWeek(scheduleCells, currentWeek);
+      // 缓存整学期课表（实测体积增量约 4KB），离线可查看任意周次
       AppLog.info(DOMAIN, TAG,
-        'step: schedule %{public}s -> weekly %{public}s (week %{public}d-%{public}d) sections %{public}s',
-        `${scheduleCells.length}`, `${weeklyCells.length}`, `${currentWeek}`, `${currentWeek + 1}`,
-        `${sections.length}`);
+        'step: schedule %{public}s (full semester, week %{public}d) sections %{public}s',
+        `${scheduleCells.length}`, `${currentWeek}`, `${sections.length}`);
 
       let grades: GradeEntry[] = [];
       let gradeCategories: GradeCategory[] = [];
@@ -398,7 +395,7 @@ export class JwxtSessionRepository {
       term.weekAnchorDate = TermWeekUtils.mondayYmdOf(new Date());
 
       AppStorage.setOrCreate<StudentProfile>('jwStudent', student);
-      AppStorage.setOrCreate<ScheduleCellInfo[]>('jwSchedule', weeklyCells);
+      AppStorage.setOrCreate<ScheduleCellInfo[]>('jwSchedule', scheduleCells);
       AppStorage.setOrCreate<GradeEntry[]>('jwGrades', grades);
       AppStorage.setOrCreate<GradeCategory[]>('jwGradeCategories', gradeCategories);
       AppStorage.setOrCreate<PlanCategory[]>('jwTrainingPlan', trainingPlan);

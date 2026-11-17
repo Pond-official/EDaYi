@@ -1,22 +1,6 @@
 import { ScheduleCellInfo, SectionTimeInfo } from '../../model/JwModels';
 import { ScheduleItemRaw, SectionItemRaw } from '../../model/JwRawModels';
-import { AppLog } from '../../data/AppLog';
-import { PARSER_DOMAIN, PARSER_TAG } from './constants';
 import { firstSegment, weeksPart, teacherPart } from './TextSplit';
-
-/**
- * 只保留当前周（currentWeek）与下一周（currentWeek+1）有课的课程。
- * 接口仅支持整学期拉取，此处在客户端按周位图过滤，
- * 保存与应用内流转的数据仅覆盖这两周；周次未知时保留全部。
- */
-export function filterCurrentAndNextWeek(cells: ScheduleCellInfo[], currentWeek: number): ScheduleCellInfo[] {
-  if (currentWeek <= 0) {
-    AppLog.warn(PARSER_DOMAIN, PARSER_TAG, 'week filter skipped: unknown current week');
-    return cells;
-  }
-  return cells.filter((cell: ScheduleCellInfo): boolean =>
-    cell.activeInWeek(currentWeek) || cell.activeInWeek(currentWeek + 1));
-}
 
 export function parseScheduleCells(items?: ScheduleItemRaw[]): ScheduleCellInfo[] {
   const list: ScheduleCellInfo[] = [];

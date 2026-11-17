@@ -208,31 +208,6 @@ export function HomeTodayCard(params: HomeTodayCardParams) {
   .transition(cardEnterEffect(180))
 }
 
-/** 课表周切换片入参（单参对象字面量按引用传递，选中态随 scheduleWeekOffset 刷新） */
-export interface HomeWeekChipParams {
-  label: string;
-  selected: boolean;
-  onSelect: () => void;
-}
-
-/** 课表周切换片（自 HomeView 拆出；onSelect 切换周偏移） */
-@Builder
-export function HomeWeekChip(params: HomeWeekChipParams) {
-  Text(params.label)
-    .fontSize(11)
-    .fontWeight(params.selected ? FontWeight.Bold : FontWeight.Normal)
-    .fontColor(params.selected ?
-      Color.White : $r('sys.color.ohos_id_color_text_secondary'))
-    .backgroundColor(params.selected ?
-      $r('sys.color.ohos_id_color_text_primary_activated') : $r('sys.color.ohos_id_color_button_normal'))
-    .borderRadius(10)
-    .padding({ left: 10, right: 10, top: 3, bottom: 3 })
-    .margin({ left: 6 })
-    .onClick(() => {
-      params.onSelect();
-    })
-}
-
 /** 倒计时徽标：当天考试为警示色，其余为激活色底白字（自 HomeView 拆出） */
 @Builder
 export function HomeCountdownBadge(badgeText: string, urgent: boolean) {

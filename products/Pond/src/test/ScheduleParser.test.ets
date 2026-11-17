@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@ohos/hypium';
-import { parseScheduleCells, filterCurrentAndNextWeek, parseSections, sectionStartTime } from '../main/ets/jwxt/parsers/ScheduleParser';
+import { parseScheduleCells, parseSections, sectionStartTime } from '../main/ets/jwxt/parsers/ScheduleParser';
 import { ScheduleCellInfo, SectionTimeInfo } from '../main/ets/model/JwModels';
 import { ScheduleItemRaw, SectionItemRaw } from '../main/ets/model/JwRawModels';
 
@@ -55,23 +55,6 @@ export default function scheduleParserTest() {
       expect(result.length).assertEqual(1);
       expect(result[0].endSection).assertEqual(7);
       expect(result[0].colorHex).assertEqual('#E8F3DB');
-    });
-    it('filterCurrentAndNextWeek_keeps_all_when_week_unknown', 0, () => {
-      const cells: ScheduleCellInfo[] = [buildCell(''), buildCell('')];
-      const result: ScheduleCellInfo[] = filterCurrentAndNextWeek(cells, 0);
-      expect(result.length).assertEqual(2);
-    });
-    it('filterCurrentAndNextWeek_filters_by_bitmap', 0, () => {
-      const week1: ScheduleCellInfo = buildCell('1000000000000000');
-      const week9: ScheduleCellInfo = buildCell('0000000010000000');
-      const result: ScheduleCellInfo[] = filterCurrentAndNextWeek([week1, week9], 8);
-      expect(result.length).assertEqual(1);
-      expect(result[0]).assertEqual(week9);
-    });
-    it('filterCurrentAndNextWeek_keeps_next_week_too', 0, () => {
-      const week9: ScheduleCellInfo = buildCell('0000000010000000');
-      const result: ScheduleCellInfo[] = filterCurrentAndNextWeek([week9], 8);
-      expect(result.length).assertEqual(1);
     });
     it('parseSections_prefers_api_list', 0, () => {
       const cells: ScheduleCellInfo[] = [buildCell('1')];

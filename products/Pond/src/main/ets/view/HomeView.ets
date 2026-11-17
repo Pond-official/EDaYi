@@ -6,7 +6,7 @@ import { ExamDateUtils } from '../utils/ExamDateUtils';
 import { ScheduleBoard } from './ScheduleBoard';
 import { FrostBand, FROST_BAND_HEIGHT, frostTopInsetVp } from './FrostBand';
 import { display, window } from '@kit.ArkUI';
-import { HomeOfflineBanner, HomeStudentCard, HomeSectionTitle, HomeStatCard, HomeTodayCard, HomeWeekChip, HomeFinalExamCard } from './HomeCards';
+import { HomeOfflineBanner, HomeStudentCard, HomeSectionTitle, HomeStatCard, HomeTodayCard, HomeFinalExamCard } from './HomeCards';
 import { cardEnterEffect } from './CardEnter';
 
 /**
@@ -34,8 +34,10 @@ export struct HomeView {
   @StorageProp('jwLoanCount') loanCount: number = -1;
   private todayDay: number = 1;
   @State todayCells: ScheduleCellInfo[] = [];
-  /** 课表周切换：0=本周，1=下周 */
+  /** 课表所选周相对本周的偏移（0=本周，负数为过去周，正数为未来周） */
   @State scheduleWeekOffset: number = 0;
+  /** 课表周次选择下拉面板是否展开 */
+  @State weekMenuVisible: boolean = false;
   /** 下拉刷新进行中（仅登录后实际刷新，未登录提示后立即收起） */
   @State isRefreshing: boolean = false;
   /** 状态栏避让区高度（px）：沉浸式全屏下内容顶部让位计算用 */
@@ -227,6 +229,54 @@ export struct HomeView {
     return this.loanCount >= 0 ? this.loanCount + ' 本' : '—';
   }
 
+  /** 学期总周数：课程周位图长度与当前周次的较大值 */
+  private semesterWeeks(): number {
+    let total: number = this.termStatus.currentWeek;
+    for (const cell of this.scheduleCells) {
+      if (cell.weekBitmap.length > total) {
+        total = cell.weekBitmap.length;
+      }
+    }
+    return total;
+  }
+
+  /** 当前选中周次（本周 + 偏移） */
+  private selectedWeek(): number {
+    return this.termStatus.currentWeek + this.scheduleWeekOffset;
+  }
+
+  /** 周胶囊文本：选中周为本周时带"（本周）"后缀 */
+  private weekCapsuleLabel(): string {
+    const label: string = '第' + this.selectedWeek() + '周';
+    return this.scheduleWeekOffset === 0 ? label + '（本周）' : label;
+  }
+
+  /** 下拉面板内单周文本：本周额外标注 */
+  private weekMenuLabel(week: number): string {
+    return week === this.termStatus.currentWeek ? '第' + week + '周·本周' : '第' + week + '周';
+  }
+
+  /** 下拉面板周次列表：第 1 周 .. 学期最后一周 */
+  private weekList(): number[] {
+    const total: number = this.semesterWeeks();
+    const list: number[] = [];
+    for (let week: number = 1; week <= total; week++) {
+      list.push(week);
+    }
+    return list;
+  }
+
+  /** 课表边缘滑动翻周：钳制在第 1 周 .. 学期最后一周内（周次未知时忽略） */
+  private applyWeekOverflow(delta: number): void {
+    if (this.termStatus.currentWeek <= 0) {
+      return;
+    }
+    const total: number = this.semesterWeeks();
+    const target: number = this.selectedWeek() + delta;
+    this.scheduleWeekOffset =
+      Math.min(Math.max(target, 1), total) - this.termStatus.currentWeek;
+  }
+
   /** 下拉刷新：已连接教务系统时在线刷新；未登录时提示先登录并立即收起刷新动画 */
   private doRefresh(): void {
     if (this.dataMode !== 'online') {
@@ -282,6 +332,35 @@ export struct HomeView {
     });
   }
 
+  /** 周次选择下拉面板：全部周次胶囊，选中高亮、本周标注 */
+  @Builder
+  weekMenuPanel() {
+    Column() {
+      Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Center }) {
+        ForEach(this.weekList(), (week: number) => {
+          Text(this.weekMenuLabel(week))
+            .fontSize(12)
+            .fontWeight(week === this.selectedWeek() ? FontWeight.Bold : FontWeight.Normal)
+            .fontColor(week === this.selectedWeek() ? Color.White :
+              (week === this.termStatus.currentWeek ?
+                $r('sys.color.ohos_id_color_text_primary_activated') :
+                $r('sys.color.ohos_id_color_text_secondary')))
+            .backgroundColor(week === this.selectedWeek() ?
+              $r('sys.color.ohos_id_color_text_primary_activated') : Color.Transparent)
+            .borderRadius(13)
+            .padding({ left: 10, right: 10, top: 5, bottom: 5 })
+            .margin(3)
+            .onClick(() => {
+              this.scheduleWeekOffset = week - this.termStatus.currentWeek;
+              this.weekMenuVisible = false;
+            })
+        }, (week: number) => 'week' + week)
+      }
+    }
+    .constraintSize({ minWidth: 240, maxWidth: 320 })
+    .padding(10)
+  }
+
   @Builder
   scheduleCard() {
     Column() {
@@ -291,12 +370,37 @@ export struct HomeView {
           .fontWeight(FontWeight.Bold)
           .fontColor($r('sys.color.ohos_id_color_text_primary'))
         Blank()
-        HomeWeekChip({ label: '本周', selected: this.scheduleWeekOffset === 0, onSelect: (): void => {
-          this.scheduleWeekOffset = 0;
-        } })
-        HomeWeekChip({ label: '下周', selected: this.scheduleWeekOffset === 1, onSelect: (): void => {
-          this.scheduleWeekOffset = 1;
-        } })
+        if (this.termStatus.currentWeek > 0) {
+          Row({ space: 3 }) {
+            Text(this.weekCapsuleLabel())
+              .fontSize(11)
+              .fontWeight(FontWeight.Medium)
+              .fontColor($r('sys.color.ohos_id_color_text_primary'))
+            SymbolGlyph($r('sys.symbol.chevron_down'))
+              .fontSize(11)
+              .fontColor([$r('sys.color.ohos_id_color_text_secondary')])
+              .rotate({ angle: this.weekMenuVisible ? 180 : 0 })
+          }
+          .padding({ left: 12, right: 10, top: 5, bottom: 5 })
+          .borderRadius(14)
+          .backgroundColor($r('sys.color.ohos_id_color_button_normal'))
+          .onClick(() => {
+            this.weekMenuVisible = !this.weekMenuVisible;
+          })
+          .bindPopup(this.weekMenuVisible, {
+            builder: this.weekMenuPanel,
+            placement: Placement.Bottom,
+            popupColor: $r('app.color.card_background'),
+            radius: 16,
+            enableArrow: false,
+            autoCancel: true,
+            onStateChange: (event) => {
+              if (!event.isVisible) {
+                this.weekMenuVisible = false;
+              }
+            }
+          })
+        }
       }
       .width('100%')
       .padding({ bottom: 12 })
@@ -310,7 +414,10 @@ export struct HomeView {
         dayCellWidth: this.dayWidth(),
         sectionRowHeight: this.rowHeight(),
         showHeader: true,
-        weekOffset: this.scheduleWeekOffset
+        weekOffset: this.scheduleWeekOffset,
+        onWeekOverflow: (delta: number): void => {
+          this.applyWeekOverflow(delta);
+        }
       })
     }
     .width('100%')
