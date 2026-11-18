@@ -8,6 +8,7 @@ import { FrostBand, FROST_BAND_HEIGHT, frostTopInsetVp } from '../view/FrostBand
 import { BackButton } from '../view/BackButton';
 import { plainError } from '../view/ZcpCards';
 import { LibraryErrorCard, LibraryHistoryCard, LibraryLoadingCard, LibraryLoansCard } from '../view/LibraryCards';
+import { BackgroundUtils } from '../utils/BackgroundUtils';
 
 /** 令牌重读间隔（ms）：SSO 落地后前端写 cookie 略滞后于 onPageEnd，轮询重试 */
 const TOKEN_RETRY_INTERVAL_MS: number = 500;
@@ -299,8 +300,8 @@ struct LibraryIndex {
     }
     .width('100%')
     .height('100%')
-    .backgroundImage(this.backgroundMode === 'image' && this.backgroundUri !== '' ?
-      'file://' + this.backgroundUri : '')
+    .backgroundImage(this.backgroundMode === 'image' ?
+      BackgroundUtils.imageSrcOf(this.backgroundUri) : '')
     .backgroundImageSize(ImageSize.Cover)
     .backgroundColor(this.backgroundMode === 'white' ? Color.White :
       $r('sys.color.ohos_id_color_sub_background'))

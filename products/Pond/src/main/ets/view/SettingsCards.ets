@@ -1,3 +1,5 @@
+import { BackgroundUtils } from '../utils/BackgroundUtils';
+
 /** 提前提醒时间快捷选项（分钟），另提供 1-120 分钟自定义输入（自 SettingsView 拆出） */
 const ADVANCE_PRESETS: number[] = [5, 10, 15, 20, 30];
 
@@ -319,7 +321,7 @@ export function SettingsBackgroundCard(params: SettingsBackgroundParams) {
     })
 
     if (params.backgroundUri !== '') {
-      Image('file://' + params.backgroundUri)
+      Image(BackgroundUtils.imageSrcOf(params.backgroundUri))
         .width('100%')
         .height(140)
         .objectFit(ImageFit.Cover)

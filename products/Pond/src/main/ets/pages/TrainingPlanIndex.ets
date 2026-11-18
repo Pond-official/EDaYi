@@ -6,6 +6,7 @@ import { GRADE_DEFAULT_BG, GRADE_DEFAULT_TEXT, GRADE_EXCELLENT_TEXT, GRADE_GOOD_
   GRADE_GOOD_TEXT, GRADE_INSPECT_BG, GRADE_INSPECT_TEXT, GRADE_MEDIUM_TEXT, PASS_BG,
   REVIEW_BG, TAG_DEFAULT_BG } from '../theme/AppColors';
 import { cardEnterEffect, cardFadeEffect } from '../view/CardEnter';
+import { BackgroundUtils } from '../utils/BackgroundUtils';
 
 const TERM_ALL: string = '全部';
 /** 开课学期未指定的课程归入此筛选项（排在最后） */
@@ -531,8 +532,8 @@ struct TrainingPlanIndex {
     }
     .width('100%')
     .height('100%')
-    .backgroundImage(this.backgroundMode === 'image' && this.backgroundUri !== '' ?
-      'file://' + this.backgroundUri : '')
+    .backgroundImage(this.backgroundMode === 'image' ?
+      BackgroundUtils.imageSrcOf(this.backgroundUri) : '')
     .backgroundImageSize(ImageSize.Cover)
     .backgroundColor(this.backgroundMode === 'white' ? Color.White :
       $r('sys.color.ohos_id_color_sub_background'))

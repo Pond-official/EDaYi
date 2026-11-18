@@ -13,6 +13,7 @@ import lazy { HiddenWeb } from '../view/HiddenWeb';
 import { SettingsEntryButton } from '../view/SettingsEntryButton';
 import { JwxtRepository } from '../data/JwxtRepository';
 import { MaterialUtils } from '../utils/MaterialUtils';
+import { BackgroundUtils } from '../utils/BackgroundUtils';
 import { CrossDomainSession } from '../net/CrossDomainSession';
 
 /** 悬浮页签栏最大宽度（宽屏基准），窄屏按屏宽收缩 */
@@ -394,8 +395,8 @@ struct Index {
     }
     .width('100%')
     .height('100%')
-    .backgroundImage(this.backgroundMode === 'image' && this.backgroundUri !== '' ?
-      'file://' + this.backgroundUri : '')
+    .backgroundImage(this.backgroundMode === 'image' ?
+      BackgroundUtils.imageSrcOf(this.backgroundUri) : '')
     .backgroundImageSize(ImageSize.Cover)
     .backgroundColor(this.backgroundMode === 'white' ? Color.White :
       $r('sys.color.ohos_id_color_sub_background'))
