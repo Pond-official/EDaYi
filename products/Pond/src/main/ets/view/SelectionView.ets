@@ -43,6 +43,8 @@ export struct SelectionView {
   @State submittingId: string = '';
   @State tipText: string = '';
   @State isRefreshing: boolean = false;
+  /** 搜索代际：每次新搜索递增，使在途"加载更多"的旧结果作废，防止旧响应拼进新列表 */
+  private searchGeneration: number = 0;
   /** 状态栏避让区高度（px）：沉浸式全屏下内容顶部让位计算用 */
   @StorageProp('jwSafeTopPx') safeTopPx: number = 0;
   /** Refresh 布局高度：初始取屏幕高度，旋转后由窗口尺寸事件刷新（display 快照在旋转瞬间滞后） */
@@ -242,6 +244,8 @@ export struct SelectionView {
     if (reset) {
       this.pageNumber = 1;
     }
+    // 新搜索开始：作废在途"加载更多"的结果，避免旧关键词的下一页拼进新列表
+    this.searchGeneration = this.searchGeneration + 1;
     this.coursesLoading = true;
     try {
       const result: CourseListResult =
@@ -267,14 +271,23 @@ export struct SelectionView {
     if (!this.hasMoreCourses()) {
       return;
     }
+    // 捕获发起时的代际与关键词：await 期间用户发起新搜索则丢弃本次结果
+    const generation: number = this.searchGeneration;
+    const keyword: string = this.keywordInput.trim();
     this.moreLoading = true;
     this.pageNumber = this.pageNumber + 1;
     try {
       const result: CourseListResult =
-        await SelectionRepository.loadCourses(this.keywordInput.trim(), this.pageNumber, PAGE_SIZE);
+        await SelectionRepository.loadCourses(keyword, this.pageNumber, PAGE_SIZE);
+      if (generation !== this.searchGeneration) {
+        return;
+      }
       this.courses = this.courses.concat(result.courses);
       this.totalCourses = result.total;
     } catch (error) {
+      if (generation !== this.searchGeneration) {
+        return;
+      }
       this.pageNumber = this.pageNumber - 1;
       this.handleMainError(`${error}`);
     } finally {

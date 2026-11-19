@@ -43,8 +43,34 @@ class ClassOccurrence {
 export class ReminderScheduler {
   private static timerIds: number[] = [];
   private static legacyCleaned: boolean = false;
+  /** 一次重建是否在途（取消旧提醒与发布代理提醒均为异步） */
+  private static scheduling: boolean = false;
+  /** 在途期间又有重建请求时置位，完成后合并补跑一次 */
+  private static scheduleQueued: boolean = false;
 
+  /**
+   * 重建上课提醒（单飞守卫）：在途时合并后来的请求为一次补跑，
+   * 避免两路并发重建互相取消对方刚发布的提醒或重复写入。
+   */
   static async schedule(cells: ScheduleCellInfo[], term: TermStatus,
+    context: common.UIAbilityContext | null): Promise<void> {
+    if (ReminderScheduler.scheduling) {
+      ReminderScheduler.scheduleQueued = true;
+      return;
+    }
+    ReminderScheduler.scheduling = true;
+    try {
+      await ReminderScheduler.doSchedule(cells, term, context);
+    } finally {
+      ReminderScheduler.scheduling = false;
+      if (ReminderScheduler.scheduleQueued) {
+        ReminderScheduler.scheduleQueued = false;
+        await ReminderScheduler.schedule(cells, term, context);
+      }
+    }
+  }
+
+  private static async doSchedule(cells: ScheduleCellInfo[], term: TermStatus,
     context: common.UIAbilityContext | null): Promise<void> {
     await ReminderScheduler.cleanupLegacyCalendar(context);
     ReminderScheduler.clearTimers();

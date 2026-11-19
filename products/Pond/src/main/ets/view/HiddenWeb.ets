@@ -1,6 +1,9 @@
 import { webview } from '@kit.ArkWeb';
 import { CrossDomainSession, HiddenWebHost } from '../net/CrossDomainSession';
 
+/** Chromium net 错误码 ERR_ABORTED：导航被后续 loadUrl 取代时主帧上报，属迟到的无害错误 */
+const NET_ERR_ABORTED: number = -3;
+
 /**
  * 跨域会话换票用 1×1 隐藏 Web 宿主（冷启动优化 ③）：
  * 由 Index 按需条件渲染（crossHostNeeded），CrossDomainSession 首次需要换票时
@@ -41,6 +44,12 @@ export struct HiddenWeb {
       })
       .onErrorReceive((event: OnErrorReceiveEvent) => {
         if (event.request.isMainFrame()) {
+          // 过滤 ERR_ABORTED（Chromium -3）：上一请求 settle 后加载 about:blank、
+          // 又被下一请求 loadUrl 取代的导航触发，属迟到错误；
+          // 误当真实失败上报会 settle(false) 杀掉刚发起的新请求（LoginIndex 并发预热三域时级联失败）
+          if (event.error.getErrorCode() === NET_ERR_ABORTED) {
+            return;
+          }
           CrossDomainSession.onError();
         }
       })

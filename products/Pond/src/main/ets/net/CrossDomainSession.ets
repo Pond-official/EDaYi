@@ -20,6 +20,8 @@ class Req {
   /** 已进入门户预热阶段：onPageEnd/onError 不再收尾，由 warmupTimer 到点结算 */
   warming: boolean = false;
   warmupTimer: number = -1;
+  /** 已被 reset() 取消：迟到的定时器/回调据此 no-op，不再回写 ready 或结算 */
+  cancelled: boolean = false;
 
   constructor(spec: DomainSpec, resolve: (ok: boolean) => void, timer: number) {
     this.spec = spec;
@@ -213,6 +215,9 @@ export class CrossDomainSession {
       }
       AppLog.info(DOMAIN, TAG, 'warmup start: %{public}s dwell=%{public}dms', cur.spec.key, `${cur.spec.warmupMs}`);
       cur.warmupTimer = setTimeout(() => {
+        if (cur.cancelled) {
+          return;
+        }
         CrossDomainSession.ready.add(cur.spec.key);
         CrossDomainSession.settle(true);
       }, cur.spec.warmupMs);
@@ -231,7 +236,7 @@ export class CrossDomainSession {
 
   private static settle(ok: boolean): void {
     const cur: Req | null = CrossDomainSession.current;
-    if (cur === null) {
+    if (cur === null || cur.cancelled) {
       return;
     }
     clearTimeout(cur.timer);
@@ -260,9 +265,29 @@ export class CrossDomainSession {
     }
   }
 
-  /** 登出/会话失效时必须调用，否则会把过期会话当成已就绪 */
+  /** 登出/会话失效时必须调用，否则会把过期会话当成已就绪；同时在途/排队请求全部标记取消并按失败返回 */
   static reset(): void {
     CrossDomainSession.ready.clear();
+    const cur: Req | null = CrossDomainSession.current;
+    if (cur !== null) {
+      // 取消在途请求：清超时/预热定时器，防止迟到回调把已清空的 ready 键复活
+      cur.cancelled = true;
+      clearTimeout(cur.timer);
+      if (cur.warmupTimer >= 0) {
+        clearTimeout(cur.warmupTimer);
+        cur.warmupTimer = -1;
+      }
+      CrossDomainSession.current = null;
+      cur.resolve(false);
+    }
+    while (CrossDomainSession.queue.length > 0) {
+      const r: Req | undefined = CrossDomainSession.queue.shift();
+      if (r === undefined) {
+        return;
+      }
+      r.cancelled = true;
+      r.resolve(false);
+    }
   }
 
   /** 失效单个域的就绪标记（如图书馆 JWT 过期需重新换票，但不影响其他域） */

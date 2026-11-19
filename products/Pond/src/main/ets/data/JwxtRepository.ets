@@ -137,6 +137,11 @@ export class JwxtRepository {
    * 驱动视图跨天刷新"今日课程"与课表"今天"高亮。
    */
   static notifyForeground(): void {
+    // 回前台重读期末倒计时：分享导入在扩展进程写偏好，主应用 AppStorage 可能滞后
+    const context: common.UIAbilityContext | null = getContext();
+    if (context !== null && JwxtRepository.privacyMode() === 'standard') {
+      AppStorage.setOrCreate('jwFinalExams', CardDataStore.loadFinalExams(context));
+    }
     PrivacyController.notifyForeground();
   }
 
@@ -156,8 +161,13 @@ export class JwxtRepository {
 
   /** 设置/清除单门课程期末考试日期（examDate 为空表示清除），写入 AppStorage 并持久化 */
   static updateFinalExam(courseName: string, examDate: string): void {
-    const exams: FinalExamEntry[] =
-      (AppStorage.get<FinalExamEntry[]>('jwFinalExams') ?? []).slice();
+    const context: common.UIAbilityContext | null = getContext();
+    const mode: string = JwxtRepository.privacyMode();
+    // 合并基线取持久化数据：分享导入在扩展进程写偏好，主应用 AppStorage 可能滞后，
+    // 以 AppStorage 为基线覆盖会把导入的考试数据抹掉（标准模式数据以偏好为准）
+    const exams: FinalExamEntry[] = context !== null && mode === 'standard'
+      ? CardDataStore.loadFinalExams(context)
+      : (AppStorage.get<FinalExamEntry[]>('jwFinalExams') ?? []).slice();
     const index: number =
       exams.findIndex((e: FinalExamEntry): boolean => e.courseName === courseName);
     if (examDate.length === 0) {
@@ -175,8 +185,7 @@ export class JwxtRepository {
       }
     }
     AppStorage.setOrCreate('jwFinalExams', exams);
-    const context: common.UIAbilityContext | null = getContext();
-    if (context !== null && JwxtRepository.privacyMode() === 'standard') {
+    if (context !== null && mode === 'standard') {
       CardDataStore.saveFinalExams(context, exams);
       CardDataStore.refreshExamCards(context);
     }

@@ -163,12 +163,13 @@ export struct SettingsView {
     }
   }
 
-  /** 切换背景模式：选中"自定义图片"且尚未导入过图片时直接拉起图库 */
+  /** 切换背景模式：选中"自定义图片"且尚未导入过图片时仅拉起图库，导入成功后才切入 image 模式（取消/失败则模式不变） */
   private selectBackgroundMode(mode: string): void {
-    JwxtRepository.updateBackgroundMode(mode);
     if (mode === 'image' && this.backgroundUri === '') {
       this.pickBackgroundImage();
+      return;
     }
+    JwxtRepository.updateBackgroundMode(mode);
   }
 
   /** 重新统计本地缓存大小并刷新显示 */

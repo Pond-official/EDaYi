@@ -57,6 +57,8 @@ export struct HomeView {
   };
   /** 前台跨天轮询定时器句柄（-1 = 未启动） */
   private rolloverTimerId: number = -1;
+  /** 已结束考试检查重入保护：updateFinalExam 写 jwFinalExams 会经 @Watch 同步重入 */
+  private checkingFinishedExams: boolean = false;
 
   aboutToAppear(): void {
     this.initWindowDims();
@@ -501,28 +503,37 @@ export struct HomeView {
    * 注意：不在此处 aboutToAppear 调用——页面尚未挂载完成时弹窗无法显示。
    */
   private checkFinishedExams(): void {
-    const finishedNames: string[] = [];
-    for (const entry of this.finalExams) {
-      const parsed: Date | null = this.examDateOf(entry);
-      if (parsed === null || ExamDateUtils.remainingMs(parsed) <= 0) {
-        finishedNames.push(entry.courseName);
-      }
-    }
-    if (finishedNames.length === 0) {
+    if (this.checkingFinishedExams) {
+      // updateFinalExam 写 jwFinalExams 会经 @Watch 同步重入本方法，直接跳过
       return;
     }
-    for (const name of finishedNames) {
-      JwxtRepository.updateFinalExam(name, '');
-    }
-    this.getUIContext().showAlertDialog({
-      title: '期末倒计时',
-      message: '已完成 ' + finishedNames.length + ' 科目的考试，相关倒计时已移除',
-      confirm: {
-        value: '知道啦',
-        action: () => {
+    this.checkingFinishedExams = true;
+    try {
+      const finishedNames: string[] = [];
+      for (const entry of this.finalExams) {
+        const parsed: Date | null = this.examDateOf(entry);
+        if (parsed === null || ExamDateUtils.remainingMs(parsed) <= 0) {
+          finishedNames.push(entry.courseName);
         }
       }
-    });
+      if (finishedNames.length === 0) {
+        return;
+      }
+      for (const name of finishedNames) {
+        JwxtRepository.updateFinalExam(name, '');
+      }
+      this.getUIContext().showAlertDialog({
+        title: '期末倒计时',
+        message: '已完成 ' + finishedNames.length + ' 科目的考试，相关倒计时已移除',
+        confirm: {
+          value: '知道啦',
+          action: () => {
+          }
+        }
+      });
+    } finally {
+      this.checkingFinishedExams = false;
+    }
   }
 
   /** 该课程在课表中的颜色（找不到返回空串，不显示色点） */

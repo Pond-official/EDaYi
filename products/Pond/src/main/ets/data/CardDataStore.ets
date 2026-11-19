@@ -689,14 +689,18 @@ export class CardDataStore {
       cells.filter((c: CardCellItem): boolean => CardDataStore.cellInWeek(c, week)));
     const nextGridCells: WeekCellData[] = CardDataStore.toGridCells(
       cells.filter((c: CardCellItem): boolean => CardDataStore.cellInWeek(c, week + 1)));
+    // 区分"从未同步"（无周次信息）与"已同步但今日无课"：前者引导登录同步，后者提示无课
+    const neverSynced: boolean = week <= 0;
     const data: Record<string, string> = {
       'weekText': week > 0 ? '第' + week + '周' : '',
       'coursesJson': JSON.stringify(courseData),
       'moreText': more > 0 ? '还有' + more + '门课' : '',
-      'emptyText': todayCells.length === 0 ? '今天没有课程安排' : '',
+      'emptyText': neverSynced ? '登录教务系统后同步课表'
+        : (todayCells.length === 0 ? '今天没有课程安排' : ''),
       'tomorrowJson': JSON.stringify(tomorrowData),
       'tomorrowMoreText': tomorrowMore > 0 ? '还有' + tomorrowMore + '门课' : '',
-      'tomorrowEmptyText': tomorrowCells.length === 0 ? '明天没有课程安排' : '',
+      'tomorrowEmptyText': neverSynced ? '登录教务系统后同步课表'
+        : (tomorrowCells.length === 0 ? '明天没有课程安排' : ''),
       'tomorrowWeekText': week > 0 ? '第' + tomorrowWeek + '周' : '',
       'weekCellsJson': JSON.stringify(gridCells),
       'nextWeekCellsJson': JSON.stringify(nextGridCells),

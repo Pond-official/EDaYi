@@ -102,11 +102,13 @@ export class JwxtSessionRepository {
       return '';
     }
     const imported: string = CardDataStore.importBackgroundImage(context, srcUri);
-    AppStorage.setOrCreate('jwBackgroundUri', imported);
-    if (imported !== '') {
-      AppStorage.setOrCreate('jwBackgroundMode', 'image');
-      CardDataStore.saveBackgroundMode(context, 'image');
+    if (imported === '') {
+      // 导入失败保留旧背景，不用空串覆盖已导入的图片
+      return '';
     }
+    AppStorage.setOrCreate('jwBackgroundUri', imported);
+    AppStorage.setOrCreate('jwBackgroundMode', 'image');
+    CardDataStore.saveBackgroundMode(context, 'image');
     return imported;
   }
 
@@ -189,6 +191,8 @@ export class JwxtSessionRepository {
 
   private static async runLoadCycle(): Promise<boolean> {
     let ok: boolean = false;
+    // advanceTermWeek 推进成功时其内部已重建提醒，本轮跳过尾部重建避免重复
+    let remindersArmed: boolean = false;
     try {
       ok = await JwxtSessionRepository.tryLoadOnline();
     } catch (error) {
@@ -202,13 +206,15 @@ export class JwxtSessionRepository {
       } else {
         JwxtSessionRepository.loadedOnce = true;
         // 离线缓存可能跨周陈旧：按周一锚点本地推进周次，避免课表停留旧周
-        JwxtSessionRepository.advanceTermWeek();
+        remindersArmed = JwxtSessionRepository.advanceTermWeek();
       }
     } else {
       JwxtCacheStore.persistCardData();
       JwxtCacheStore.persistAppCache();
     }
-    JwxtSessionRepository.rescheduleReminders();
+    if (!remindersArmed) {
+      JwxtSessionRepository.rescheduleReminders();
+    }
     return ok;
   }
 
