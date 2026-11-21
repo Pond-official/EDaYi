@@ -5,6 +5,7 @@ import lazy { WebCookieOps } from '../net/WebCookieOps';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { AppLog } from './AppLog';
+import { SecureStore } from './SecureStore';
 import { CrossDomainSession } from '../net/CrossDomainSession';
 import { DOMAIN_EHALL } from '../net/DomainSpec';
 import { getContext } from '../net/JwTransport';
@@ -383,10 +384,20 @@ export class EhallRepository {
     if (path.length === 0) {
       return;
     }
+    const context: common.UIAbilityContext | null = getContext();
+    if (context === null) {
+      return;
+    }
     try {
       const raw: EhallStatsCacheRaw = { balance: balance, loanCount: loanCount };
+      // 余额/借阅数属个人信息，加密后落盘（密钥未就绪返回空串则跳过本次写入）
+      const stored: string =
+        SecureStore.encryptFileText(context, 'ehall_stats.json', JSON.stringify(raw));
+      if (stored.length === 0) {
+        return;
+      }
       const file: fs.File = fs.openSync(path, fs.OpenMode.READ_WRITE | fs.OpenMode.CREATE | fs.OpenMode.TRUNC);
-      fs.writeSync(file.fd, JSON.stringify(raw));
+      fs.writeSync(file.fd, stored);
       fs.closeSync(file);
     } catch (error) {
       AppLog.warn(DOMAIN, TAG, 'saveCache failed: %{public}s', `${error}`);
@@ -416,7 +427,17 @@ export class EhallRepository {
       if (!fs.accessSync(path)) {
         return null;
       }
-      return JSON.parse(fs.readTextSync(path)) as EhallStatsCacheRaw;
+      const context: common.UIAbilityContext | null = getContext();
+      if (context === null) {
+        return null;
+      }
+      // 加密缓存解密读取（旧明文兼容透传）；未就绪/损坏返回空按无缓存处理
+      const plain: string =
+        SecureStore.decryptFileText(context, 'ehall_stats.json', fs.readTextSync(path));
+      if (plain.length === 0) {
+        return null;
+      }
+      return JSON.parse(plain) as EhallStatsCacheRaw;
     } catch (error) {
       AppLog.warn(DOMAIN, TAG, 'loadCache failed: %{public}s', `${error}`);
       return null;

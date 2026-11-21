@@ -1,5 +1,6 @@
 import { common } from '@kit.AbilityKit';
 import { CardDataStore } from './CardDataStore';
+import { SecureStore } from './SecureStore';
 import { FinalExamEntry } from '../model/JwModels';
 import { PrivacyController } from './PrivacyController';
 import { JwxtCacheStore } from './JwxtCacheStore';
@@ -137,10 +138,14 @@ export class JwxtRepository {
    * 驱动视图跨天刷新"今日课程"与课表"今天"高亮。
    */
   static notifyForeground(): void {
-    // 回前台重读期末倒计时：分享导入在扩展进程写偏好，主应用 AppStorage 可能滞后
+    // 回前台重读期末倒计时：分享导入在扩展进程写偏好，主应用 AppStorage 可能滞后；
+    // 期末数据已加密，待数据密钥就绪后再读（降级时保留现有 AppStorage 值）
     const context: common.UIAbilityContext | null = getContext();
     if (context !== null && JwxtRepository.privacyMode() === 'standard') {
-      AppStorage.setOrCreate('jwFinalExams', CardDataStore.loadFinalExams(context));
+      const ctx: common.UIAbilityContext = context;
+      SecureStore.runWhenReady(ctx, (): void => {
+        AppStorage.setOrCreate('jwFinalExams', CardDataStore.loadFinalExams(ctx));
+      });
     }
     PrivacyController.notifyForeground();
   }
@@ -162,10 +167,24 @@ export class JwxtRepository {
   /** 设置/清除单门课程期末考试日期（examDate 为空表示清除），写入 AppStorage 并持久化 */
   static updateFinalExam(courseName: string, examDate: string): void {
     const context: common.UIAbilityContext | null = getContext();
-    const mode: string = JwxtRepository.privacyMode();
-    // 合并基线取持久化数据：分享导入在扩展进程写偏好，主应用 AppStorage 可能滞后，
-    // 以 AppStorage 为基线覆盖会把导入的考试数据抹掉（标准模式数据以偏好为准）
-    const exams: FinalExamEntry[] = context !== null && mode === 'standard'
+    if (context !== null && JwxtRepository.privacyMode() === 'standard') {
+      // 标准模式以加密持久化数据为合并基线：分享导入可能在扩展进程写偏好、
+      // 且冷启动数据密钥未就绪时读到的空基线会把落盘数据整体抹掉——
+      // 推迟到就绪后再合并落盘（HUKS 降级时丢弃本次修改，页面下次进入可重试）
+      const ctx: common.UIAbilityContext = context;
+      SecureStore.runWhenReady(ctx, (): void => {
+        JwxtRepository.applyFinalExamChange(ctx, courseName, examDate, true);
+      });
+      return;
+    }
+    // 非 standard 模式：以内存 AppStorage 为基线合并，不落盘（与「设置考试时间」行为一致）
+    JwxtRepository.applyFinalExamChange(null, courseName, examDate, false);
+  }
+
+  /** 期末考试合并：fromEncryptedStore=true 时以加密持久化数据为基线并回写+刷新卡片 */
+  private static applyFinalExamChange(context: common.UIAbilityContext | null,
+    courseName: string, examDate: string, fromEncryptedStore: boolean): void {
+    const exams: FinalExamEntry[] = fromEncryptedStore && context !== null
       ? CardDataStore.loadFinalExams(context)
       : (AppStorage.get<FinalExamEntry[]>('jwFinalExams') ?? []).slice();
     const index: number =
@@ -185,7 +204,7 @@ export class JwxtRepository {
       }
     }
     AppStorage.setOrCreate('jwFinalExams', exams);
-    if (context !== null && mode === 'standard') {
+    if (fromEncryptedStore && context !== null) {
       CardDataStore.saveFinalExams(context, exams);
       CardDataStore.refreshExamCards(context);
     }

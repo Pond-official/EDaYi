@@ -4,6 +4,7 @@ import lazy { WebCookieOps } from '../net/WebCookieOps';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { common } from '@kit.AbilityKit';
 import { CardDataStore, CardNightSetting, ReminderSettings } from './CardDataStore';
+import { SecureStore } from './SecureStore';
 import { ReminderScheduler } from './ReminderScheduler';
 import { GradeCategory, GradeEntry, PlanCategory, ScheduleCellInfo, SectionTimeInfo, StudentProfile, TermStatus } from '../model/JwModels';
 import { CurrentUserRaw, GradeEnvelopeRaw, GradeReportRaw, ScheduleEnvelopeRaw, StudentEnvelopeRaw, TermQueryRaw, TermRowRaw } from '../model/JwRawModels';
@@ -56,15 +57,19 @@ export class JwxtSessionRepository {
    */
   static attachContext(context: common.UIAbilityContext): void {
     transportAttachContext(context);
+    // 敏感键已加密落盘，先异步解包数据密钥；依赖加密数据的 AppStorage 键在就绪后回填
+    SecureStore.hydrate(context);
     const settings: ReminderSettings = CardDataStore.loadReminderSettings(context);
     AppStorage.setOrCreate('jwReminderEnabled', settings.enabled);
     AppStorage.setOrCreate('jwReminderAdvance', settings.advanceMinutes);
     AppStorage.setOrCreate('jwReminderAgentEnabled', settings.agentEnabled);
-    AppStorage.setOrCreate('jwReminderDisabledSessions', CardDataStore.loadDisabledSessions(context));
+    SecureStore.runWhenReady(context, (): void => {
+      AppStorage.setOrCreate('jwReminderDisabledSessions', CardDataStore.loadDisabledSessions(context));
+      AppStorage.setOrCreate('jwFinalExams', CardDataStore.loadFinalExams(context));
+    });
     const night: CardNightSetting = CardDataStore.loadCardNightSetting(context);
     AppStorage.setOrCreate('jwCardNightEnabled', night.enabled);
     AppStorage.setOrCreate('jwCardNightMinutes', night.minutes);
-    AppStorage.setOrCreate('jwFinalExams', CardDataStore.loadFinalExams(context));
     AppStorage.setOrCreate('jwPrivacyMode', CardDataStore.loadPrivacyMode(context));
     AppStorage.setOrCreate('jwDeveloperMode', CardDataStore.loadDeveloperMode(context));
     AppStorage.setOrCreate('jwLightEffectColor', CardDataStore.loadLightEffectColor(context));
@@ -194,6 +199,11 @@ export class JwxtSessionRepository {
     // advanceTermWeek 推进成功时其内部已重建提醒，本轮跳过尾部重建避免重复
     let remindersArmed: boolean = false;
     try {
+      // 离线缓存回放/持久化均走 SecureStore 加密路径，先等数据密钥就绪（降级时按无缓存处理）
+      const context: common.UIAbilityContext | null = getContext();
+      if (context !== null) {
+        await SecureStore.awaitReady(context);
+      }
       ok = await JwxtSessionRepository.tryLoadOnline();
     } catch (error) {
       AppLog.error(DOMAIN, TAG, 'load cycle error: %{public}s', `${error}`);

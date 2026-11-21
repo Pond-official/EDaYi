@@ -1,5 +1,6 @@
 import { http } from '@kit.NetworkKit';
 import { AppLog } from './AppLog';
+import { SecureStore } from './SecureStore';
 // 冷启动优化 ③：Cookie 读写收口到 WebCookieOps（内部才 import webview），lazy 使 ArkWeb 不进冷启动模块图
 import lazy { WebCookieOps } from '../net/WebCookieOps';
 import { BusinessError } from '@kit.BasicServicesKit';
@@ -459,13 +460,19 @@ export class ZcpRepository {
 
   /** 在线获取成功后写入临时缓存（仅标准隐私模式；失败不阻塞在线数据展示） */
   static saveCache(result: ZcpResult): void {
-    if (ZcpRepository.appContext === null || !ZcpRepository.cacheAllowed()) {
+    const context: common.UIAbilityContext | null = ZcpRepository.appContext;
+    if (context === null || !ZcpRepository.cacheAllowed()) {
       return;
     }
     try {
       const path: string = ZcpRepository.cacheFilePath();
+      // 综测指标/得分属个人信息，加密后落盘（密钥未就绪返回空串则跳过本次写入）
+      const stored: string = SecureStore.encryptFileText(context, 'zcp_cache.json', JSON.stringify(result));
+      if (stored.length === 0) {
+        return;
+      }
       const file: fs.File = fs.openSync(path, fs.OpenMode.READ_WRITE | fs.OpenMode.CREATE | fs.OpenMode.TRUNC);
-      fs.writeSync(file.fd, JSON.stringify(result));
+      fs.writeSync(file.fd, stored);
       fs.closeSync(file);
       AppLog.info(DOMAIN, TAG, 'zcp cache saved');
     } catch (error) {
@@ -475,7 +482,8 @@ export class ZcpRepository {
 
   /** 读取临时缓存重建结果（恢复类实例以保留方法），无缓存/解析失败/隐私受限返回 null */
   static loadCache(): ZcpResult | null {
-    if (ZcpRepository.appContext === null || !ZcpRepository.cacheAllowed()) {
+    const context: common.UIAbilityContext | null = ZcpRepository.appContext;
+    if (context === null || !ZcpRepository.cacheAllowed()) {
       return null;
     }
     try {
@@ -483,7 +491,12 @@ export class ZcpRepository {
       if (!fs.accessSync(path)) {
         return null;
       }
-      const raw: ZcpResultCacheRaw = JSON.parse(fs.readTextSync(path)) as ZcpResultCacheRaw;
+      // 加密缓存解密读取（旧明文兼容透传）；未就绪/损坏返回空按无缓存处理
+      const plain: string = SecureStore.decryptFileText(context, 'zcp_cache.json', fs.readTextSync(path));
+      if (plain.length === 0) {
+        return null;
+      }
+      const raw: ZcpResultCacheRaw = JSON.parse(plain) as ZcpResultCacheRaw;
       const result: ZcpResult = new ZcpResult();
       const ctxRaw: ZcpContextCacheRaw | undefined = raw.context;
       if (ctxRaw !== undefined) {

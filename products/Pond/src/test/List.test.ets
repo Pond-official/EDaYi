@@ -9,6 +9,7 @@ import libraryRepositoryTest from './LibraryRepository.test';
 import ehallRepositoryTest from './EhallRepository.test';
 import examShareTextTest from './ExamShareText.test';
 import termWeekUtilsTest from './TermWeekUtils.test';
+import aesGcmTest from './AesGcm.test';
 
 export default function testsuite() {
   localUnitTest();
@@ -22,4 +23,5 @@ export default function testsuite() {
   ehallRepositoryTest();
   examShareTextTest();
   termWeekUtilsTest();
+  aesGcmTest();
 }
