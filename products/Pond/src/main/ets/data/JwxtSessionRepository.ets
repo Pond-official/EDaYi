@@ -44,6 +44,8 @@ export class JwxtSessionRepository {
   private static currentLoad: Promise<boolean> | null = null;
   private static loadedOnce: boolean = false;
   private static pendingReload: boolean = false;
+  /** 最近一次教务探针成功的会话用户标识（B1：离线缓存归属校验用；进程内有效，退出登录时复位） */
+  private static probeUserId: string = '';
 
   /** 供 UI 层获取主 Ability 上下文（如 openLink 拉起浏览器）；未注入时返回 null */
   static getUiAbilityContext(): common.UIAbilityContext | null {
@@ -57,16 +59,15 @@ export class JwxtSessionRepository {
    */
   static attachContext(context: common.UIAbilityContext): void {
     transportAttachContext(context);
-    // 敏感键已加密落盘，先异步解包数据密钥；依赖加密数据的 AppStorage 键在就绪后回填
+    // appCache 等敏感缓存仍加密落盘，尽早异步解包数据密钥（runLoadCycle 回放前会等待就绪）；
+    // 课表/期末/提醒名单已降级明文，直接同步载入
     SecureStore.hydrate(context);
     const settings: ReminderSettings = CardDataStore.loadReminderSettings(context);
     AppStorage.setOrCreate('jwReminderEnabled', settings.enabled);
     AppStorage.setOrCreate('jwReminderAdvance', settings.advanceMinutes);
     AppStorage.setOrCreate('jwReminderAgentEnabled', settings.agentEnabled);
-    SecureStore.runWhenReady(context, (): void => {
-      AppStorage.setOrCreate('jwReminderDisabledSessions', CardDataStore.loadDisabledSessions(context));
-      AppStorage.setOrCreate('jwFinalExams', CardDataStore.loadFinalExams(context));
-    });
+    AppStorage.setOrCreate('jwReminderDisabledSessions', CardDataStore.loadDisabledSessions(context));
+    AppStorage.setOrCreate('jwFinalExams', CardDataStore.loadFinalExams(context));
     const night: CardNightSetting = CardDataStore.loadCardNightSetting(context);
     AppStorage.setOrCreate('jwCardNightEnabled', night.enabled);
     AppStorage.setOrCreate('jwCardNightMinutes', night.minutes);
@@ -148,6 +149,10 @@ export class JwxtSessionRepository {
         const raw: CurrentUserRaw = JSON.parse(text) as CurrentUserRaw;
         code = raw.code ?? '';
         ok = raw.code === '0' && raw.datas !== undefined && raw.datas.userId !== undefined;
+        if (ok) {
+          // B1：记录当前会话用户标识，供离线缓存归属校验（回放防跨账号泄漏 / 同步成功记归属）
+          JwxtSessionRepository.probeUserId = raw.datas?.userId ?? '';
+        }
       } catch (parseError) {
         AppLog.error(DOMAIN, TAG,
           'probe: json parse failed, len=%{public}s, head=%{public}s',
@@ -210,8 +215,9 @@ export class JwxtSessionRepository {
       ok = false;
     }
     if (!ok) {
-      // 回放离线缓存成功时置位 loadedOnce（原实现写在 applyAppCache 内部，行为等价）
-      if (!JwxtCacheStore.applyAppCache()) {
+      // 回放离线缓存成功时置位 loadedOnce（原实现写在 applyAppCache 内部，行为等价）；
+      // B1：携带当前探针标识做归属校验，识别换账号后不回放他人数据
+      if (!JwxtCacheStore.applyAppCache(JwxtSessionRepository.probeUserId)) {
         JwxtSessionRepository.applyEmpty('offline');
       } else {
         JwxtSessionRepository.loadedOnce = true;
@@ -221,6 +227,8 @@ export class JwxtSessionRepository {
     } else {
       JwxtCacheStore.persistCardData();
       JwxtCacheStore.persistAppCache();
+      // B1：与缓存内容同源记录归属（学号 + 探针标识），供下次离线回放校验
+      JwxtCacheStore.persistCacheOwner(JwxtSessionRepository.probeUserId);
     }
     if (!remindersArmed) {
       JwxtSessionRepository.rescheduleReminders();
@@ -336,6 +344,12 @@ export class JwxtSessionRepository {
     AppPreloader.reset();
     // 图书馆 JWT（内存态）随登录态一并丢弃；ehall 统计按隐私模式分级处理
     LibraryRepository.clearToken();
+    // B1：复位探针标识并断开离线缓存归属链——退出登录后缓存不再可回放（防换账号后看到上一账号数据）
+    JwxtSessionRepository.probeUserId = '';
+    const ownerContext: common.UIAbilityContext | null = getContext();
+    if (ownerContext !== null) {
+      CardDataStore.clearCacheOwner(ownerContext);
+    }
     const mode: string = PrivacyController.privacyMode();
     if (mode === 'standard') {
       // 保留离线数据：仅失效 xgfw/ehall 会话标记，页面继续显示已获取的离线数据

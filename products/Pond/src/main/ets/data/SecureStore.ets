@@ -3,7 +3,9 @@ import { cryptoFramework } from '@kit.CryptoArchitectureKit';
 import { preferences } from '@kit.ArkData';
 import { util } from '@kit.ArkTS';
 import { common } from '@kit.AbilityKit';
+import { fileIo } from '@kit.CoreFileKit';
 import { AppLog } from './AppLog';
+import { CacheManager } from './CacheManager';
 import { aesGcmEncrypt, aesGcmDecrypt } from '../utils/AesGcm';
 
 const TAG: string = 'SecureStore';
@@ -18,9 +20,16 @@ const KEY_WRAPPED_DEK: string = 'secureDekV1';
 const ENVELOPE_PREFIX: string = 'e1.';
 /** DEK 信封的 AAD（区别于数据信封的按键名 AAD） */
 const DEK_AAD: string = 'edaiyi.dek.v1';
-/** 旧明文迁移扫描键（与 CardDataStore 键常量一致的学生信息键） */
-const LEGACY_MIGRATE_KEYS: string[] =
-  ['payload', 'appCache', 'finalExamDates', 'reminderDisabledSessions'];
+/** 旧明文迁移扫描键（仍由 SecureStore 管理的学生信息加密键） */
+const LEGACY_MIGRATE_KEYS: string[] = ['appCache'];
+/** 曾加密、现降级为明文存储的键（课表/期末/提醒名单为高频同步读路径，退出加密范围以提速启动与卡片链路）；
+ *  hydrate 时把旧版本遗留的密文解密回明文，完成一次性降级迁移（幂等） */
+const DEMOTED_KEYS: string[] = ['payload', 'finalExamDates', 'reminderDisabledSessions'];
+/** DEK 重建时需整体清除的键：全部可能存在密文的 prefs 键（防不可解垃圾长期堆积） */
+const ALL_CIPHER_KEYS: string[] = ['appCache', 'cacheOwnerSid', 'cacheProbeUid',
+  'payload', 'finalExamDates', 'reminderDisabledSessions'];
+/** 加密文件缓存名（与 EhallRepository/ZcpRepository 的缓存文件名一致） */
+const CIPHER_CACHE_FILES: string[] = ['zcp_cache.json', 'ehall_stats.json'];
 
 /**
  * 学生信息静态加密存储层：
@@ -31,6 +40,11 @@ const LEGACY_MIGRATE_KEYS: string[] =
  *   纯同步 AES-256-GCM（utils/AesGcm.ets），仅 DEK 解包走 HUKS 异步；
  * - 信封格式：'e1.' + Base64(nonce(12B) ‖ 密文 ‖ tag(16B))，AAD = 键名/文件名
  *   （防跨键密文替换）；
+ * - 加密范围：appCache（离线缓存）+ 缓存归属键（cacheOwnerSid/cacheProbeUid，B1）
+ *   + zcp_cache.json/ehall_stats.json 文件缓存；
+ *   课表 payload/finalExamDates/reminderDisabledSessions 已降级明文（高频同步读路径提速），
+ *   旧版本遗留密文在 hydrate 时解密回明文完成迁移；
+ * - DEK 重建（换机恢复备份/KEK 卸载）时主动清除全部旧密文，不残留不可解垃圾；
  * - 降级：HUKS 不可用/解包失败时不回退明文存储——读按"无缓存"（getString 返回 ''）、
  *   写暂存内存 pending（hydrate 成功后补写），hydrating 复位允许下次重试；
  * - 旧明文兼容：非 'e1.' 前缀的存量值读取时透传，hydrate 时主动扫描加密迁移。
@@ -98,6 +112,13 @@ export class SecureStore {
       if (typeof stored === 'string' && stored.startsWith(ENVELOPE_PREFIX)) {
         dek = await SecureStore.unwrapDek(stored);
         if (dek === null) {
+          // C6：信封可能被其他进程刚重写（多进程并发首建 KEK 竞态的自愈产物），重读一次再试
+          const retry: preferences.ValueType = pref.getSync(KEY_WRAPPED_DEK, '');
+          if (typeof retry === 'string' && retry !== stored && retry.startsWith(ENVELOPE_PREFIX)) {
+            dek = await SecureStore.unwrapDek(retry);
+          }
+        }
+        if (dek === null) {
           // 解包失败：KEK 被卸载/换机恢复备份（HUKS 密钥不随备份走）——
           // 旧密文不可恢复，重新生成 DEK 让应用以空缓存继续可用，绝不回退明文
           AppLog.warn(DOMAIN, TAG, 'DEK unwrap failed; regenerate (old ciphertext unreadable)');
@@ -106,11 +127,15 @@ export class SecureStore {
       if (dek === null) {
         dek = cryptoFramework.createRandom().generateRandomSync(32).data;
         const wrapped: string = await SecureStore.wrapDek(dek);
+        // C3-C：旧 DEK 下的全部密文已成不可解垃圾，主动清除（prefs 键 + 文件缓存）防堆积
+        SecureStore.clearCipherGarbage(appContext, pref);
         pref.putSync(KEY_WRAPPED_DEK, wrapped);
         pref.flushSync();
       }
       SecureStore.dek = dek;
+      SecureStore.migrateDemotedKeys(dek, pref);
       SecureStore.migrateLegacyPlaintext(dek, pref);
+      SecureStore.migrateLegacyFiles(appContext, dek);
       SecureStore.flushPendingWrites(dek, pref);
       AppLog.info(DOMAIN, TAG, 'hydrate ok');
     } catch (error) {
@@ -225,6 +250,84 @@ export class SecureStore {
     } catch (error) {
       AppLog.warn(DOMAIN, TAG, 'unwrapDek failed: %{public}s', `${error}`);
       return null;
+    }
+  }
+
+  /** 曾加密、现降级明文的键：hydrate 时把旧版本遗留密文解密回明文（幂等；解密失败删键按无数据处理） */
+  private static migrateDemotedKeys(dek: Uint8Array, pref: preferences.Preferences): void {
+    let migrated: number = 0;
+    for (const key of DEMOTED_KEYS) {
+      try {
+        const stored: preferences.ValueType = pref.getSync(key, '');
+        if (typeof stored === 'string' && stored.startsWith(ENVELOPE_PREFIX)) {
+          const plain: string = SecureStore.decryptValue(dek, key, stored);
+          if (plain.length > 0) {
+            pref.putSync(key, plain);
+            migrated += 1;
+          } else {
+            pref.deleteSync(key);
+          }
+        }
+      } catch (error) {
+        AppLog.warn(DOMAIN, TAG, 'demote key %{public}s failed: %{public}s', key, `${error}`);
+      }
+    }
+    if (migrated > 0) {
+      pref.flushSync();
+      AppLog.info(DOMAIN, TAG, 'legacy ciphertext demoted to plaintext: %{public}d key(s)', migrated);
+    }
+  }
+
+  /** C3-C：DEK 重建时清除所有旧密文（prefs 加密键 + 加密文件缓存），防止不可解垃圾长期堆积 */
+  private static clearCipherGarbage(appContext: common.Context,
+    pref: preferences.Preferences): void {
+    for (const key of ALL_CIPHER_KEYS) {
+      try {
+        pref.deleteSync(key);
+      } catch (error) {
+        AppLog.warn(DOMAIN, TAG, 'clear cipher key %{public}s failed: %{public}s', key, `${error}`);
+      }
+    }
+    pref.flushSync();
+    for (const name of CIPHER_CACHE_FILES) {
+      const path: string = `${appContext.filesDir}/${name}`;
+      try {
+        if (fileIo.accessSync(path)) {
+          fileIo.unlinkSync(path);
+        }
+      } catch (error) {
+        AppLog.warn(DOMAIN, TAG, 'clear cipher file %{public}s failed: %{public}s', name, `${error}`);
+      }
+    }
+    AppLog.warn(DOMAIN, TAG, 'cipher garbage cleared after DEK regeneration');
+  }
+
+  /** C5：hydrate 成功后扫描旧明文文件缓存并就地加密（幂等：已加密/不存在/空文件跳过；原子写防半文件） */
+  private static migrateLegacyFiles(appContext: common.Context, dek: Uint8Array): void {
+    for (const name of CIPHER_CACHE_FILES) {
+      const path: string = `${appContext.filesDir}/${name}`;
+      try {
+        if (!fileIo.accessSync(path)) {
+          continue;
+        }
+        const stat: fileIo.Stat = fileIo.statSync(path);
+        if (stat.size <= 0) {
+          continue;
+        }
+        const file: fileIo.File = fileIo.openSync(path, fileIo.OpenMode.READ_ONLY);
+        const buf: ArrayBuffer = new ArrayBuffer(stat.size);
+        fileIo.readSync(file.fd, buf);
+        fileIo.closeSync(file);
+        const decoder: util.TextDecoder = util.TextDecoder.create('utf-8');
+        const stored: string = decoder.decodeToString(new Uint8Array(buf));
+        if (stored.startsWith(ENVELOPE_PREFIX)) {
+          continue;
+        }
+        CacheManager.atomicWriteText(path, SecureStore.encryptValue(dek, name, stored));
+        AppLog.info(DOMAIN, TAG, 'legacy plaintext file encrypted: %{public}s', name);
+      } catch (error) {
+        AppLog.warn(DOMAIN, TAG, 'migrate file %{public}s failed: %{public}s', name, `${error}`);
+      }
     }
   }
 
@@ -349,6 +452,11 @@ export class SecureStore {
     }
     const dek: Uint8Array = SecureStore.dek;
     return SecureStore.decryptValue(dek, fileName, stored);
+  }
+
+  /** 是否为 SecureStore 加密信封值（降级明文键读侧识别旧版遗留密文用） */
+  static isEnvelopeValue(text: string): boolean {
+    return text.startsWith(ENVELOPE_PREFIX);
   }
 
   private static store(context: common.Context): preferences.Preferences {

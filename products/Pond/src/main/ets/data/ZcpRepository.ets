@@ -1,6 +1,8 @@
 import { http } from '@kit.NetworkKit';
 import { AppLog } from './AppLog';
+import { CacheManager } from './CacheManager';
 import { SecureStore } from './SecureStore';
+import { Timeouts } from '../net/Timeouts';
 // 冷启动优化 ③：Cookie 读写收口到 WebCookieOps（内部才 import webview），lazy 使 ArkWeb 不进冷启动模块图
 import lazy { WebCookieOps } from '../net/WebCookieOps';
 import { BusinessError } from '@kit.BasicServicesKit';
@@ -268,8 +270,8 @@ export class ZcpRepository {
       const options: http.HttpRequestOptions = {
         method: http.RequestMethod.POST,
         header: header,
-        connectTimeout: 10000,
-        readTimeout: 10000,
+        connectTimeout: Timeouts.COMMON_MS,
+        readTimeout: Timeouts.COMMON_MS,
         expectDataType: http.HttpDataType.STRING
       };
       if (form.length > 0) {
@@ -466,14 +468,13 @@ export class ZcpRepository {
     }
     try {
       const path: string = ZcpRepository.cacheFilePath();
-      // 综测指标/得分属个人信息，加密后落盘（密钥未就绪返回空串则跳过本次写入）
+      // 综测指标/得分属个人信息，加密后落盘（密钥未就绪返回空串则跳过本次写入）；
+      // 原子写（tmp+rename）防写一半进程被杀留下损坏文件
       const stored: string = SecureStore.encryptFileText(context, 'zcp_cache.json', JSON.stringify(result));
       if (stored.length === 0) {
         return;
       }
-      const file: fs.File = fs.openSync(path, fs.OpenMode.READ_WRITE | fs.OpenMode.CREATE | fs.OpenMode.TRUNC);
-      fs.writeSync(file.fd, stored);
-      fs.closeSync(file);
+      CacheManager.atomicWriteText(path, stored);
       AppLog.info(DOMAIN, TAG, 'zcp cache saved');
     } catch (error) {
       AppLog.warn(DOMAIN, TAG, 'saveCache failed: %{public}s', `${error}`);

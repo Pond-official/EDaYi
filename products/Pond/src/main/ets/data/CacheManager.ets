@@ -63,4 +63,17 @@ export class CacheManager {
     }
     return (kb / 1024).toFixed(1) + ' MB';
   }
+
+  /**
+   * 原子写文本文件（B4）：先写同目录临时文件再改名（同目录 rename 原子），
+   * 避免写一半进程被杀留下损坏文件；临时文件残留时下次写入会截断覆盖。
+   */
+  static atomicWriteText(path: string, text: string): void {
+    const tmpPath: string = `${path}.tmp`;
+    const file: fs.File = fs.openSync(tmpPath,
+      fs.OpenMode.READ_WRITE | fs.OpenMode.CREATE | fs.OpenMode.TRUNC);
+    fs.writeSync(file.fd, text);
+    fs.closeSync(file);
+    fs.renameSync(tmpPath, path);
+  }
 }

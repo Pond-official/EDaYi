@@ -4,6 +4,7 @@ import { AppLog } from '../data/AppLog';
 import lazy { WebCookieOps } from './WebCookieOps';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { common } from '@kit.AbilityKit';
+import { Timeouts } from './Timeouts';
 
 /** 教务系统根地址（原 JwxtRepository 常量迁入，值不变） */
 export const JW_APP_ROOT: string = 'https://jwxt.dmu.edu.cn/jwapp';
@@ -58,8 +59,8 @@ async function request(path: string, form: string, method: http.RequestMethod): 
     const options: http.HttpRequestOptions = {
       method: method,
       header: header,
-      connectTimeout: 8000,
-      readTimeout: 8000,
+      connectTimeout: Timeouts.JW_MS,
+      readTimeout: Timeouts.JW_MS,
       expectDataType: http.HttpDataType.STRING
     };
     if (form.length > 0) {

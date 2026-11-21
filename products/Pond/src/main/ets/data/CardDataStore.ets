@@ -15,6 +15,10 @@ const KEY_PAYLOAD: string = 'payload';
 const KEY_FORM_IDS: string = 'formIds';
 const KEY_FORM_ENTRIES: string = 'formEntries';
 const KEY_APP_CACHE: string = 'appCache';
+/** 离线缓存归属学号（B1，加密） */
+const KEY_CACHE_OWNER_SID: string = 'cacheOwnerSid';
+/** 离线缓存归属探针标识（B1，加密；与 KEY_CACHE_OWNER_SID 同步写入/清除） */
+const KEY_CACHE_PROBE_UID: string = 'cacheProbeUid';
 const KEY_REMINDER_SETTINGS: string = 'reminderSettings';
 const KEY_DISABLED_SESSIONS: string = 'reminderDisabledSessions';
 const KEY_FINAL_EXAMS: string = 'finalExamDates';
@@ -140,18 +144,21 @@ export class CardDataStore {
 
   /**
    * 保存课表数据（JSON），并尝试刷新已添加的卡片。
+   * 课表卡片数据为高频同步读路径（加卡/每小时刷新/前台跨天），不加密落盘以消除卡片链路解密开销。
    */
   static saveAndRefresh(context: common.Context, payloadJson: string): void {
     try {
-      // 课表数据含学生姓名等敏感信息，经 SecureStore 加密落盘
-      SecureStore.putString(context, KEY_PAYLOAD, payloadJson);
-      CardDataStore.refreshAllCards(context);
+      const pref: preferences.Preferences = CardDataStore.store(context);
+      pref.putSync(KEY_PAYLOAD, payloadJson);
+      pref.flushSync();
+      // C1：直接把原串传下去，避免刷新循环每张卡重复读回同一份课表
+      CardDataStore.refreshAllCards(context, payloadJson);
     } catch (error) {
       AppLog.error(DOMAIN, TAG, 'saveAndRefresh failed: %{public}s', `${error}`);
     }
   }
 
-  /** 保存应用内离线缓存（最近一次同步的完整数据 JSON），会话过期时供界面回显 */
+  /** 保存应用内离线缓存（最近一次同步的完整数据 JSON，含学生身份/成绩等，加密落盘），会话过期时供界面回显 */
   static saveAppCache(context: common.Context, cacheJson: string): void {
     try {
       SecureStore.putString(context, KEY_APP_CACHE, cacheJson);
@@ -172,8 +179,52 @@ export class CardDataStore {
   static clearAppCache(context: common.Context): void {
     try {
       SecureStore.remove(context, KEY_APP_CACHE);
+      // 归属键随缓存一并清除：缓存不存在后归属链无意义（B1）
+      SecureStore.remove(context, KEY_CACHE_OWNER_SID);
+      SecureStore.remove(context, KEY_CACHE_PROBE_UID);
     } catch (error) {
       AppLog.error(DOMAIN, TAG, 'clearAppCache failed: %{public}s', `${error}`);
+    }
+  }
+
+  /**
+   * 记录离线缓存归属（B1）：ownerSid=同步时的学号，probeUid=同步时教务探针返回的会话用户标识；
+   * 回放前与缓存内学号/当前探针比对，换账号后不再回放上一账号的数据。
+   */
+  static saveCacheOwner(context: common.Context, ownerSid: string, probeUid: string): void {
+    try {
+      SecureStore.putString(context, KEY_CACHE_OWNER_SID, ownerSid);
+      SecureStore.putString(context, KEY_CACHE_PROBE_UID, probeUid);
+    } catch (error) {
+      AppLog.error(DOMAIN, TAG, 'saveCacheOwner failed: %{public}s', `${error}`);
+    }
+  }
+
+  /** 读缓存归属学号（未记录/降级返回 ''，调用方按无法验证处理） */
+  static loadCacheOwnerSid(context: common.Context): string {
+    try {
+      return SecureStore.getString(context, KEY_CACHE_OWNER_SID);
+    } catch (error) {
+      return '';
+    }
+  }
+
+  /** 读缓存归属探针标识（未记录/降级返回 ''） */
+  static loadCacheProbeUid(context: common.Context): string {
+    try {
+      return SecureStore.getString(context, KEY_CACHE_PROBE_UID);
+    } catch (error) {
+      return '';
+    }
+  }
+
+  /** 断开缓存归属链（退出登录时调用）：保留缓存供界面继续显示，但不再允许后续回放 */
+  static clearCacheOwner(context: common.Context): void {
+    try {
+      SecureStore.remove(context, KEY_CACHE_OWNER_SID);
+      SecureStore.remove(context, KEY_CACHE_PROBE_UID);
+    } catch (error) {
+      AppLog.error(DOMAIN, TAG, 'clearCacheOwner failed: %{public}s', `${error}`);
     }
   }
 
@@ -243,7 +294,8 @@ export class CardDataStore {
   static loadDisabledSessions(context: common.Context): string[] {
     const result: string[] = [];
     try {
-      const json: string = SecureStore.getString(context, KEY_DISABLED_SESSIONS);
+      const pref: preferences.Preferences = CardDataStore.store(context);
+      const json: string = CardDataStore.readString(pref, KEY_DISABLED_SESSIONS);
       if (json.length > 0) {
         const raw: Object[] = JSON.parse(json) as Object[];
         for (const item of raw) {
@@ -261,7 +313,9 @@ export class CardDataStore {
   /** 保存被单独关闭上课提醒的课程名单（按会话键） */
   static saveDisabledSessions(context: common.Context, sessionKeys: string[]): void {
     try {
-      SecureStore.putString(context, KEY_DISABLED_SESSIONS, JSON.stringify(sessionKeys));
+      const pref: preferences.Preferences = CardDataStore.store(context);
+      pref.putSync(KEY_DISABLED_SESSIONS, JSON.stringify(sessionKeys));
+      pref.flushSync();
     } catch (error) {
       AppLog.error(DOMAIN, TAG, 'saveDisabledSessions failed: %{public}s', `${error}`);
     }
@@ -271,7 +325,8 @@ export class CardDataStore {
   static loadFinalExams(context: common.Context): FinalExamEntry[] {
     const result: FinalExamEntry[] = [];
     try {
-      const json: string = SecureStore.getString(context, KEY_FINAL_EXAMS);
+      const pref: preferences.Preferences = CardDataStore.store(context);
+      const json: string = CardDataStore.readString(pref, KEY_FINAL_EXAMS);
       if (json.length > 0) {
         const raw: FinalExamRaw[] = JSON.parse(json) as FinalExamRaw[];
         for (const item of raw) {
@@ -297,7 +352,9 @@ export class CardDataStore {
       for (const entry of exams) {
         raw.push({ course: entry.courseName, date: entry.examDate });
       }
-      SecureStore.putString(context, KEY_FINAL_EXAMS, JSON.stringify(raw));
+      const pref: preferences.Preferences = CardDataStore.store(context);
+      pref.putSync(KEY_FINAL_EXAMS, JSON.stringify(raw));
+      pref.flushSync();
     } catch (error) {
       AppLog.error(DOMAIN, TAG, 'saveFinalExams failed: %{public}s', `${error}`);
     }
@@ -540,7 +597,9 @@ export class CardDataStore {
   /** 清除持久化的卡片课表数据（严格隐私模式启用或退至后台时调用） */
   static clearCardPayload(context: common.Context): void {
     try {
-      SecureStore.remove(context, KEY_PAYLOAD);
+      const pref: preferences.Preferences = CardDataStore.store(context);
+      pref.deleteSync(KEY_PAYLOAD);
+      pref.flushSync();
     } catch (error) {
       AppLog.error(DOMAIN, TAG, 'clearCardPayload failed: %{public}s', `${error}`);
     }
@@ -549,7 +608,9 @@ export class CardDataStore {
   /** 清除期末考试日期设置（严格隐私模式清理时调用） */
   static clearFinalExams(context: common.Context): void {
     try {
-      SecureStore.remove(context, KEY_FINAL_EXAMS);
+      const pref: preferences.Preferences = CardDataStore.store(context);
+      pref.deleteSync(KEY_FINAL_EXAMS);
+      pref.flushSync();
     } catch (error) {
       AppLog.error(DOMAIN, TAG, 'clearFinalExams failed: %{public}s', `${error}`);
     }
@@ -558,7 +619,9 @@ export class CardDataStore {
   /** 清除单课提醒关闭名单（严格隐私模式清理时调用） */
   static clearDisabledSessions(context: common.Context): void {
     try {
-      SecureStore.remove(context, KEY_DISABLED_SESSIONS);
+      const pref: preferences.Preferences = CardDataStore.store(context);
+      pref.deleteSync(KEY_DISABLED_SESSIONS);
+      pref.flushSync();
     } catch (error) {
       AppLog.error(DOMAIN, TAG, 'clearDisabledSessions failed: %{public}s', `${error}`);
     }
@@ -600,8 +663,10 @@ export class CardDataStore {
    * （卡片更新不依赖打开应用，跨周时与主应用同规则推进），
    * 计算今日/明日课程（按卡片上限截断，超出记余量）
    * 与本周/下周周网格数据（供卡片切换查看下周、明天）。
+   * @param payloadJson 调用方已持有的课表原文（C1：批量刷新时传入避免逐卡重复读取），未传则自行读取
    */
-  static buildBindingData(context: common.Context, maxCourses: number): formBindingData.FormBindingData {
+  static buildBindingData(context: common.Context, maxCourses: number,
+    payloadJson?: string): formBindingData.FormBindingData {
     if (CardDataStore.loadPrivacyMode(context) === 'strict') {
       const disabled: Record<string, string> = {
         'weekText': '',
@@ -625,9 +690,14 @@ export class CardDataStore {
     let anchor: string = '';
     let cells: CardCellItem[] = [];
     try {
-      const payloadJson: string = SecureStore.getString(context, KEY_PAYLOAD);
-      if (payloadJson.length > 0) {
-        const raw: CardPayloadRaw = JSON.parse(payloadJson) as CardPayloadRaw;
+      let storedPayload: string = payloadJson ?? '';
+      if (storedPayload.length === 0) {
+        const pref: preferences.Preferences = CardDataStore.store(context);
+        storedPayload = CardDataStore.readString(pref, KEY_PAYLOAD);
+      }
+      // 旧版本曾加密本键：迁移完成前读到密文按未同步处理（主应用 hydrate 后自动转明文），不误报"无课"
+      if (storedPayload.length > 0 && !SecureStore.isEnvelopeValue(storedPayload)) {
+        const raw: CardPayloadRaw = JSON.parse(storedPayload) as CardPayloadRaw;
         week = raw.week ?? 0;
         anchor = raw.anchor ?? '';
         cells = raw.cells ?? [];
@@ -724,8 +794,9 @@ export class CardDataStore {
 
   /**
    * 刷新所有已添加的卡片（数据变更后由主应用调用）。
+   * @param payloadJson 调用方已持有的课表原文（C1：批量刷新时传入避免逐卡重复读取），未传则各卡自行读取
    */
-  static refreshAllCards(context: common.Context): void {
+  static refreshAllCards(context: common.Context, payloadJson?: string): void {
     try {
       const pref: preferences.Preferences = CardDataStore.store(context);
       const entries: FormEntry[] = CardDataStore.readEntries(pref);
@@ -734,7 +805,7 @@ export class CardDataStore {
       }
       for (const entry of entries) {
         const binding: formBindingData.FormBindingData =
-          CardDataStore.buildBindingData(context, entry.max);
+          CardDataStore.buildBindingData(context, entry.max, payloadJson);
         formProvider.updateForm(entry.id, binding).catch((error: Error) => {
           AppLog.error(DOMAIN, TAG, 'updateForm %{public}s failed: %{public}s', entry.id, `${error}`);
           if (`${error}`.includes('does not exist')) {

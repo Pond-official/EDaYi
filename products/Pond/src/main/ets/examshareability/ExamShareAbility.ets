@@ -5,7 +5,6 @@ import { fileIo } from '@kit.CoreFileKit';
 import { util } from '@kit.ArkTS';
 import { AppLog } from '../data/AppLog';
 import { ExamShareText } from '../utils/ExamShareText';
-import { SecureStore } from '../data/SecureStore';
 
 const TAG: string = 'ExamShareAbility';
 const DOMAIN: number = 0x0000;
@@ -21,37 +20,32 @@ const MAX_SHARE_FILE_BYTES: number = 64 * 1024;
  */
 export default class ExamShareAbility extends ShareExtensionAbility {
   onSessionCreate(want: Want, session: UIExtensionContentSession): void {
-    // 导入页确认合并时读写加密期末数据，先等数据密钥就绪再加载页面
-    // （HUKS 降级时也继续加载，导入页按空基线合并、仅刷新内存态）
-    SecureStore.awaitReady(this.context)
-      .then((): void => {
-        systemShare.getSharedData(want)
-          .then((data: systemShare.SharedData) => {
-            const records: Array<systemShare.SharedRecord> = data.getRecords();
-            const text: string = ExamShareAbility.inlineTextOf(records);
-            if (text.length > 0) {
-              this.loadImportPage(session, text);
-              return;
-            }
-            const uri: string = ExamShareAbility.fileUriOf(records);
-            if (uri.length === 0) {
-              AppLog.error(DOMAIN, TAG, 'no text or file in shared records');
-              this.loadImportPage(session, '');
-              return;
-            }
-            this.readShareFile(uri)
-              .then((fileText: string) => {
-                this.loadImportPage(session, fileText);
-              })
-              .catch((error: BusinessError) => {
-                AppLog.error(DOMAIN, TAG, 'read share file failed: %{public}s', JSON.stringify(error));
-                this.loadImportPage(session, '');
-              });
+    systemShare.getSharedData(want)
+      .then((data: systemShare.SharedData) => {
+        const records: Array<systemShare.SharedRecord> = data.getRecords();
+        const text: string = ExamShareAbility.inlineTextOf(records);
+        if (text.length > 0) {
+          this.loadImportPage(session, text);
+          return;
+        }
+        const uri: string = ExamShareAbility.fileUriOf(records);
+        if (uri.length === 0) {
+          AppLog.error(DOMAIN, TAG, 'no text or file in shared records');
+          this.loadImportPage(session, '');
+          return;
+        }
+        this.readShareFile(uri)
+          .then((fileText: string) => {
+            this.loadImportPage(session, fileText);
           })
           .catch((error: BusinessError) => {
-            AppLog.error(DOMAIN, TAG, 'getSharedData failed: %{public}s', JSON.stringify(error));
+            AppLog.error(DOMAIN, TAG, 'read share file failed: %{public}s', JSON.stringify(error));
             this.loadImportPage(session, '');
           });
+      })
+      .catch((error: BusinessError) => {
+        AppLog.error(DOMAIN, TAG, 'getSharedData failed: %{public}s', JSON.stringify(error));
+        this.loadImportPage(session, '');
       });
   }
 

@@ -4,6 +4,7 @@ import { util } from '@kit.ArkTS';
 import lazy { WebCookieOps } from './WebCookieOps';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { AppLog } from '../data/AppLog';
+import { Timeouts } from './Timeouts';
 
 /** 图书馆（汇文 LibSP，finddmu.libsp.cn）根地址 */
 export const LIB_BASE: string = 'https://finddmu.libsp.cn';
@@ -12,7 +13,6 @@ export const LIB_GROUP_CODE: string = '200262';
 
 const TAG: string = 'LibSpTransport';
 const DOMAIN: number = 0x0000;
-const TIMEOUT_MS: number = 15000;
 
 /** 会话失效标记：JWT 过期/未登录时抛出，调用方据此重新走隐藏 Web 换票 */
 export const LIBSP_SESSION_INVALID: string = 'LIBSP_AUTH_EXPIRED';
@@ -130,8 +130,8 @@ export async function libRequest(
     const options: http.HttpRequestOptions = {
       method: method,
       header: header,
-      connectTimeout: TIMEOUT_MS,
-      readTimeout: TIMEOUT_MS,
+      connectTimeout: Timeouts.LIBRARY_MS,
+      readTimeout: Timeouts.LIBRARY_MS,
       expectDataType: http.HttpDataType.STRING
     };
     if (method === http.RequestMethod.POST && bodyJson.length > 0) {

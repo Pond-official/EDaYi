@@ -121,6 +121,13 @@ export class CrossDomainSession {
     if (req === undefined) {
       return;
     }
+    // B5：排队期间该域可能已被其他请求引导完成（settle 后 ready 已就位），直接兑现不重复引导
+    if (CrossDomainSession.ready.has(req.spec.key)) {
+      AppLog.info(DOMAIN, TAG, 'queue hit ready, domain: %{public}s -> ok', req.spec.key);
+      req.resolve(true);
+      CrossDomainSession.pump();
+      return;
+    }
     AppLog.info(DOMAIN, TAG, 'bootstrap domain: %{public}s', req.spec.key);
     req.timer = setTimeout(() => {
       CrossDomainSession.settle(false);

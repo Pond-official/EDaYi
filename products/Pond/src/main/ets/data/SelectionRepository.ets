@@ -4,6 +4,7 @@ import { BusinessError } from '@kit.BasicServicesKit';
 import { cryptoFramework } from '@kit.CryptoArchitectureKit';
 import { asset } from '@kit.AssetStoreKit';
 import { util } from '@kit.ArkTS';
+import { Timeouts } from '../net/Timeouts';
 import {
   CaptchaData,
   CourseListResult,
@@ -300,8 +301,8 @@ export class SelectionRepository {
       const options: http.HttpRequestOptions = {
         method: http.RequestMethod.POST,
         header: header,
-        connectTimeout: 10000,
-        readTimeout: 10000,
+        connectTimeout: Timeouts.COMMON_MS,
+        readTimeout: Timeouts.COMMON_MS,
         expectDataType: http.HttpDataType.STRING
       };
       // 空 body 时不得设置 extraData（空字符串会被 http 栈判定 Parameter error 401）

@@ -5,7 +5,9 @@ import lazy { WebCookieOps } from '../net/WebCookieOps';
 import { fileIo as fs } from '@kit.CoreFileKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { AppLog } from './AppLog';
+import { CacheManager } from './CacheManager';
 import { SecureStore } from './SecureStore';
+import { Timeouts } from '../net/Timeouts';
 import { CrossDomainSession } from '../net/CrossDomainSession';
 import { DOMAIN_EHALL } from '../net/DomainSpec';
 import { getContext } from '../net/JwTransport';
@@ -320,8 +322,8 @@ export class EhallRepository {
         method: http.RequestMethod.POST,
         header: header,
         extraData: JSON.stringify(request),
-        connectTimeout: 10000,
-        readTimeout: 10000,
+        connectTimeout: Timeouts.COMMON_MS,
+        readTimeout: Timeouts.COMMON_MS,
         expectDataType: http.HttpDataType.STRING
       };
       const response: http.HttpResponse = await client.request(EHALL_BASE + EHALL_PERSONAL_CARD_PATH, options);
@@ -390,15 +392,14 @@ export class EhallRepository {
     }
     try {
       const raw: EhallStatsCacheRaw = { balance: balance, loanCount: loanCount };
-      // 余额/借阅数属个人信息，加密后落盘（密钥未就绪返回空串则跳过本次写入）
+      // 余额/借阅数属个人信息，加密后落盘（密钥未就绪返回空串则跳过本次写入）；
+      // 原子写（tmp+rename）防写一半进程被杀留下损坏文件
       const stored: string =
         SecureStore.encryptFileText(context, 'ehall_stats.json', JSON.stringify(raw));
       if (stored.length === 0) {
         return;
       }
-      const file: fs.File = fs.openSync(path, fs.OpenMode.READ_WRITE | fs.OpenMode.CREATE | fs.OpenMode.TRUNC);
-      fs.writeSync(file.fd, stored);
-      fs.closeSync(file);
+      CacheManager.atomicWriteText(path, stored);
     } catch (error) {
       AppLog.warn(DOMAIN, TAG, 'saveCache failed: %{public}s', `${error}`);
     }

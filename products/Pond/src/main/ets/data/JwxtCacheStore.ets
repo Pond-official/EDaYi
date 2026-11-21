@@ -122,6 +122,23 @@ export class JwxtCacheStore {
     AppLog.info(DOMAIN, TAG, 'app cache persisted');
   }
 
+  /**
+   * 记录离线缓存归属（B1）：仅同步成功后与缓存内容同源调用（advanceTermWeek 自推进不调用，防用旧身份覆盖）。
+   * ownerSid 取当前学生学号（XH），probeUid 取教务探针用户标识（同步时探针失败为空，回放侧按规则处理）。
+   */
+  static persistCacheOwner(probeUid: string): void {
+    const context: common.Context | null = getContext();
+    if (context === null) {
+      return;
+    }
+    if (PrivacyController.privacyMode() !== 'standard') {
+      return;
+    }
+    const student: StudentProfile = AppStorage.get<StudentProfile>('jwStudent') ?? new StudentProfile();
+    CardDataStore.saveCacheOwner(context, student.studentId, probeUid);
+    AppLog.info(DOMAIN, TAG, 'app cache owner persisted');
+  }
+
   private static buildAppCacheJson(): string {
     const student: StudentProfile = AppStorage.get<StudentProfile>('jwStudent') ?? new StudentProfile();
     const cells: ScheduleCellInfo[] = AppStorage.get<ScheduleCellInfo[]>('jwSchedule') ?? [];
@@ -226,8 +243,14 @@ export class JwxtCacheStore {
 
   /**
    * 同步失败时尝试回放离线缓存；无缓存或解析失败返回 false（调用方退回空态）。
+   * B1 归属校验（防跨账号数据泄漏）：
+   * - 缓存内学号必须与记录的归属学号一致（不一致/无归属记录 = 旧版本或异常数据，不回放）；
+   * - 当前探针标识非空时必须与记录的归属探针一致——识别到换账号或退出登录后断链重登：丢弃缓存，
+   *   宁可空态也不回放可能属于他人的数据；
+   * - 当前探针为空（离线，未与教务交互）且回放链完整：正常回放。
+   * @param currentProbe 当前会话教务探针返回的用户标识（探针也失败拿不到时为 ''）
    */
-  static applyAppCache(): boolean {
+  static applyAppCache(currentProbe: string): boolean {
     const context: common.Context | null = getContext();
     if (context === null) {
       return false;
@@ -238,6 +261,19 @@ export class JwxtCacheStore {
     }
     try {
       const raw: AppCacheRaw = JSON.parse(cacheJson) as AppCacheRaw;
+      const cachedSid: string = raw.student?.studentId ?? '';
+      const ownerSid: string = CardDataStore.loadCacheOwnerSid(context);
+      const ownerProbe: string = CardDataStore.loadCacheProbeUid(context);
+      if (cachedSid.length === 0 || ownerSid.length === 0 || cachedSid !== ownerSid) {
+        AppLog.warn(DOMAIN, TAG, 'app cache owner unverifiable, skip replay');
+        return false;
+      }
+      if (currentProbe.length > 0 && currentProbe !== ownerProbe) {
+        // 当前会话是另一账号（或归属链已在退出登录时断开）：丢弃缓存（含归属键），不回放他人数据
+        AppLog.warn(DOMAIN, TAG, 'app cache owner mismatch, drop');
+        CardDataStore.clearAppCache(context);
+        return false;
+      }
       const student: StudentProfile = new StudentProfile();
       const studentRaw: StudentCacheRaw | undefined = raw.student;
       if (studentRaw !== undefined) {
