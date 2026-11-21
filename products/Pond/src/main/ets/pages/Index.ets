@@ -24,8 +24,10 @@ const BAR_SIDE_MARGIN: number = 32;
 const BAR_BOTTOM_MARGIN: number = 16;
 /** 悬浮页签栏高度（vp） */
 const BAR_HEIGHT: number = 64;
-/** 沉浸光感（uiMaterial/barFloatingStyle）所需系统版本：26.0.0 对应 distributionOSApiVersion 26*10000 */
+/** 沉浸光感（uiMaterial/普通 Tabs barFloatingStyle）所需系统版本：26.0.0 对应 distributionOSApiVersion 26*10000 */
 const IMMERSIVE_OS_API_VERSION: number = 260000;
+/** HDS 悬浮页签栏（HdsTabs.barFloatingStyle）起始版本：6.1.0(23) 对应 distributionOSApiVersion 23*10000 */
+const HDS_FLOATING_OS_API_VERSION: number = 230000;
 /** HDS 组件（UI Design Kit）系统能力标识 */
 const HDS_SYSCAP: string = 'SystemCapability.UIDesign.HDSComponent.Core';
 /** 首页页签索引（驱动首页页签切回时检查已结束考试） */
@@ -43,12 +45,12 @@ const SETTINGS_SIDE_MARGIN: number = 16;
  * 应用主框架：首页、成绩、综评、选课四个页签 + 右上角设置入口（所有页面可见）。
  * 底栏（HDS 版本，主路径）：
  *   build 以 Stack 为根，HdsNavigation 包裹 HdsTabs，
- *   HdsTabs 设 barFloatingStyle 悬浮导航栏样式（沉浸材质 + 光效指示器），
+ *   HdsTabs 设 barFloatingStyle 悬浮导航栏样式（6.1.0(23) 起可用；沉浸材质 + 光效指示器），
  *   选中页签由悬浮导航栏系统光效指示（lightColor 光感反馈，按压/选中处透出光晕）；
  *   内容区支持左右滑动切换页签（scrollable），页签栏轻点与内容滑动互通；
  *   页签栏宽度随窗口尺寸变化自动重算（横竖屏切换、折叠屏开合、分屏/悬浮窗拖动），
  *   各视图通过断点（mainBreakpoint）自动适配横竖屏布局；
- *   设备缺少 HDS 能力时降级：API 26+ 走 uiMaterial 悬浮页签栏，再退普通底栏。
+ *   HDS 路径低于 API 23 时退 HDS 常规底栏；设备缺少 HDS 能力时降级：API 26+ 走 uiMaterial 悬浮页签栏，再退普通底栏。
  */
 @Entry
 @Component
@@ -59,6 +61,8 @@ struct Index {
   @State @Watch('onTabChanged') currentTabIndex: number = 0;
   /** 状态栏避让区高度（px）：沉浸式全屏下设置入口按钮顶部让位计算用 */
   @StorageProp('jwSafeTopPx') safeTopPx: number = 0;
+  /** 底部系统导航条避让高度（px）：API 23 以下常规底栏让位系统导航条用（悬浮底栏自带悬浮边距无需让位） */
+  @StorageProp('jwSafeBottomPx') safeBottomPx: number = 0;
   /** 底栏光效颜色（开发者选项自定义，#RRGGBB）：变化时重建降级分支页签栏材质（HDS 主路径由状态驱动自动刷新） */
   @StorageProp('jwLightEffectColor') @Watch('onLightEffectColorChanged') lightEffectColor: string = '#FFFFFF';
   /** 底栏材质档位（开发者选项自定义，ADAPTIVE/EXQUISITE/GENTLE/SMOOTH） */
@@ -69,8 +73,10 @@ struct Index {
   @StorageProp('jwBackgroundMode') backgroundMode: string = 'system';
   /** 设备是否具备 HDS 组件能力（UI Design Kit） */
   private hdsSupported: boolean = false;
-  /** 当前设备是否支持悬浮页签栏 + 沉浸光感（API 26+），降级分支使用 */
+  /** 当前设备是否支持普通 Tabs 悬浮页签栏 + 沉浸光感（API 26+），非 HDS 降级分支使用 */
   private supportsFloatingBar: boolean = false;
+  /** HDS 路径悬浮页签栏支持（API 23+，HdsTabs.barFloatingStyle 为 6.1.0(23) 属性，位置可单独设置） */
+  private supportsHdsFloatingBar: boolean = false;
   /** 降级分支页签栏沉浸光感材质（随光效颜色自定义重建） */
   @State barMaterial: uiMaterial.ImmersiveMaterial | undefined = undefined;
   tabLabels: string[] = ['首页', '成绩', '综评', '选课'];
@@ -91,6 +97,7 @@ struct Index {
     this.fitBarWidth();
     this.hdsSupported = canIUse(HDS_SYSCAP);
     this.supportsFloatingBar = deviceInfo.distributionOSApiVersion >= IMMERSIVE_OS_API_VERSION;
+    this.supportsHdsFloatingBar = deviceInfo.distributionOSApiVersion >= HDS_FLOATING_OS_API_VERSION;
     this.barMaterial = this.buildBarMaterial();
     CrossDomainSession.setHostRequestCallback(() => {
       this.crossHostNeeded = true;
@@ -134,6 +141,15 @@ struct Index {
   /** 右上角设置入口顶部边距（vp）：沉浸式全屏下叠加状态栏避让区，保持与原视觉位置一致 */
   private settingsTopMargin(): number {
     return this.getUIContext().px2vp(this.safeTopPx) + SETTINGS_TOP_MARGIN;
+  }
+
+  /** API 23 以下常规底栏底部让位高度（vp）：内衬系统导航条避让高度，避免底栏与导航条互相遮挡；
+   *  API 23+ 悬浮底栏自带悬浮边距，返回 0 不让位 */
+  private regularBarBottomInsetVp(): number {
+    if (deviceInfo.distributionOSApiVersion >= HDS_FLOATING_OS_API_VERSION) {
+      return 0;
+    }
+    return this.getUIContext().px2vp(this.safeBottomPx);
   }
 
   /** 按给定窗口宽度收缩悬浮页签栏宽度：栏宽 = min(基准宽, 窗宽 - 左右留白) */
@@ -283,8 +299,9 @@ struct Index {
 
       if (this.hdsSupported) {
         HdsNavigation() {
-          if (this.supportsFloatingBar) {
-            // API 26+：悬浮页签栏 + 沉浸材质 + 光效指示器（barFloatingStyle 为 26 版本属性）
+          if (this.supportsHdsFloatingBar) {
+            // API 23+：HDS 悬浮页签栏（HdsTabs.barFloatingStyle 为 6.1.0(23) 属性），位置可单独设置；
+            // 沉浸材质与光效按设备能力自适应，26 以下设备无 IMMERSIVE 材质时自动回退系统材质
             HdsTabs({ controller: this.hdsTabsController }) {
               this.tabPages()
             }
@@ -312,7 +329,8 @@ struct Index {
             .width('100%')
             .height('100%')
           } else {
-            // API 26 以下：HDS 常规底栏（悬浮栏样式为高版本属性，低版本设备调用会抛异常，条件渲染规避）
+            // API 23 以下：HDS 常规底栏（barFloatingStyle 为 6.1.0(23) 属性，更低版本设备调用会抛异常，条件渲染规避），
+            // 底部内衬导航条避让高度，避免底栏与系统导航条互相遮挡
             HdsTabs({ controller: this.hdsTabsController }) {
               this.tabPages()
             }
@@ -326,6 +344,7 @@ struct Index {
             .onSelected((index: number) => {
               this.onTabSelected(index);
             })
+            .padding({ bottom: this.regularBarBottomInsetVp() })
             .width('100%')
             .height('100%')
           }
@@ -380,6 +399,7 @@ struct Index {
           this.onTabSelected(index);
         })
         .barBackgroundBlurStyle(BlurStyle.COMPONENT_THIN)
+        .padding({ bottom: this.regularBarBottomInsetVp() })
         .width('100%')
         .height('100%')
       }

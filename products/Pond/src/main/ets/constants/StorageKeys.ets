@@ -13,9 +13,10 @@
  * 校验命令（项目根目录）：node tools/check_storage_keys.mjs
  */
 
-// ================================ AppStorage 键（32 个） ================================
+// ================================ AppStorage 键（33 个） ================================
 
 // [AppStorage] jwSafeTopPx | number | pondability/PondAbility（窗口避让安全高度） | pages/LoginIndex、pages/Index、pages/TrainingPlanIndex、pages/LibraryIndex、view/FrostBand、view/GradeView、view/HomeView、view/SelectionView、view/SettingsView、view/ZcpView（10 处）
+// [AppStorage] jwSafeBottomPx | number | pondability/PondAbility（窗口底部导航条避让高度，三键导航与手势条取较大值） | pages/Index（API 23 以下常规底栏让位系统导航条）
 // [AppStorage] mainBreakpoint | string | common/utils/BreakpointSystem（pages/Index 注册，断点变化写入） | pages/TrainingPlanIndex、view/GradeView、view/HomeView、view/SelectionView、view/ZcpView（@StorageLink 5 处，双向）
 // [AppStorage] jwDataMode | string（preview/online/offlineCache） | data/JwxtCacheStore、data/JwxtSessionRepository | pages/TrainingPlanIndex、pages/LibraryIndex、view/GradeView、view/HomeView、view/ZcpView
 // [AppStorage] jwStudent | model/JwModels.StudentProfile | data/JwxtCacheStore、data/JwxtSessionRepository（退出登录置空） | view/HomeView

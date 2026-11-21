@@ -30,7 +30,7 @@ export default class PondAbility extends UIAbility {
     // 全屏设置与主页面加载并行发起：loadContent 不再等待 setWindowLayoutFullScreen
     // 的窗口管理器往返（冷启动关键路径缩短一次异步往返）
     this.enterImmersiveFullScreen(windowStage);
-    this.recordSafeTopAndLoad(windowStage);
+    this.recordSafeAreasAndLoad(windowStage);
   }
 
   /**
@@ -45,21 +45,21 @@ export default class PondAbility extends UIAbility {
       mainWindow.setWindowLayoutFullScreen(true)
         .then(() => {
           AppLog.info(DOMAIN, 'testTag', '%{public}s', 'Succeeded in setting layout fullscreen.');
-          this.recordSafeTop(windowStage);
+          this.recordSafeAreas(windowStage);
         })
         .catch((err: BusinessError) => {
           AppLog.error(DOMAIN, 'testTag', 'Failed to set fullscreen. Cause: %{public}s', JSON.stringify(err));
-          this.recordSafeTop(windowStage);
+          this.recordSafeAreas(windowStage);
         });
     } catch (err) {
       AppLog.error(DOMAIN, 'testTag', 'Failed to set fullscreen (sync). Cause: %{public}s', JSON.stringify(err));
-      this.recordSafeTop(windowStage);
+      this.recordSafeAreas(windowStage);
     }
   }
 
   /** 先记录避让区高度再加载主页面（onWindowStageCreate 内立即调用，与全屏设置并行） */
-  private recordSafeTopAndLoad(windowStage: window.WindowStage): void {
-    this.recordSafeTop(windowStage);
+  private recordSafeAreasAndLoad(windowStage: window.WindowStage): void {
+    this.recordSafeAreas(windowStage);
     windowStage.loadContent('pages/Index', (err) => {
       if (err.code) {
         AppLog.error(DOMAIN, 'testTag', 'Failed to load the content. Cause: %{public}s', JSON.stringify(err));
@@ -70,22 +70,33 @@ export default class PondAbility extends UIAbility {
   }
 
   /**
-   * 记录状态栏避让区高度（px）到 AppStorage，
-   * 供顶部材质条（FrostBand）计算覆盖状态栏所需的总高度；
+   * 记录窗口避让区高度（px）到 AppStorage：
+   * 顶部状态栏高度供顶部材质条（FrostBand）计算覆盖状态栏所需的总高度；
+   * 底部导航条高度取 TYPE_SYSTEM（三键导航）与 TYPE_NAVIGATION_INDICATOR（手势条）底部较大值，
+   * 供 API 23 以下常规底栏让位系统导航条（避免互相遮挡）；
    * loadContent 前先写入初始值，全屏生效后再回读校正，避免首帧高度跳变。
    */
-  private recordSafeTop(windowStage: window.WindowStage): void {
+  private recordSafeAreas(windowStage: window.WindowStage): void {
     let safeTopPx: number = 0;
+    let safeBottomPx: number = 0;
     try {
       const mainWindow: window.Window = windowStage.getMainWindowSync();
-      const avoidArea: window.AvoidArea =
+      const systemArea: window.AvoidArea =
         mainWindow.getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM);
-      safeTopPx = avoidArea.topRect.height;
+      safeTopPx = systemArea.topRect.height;
+      safeBottomPx = systemArea.bottomRect.height;
+      const indicatorArea: window.AvoidArea =
+        mainWindow.getWindowAvoidArea(window.AvoidAreaType.TYPE_NAVIGATION_INDICATOR);
+      if (indicatorArea.bottomRect.height > safeBottomPx) {
+        safeBottomPx = indicatorArea.bottomRect.height;
+      }
     } catch (err) {
       AppLog.error(DOMAIN, 'testTag', 'Failed to get system avoid area. Cause: %{public}s', JSON.stringify(err));
     }
     AppStorage.setOrCreate('jwSafeTopPx', safeTopPx);
+    AppStorage.setOrCreate('jwSafeBottomPx', safeBottomPx);
     AppLog.info(DOMAIN, 'testTag', 'safe top px: %{public}d', safeTopPx);
+    AppLog.info(DOMAIN, 'testTag', 'safe bottom px: %{public}d', safeBottomPx);
   }
 
   onWindowStageDestroy(): void {
