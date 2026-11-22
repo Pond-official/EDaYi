@@ -10,6 +10,7 @@ const LOG_VIEW_MAX: number = 200;
  * 支持复制全部导出与清空。
  */
 @Component
+// eslint-disable-next-line @performance/avoid-overusing-custom-component-check -- 持 @StorageProp('appLogRevision') 独立订阅日志版本号，转 @Builder 需把状态上提到 SettingsView，风险大于收益
 export struct AppLogCard {
   /** 日志缓冲版本号（AppLog 写入时递增），变化时刷新日志列表 */
   @StorageProp('appLogRevision') appLogRevision: number = 0;

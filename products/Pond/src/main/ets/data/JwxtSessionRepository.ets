@@ -329,12 +329,13 @@ export class JwxtSessionRepository {
     JwxtSessionRepository.logout();
   }
 
-  /**
-   * 退出登录：清除 WebView 会话 Cookie 与教务登录状态，按隐私模式分级处理数据：
-   * 标准模式保留应用内离线缓存与内存数据，页面继续显示离线数据（横幅切换为离线提示）；
-   * 限制模式清除课表以外的离线缓存与内存数据（页面不再显示数据），桌面课表卡片不受影响；
-   * 严格模式进一步清除桌面课表卡片等全部含课程信息的数据并刷新卡片。
-   */
+   /**
+    * 退出登录：清除 WebView 会话 Cookie 与教务登录状态，按隐私模式分级处理数据：
+    * 标准模式保留内存离线数据（页面继续显示，横幅切换为离线提示），
+    * 但综评/ehall 本地缓存随登出清除——与 jw 离线缓存 B1 断链一致，退出后不再回放（防换账号看到上一账号数据）；
+    * 限制模式清除课表以外的离线缓存与内存数据（页面不再显示数据），桌面课表卡片不受影响；
+    * 严格模式进一步清除桌面课表卡片等全部含课程信息的数据并刷新卡片。
+    */
   static logout(): void {
     WebCookieOps.clearAllCookiesSync();
     // Cookie 已清空，跨域换票就绪集必须同步失效，否则下次进综评会跳过引导直接撞 401
@@ -352,9 +353,13 @@ export class JwxtSessionRepository {
     }
     const mode: string = PrivacyController.privacyMode();
     if (mode === 'standard') {
-      // 保留离线数据：仅失效 xgfw/ehall 会话标记，页面继续显示已获取的离线数据
+      // 保留内存离线数据：仅失效 xgfw/ehall 会话标记，页面继续显示已获取的数据；
+      // filesDir 综评/ehall 缓存随登出清除（jw 离线缓存已由上方 clearCacheOwner 断链），
+      // 退出登录后不再回放，防换账号后看到上一账号数据
       ZcpRepository.invalidateSession();
+      ZcpRepository.clearCache();
       EhallRepository.invalidateSession();
+      EhallRepository.clearCache();
       AppStorage.setOrCreate<string>('jwDataMode', 'offlineCache');
       AppStorage.setOrCreate<boolean>('jwLoaded', true);
       return;

@@ -14,18 +14,22 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $repoRoot
 
 # DevEco-bundled toolchain paths (no local hvigorw wrapper in this repo).
-$NodeExe = 'C:\Program Files\Huawei\DevEco Studio\tools\node\node.exe'
-$HvigorwJs = 'C:\Program Files\Huawei\DevEco Studio\tools\hvigor\bin\hvigorw.js'
+# DevEco Studio location: prefer the DEVECO_HOME env var, fall back to the known install path.
+# (Keep this file ASCII-only: no-BOM .ps1 is parsed as ANSI/GBK by Windows PowerShell 5.1.)
+$DevEcoHome = if ($env:DEVECO_HOME) { $env:DEVECO_HOME } else { 'D:\Program Files\Huawei\DevEco Studio' }
+$NodeExe = Join-Path $DevEcoHome 'tools\node\node.exe'
+$HvigorwJs = Join-Path $DevEcoHome 'tools\hvigor\bin\hvigorw.js'
 $TestResultFile = Join-Path $repoRoot 'products\Pond\.test\default\intermediates\test\coverage_data\test_result.txt'
 
 # Known Code Linter Error-severity false positives (file base name + rule).
 # Do not add entries without a written justification in docs/开发规范.md.
-$KnownLintErrors = @(
-  # requestEnableNotification has callback+Promise dual overloads in the SDK;
-  # the eslint parser resolves the void overload, so `await` is flagged although
-  # the Promise form exists and the await is valid. Recorded, not fixed (工单铁律).
-  'ReminderScheduler.ets|@typescript-eslint/await-thenable'
-)
+# The two former entries are now suppressed at source level, so the whitelist
+# is intentionally empty and any new Error-severity issue fails Gate 2:
+# - ReminderScheduler.ets @typescript-eslint/await-thenable: fixed by narrowing
+#   requestEnableNotification(context) to an explicit Promise<void> variable.
+# - SelectionRepository.ets @security/no-unsafe-aes: suppressed inline with an
+#   eslint-disable-next-line comment (server-mandated AES-128-ECB protocol).
+$KnownLintErrors = @()
 
 $failed = $false
 

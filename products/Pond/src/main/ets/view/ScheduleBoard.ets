@@ -9,10 +9,6 @@ const PERIOD_COUNT: number = 5;
 const PERIOD_LABELS: string[] = ['1-2节', '3-4节', '5-6节', '7-8节', '9-10节'];
 const PERIOD_TIMES: string[] = ['8:30-10:00', '10:20-11:50', '13:20-14:50', '15:00-16:30', '17:30-19:00'];
 const LABEL_COLUMN_WIDTH: number = 58;
-/** 边缘继续滑动翻周的累计触发距离（vp） */
-const WEEK_FLIP_DISTANCE_VP: number = 64;
-/** 翻周平移手势的识别距离（vp） */
-const WEEK_FLIP_PAN_DISTANCE_VP: number = 12;
 /** 前台跨天检查间隔（毫秒）：挂起跨天时无系统事件，靠轮询刷新"今天"高亮 */
 const DAY_ROLLOVER_CHECK_INTERVAL_MS: number = 30000;
 
@@ -22,8 +18,7 @@ const DAY_ROLLOVER_CHECK_INTERVAL_MS: number = 30000;
  * 5-6节 13:20-14:50、7-8节 15:00-16:30、9-10节 17:30-19:00。
  * 数据为整学期缓存，展示时按周位图过滤所选周；周次由父组件通过 weekOffset 控制；
  * 课程块按大节占位（小节映射：period = ceil(section / 2)）。
- * 手机端横向滚动，滚动到边缘继续同向拖动翻周（onWeekOverflow 通知父组件）；
- * 平板/电脑端列宽自适应放大，内容不超宽时任意横向拖动即可翻周。
+ * 手机端横向滚动查看全周；周次切换由父组件的周次下拉完成。
  */
 @Component
 export struct ScheduleBoard {
@@ -46,20 +41,13 @@ export struct ScheduleBoard {
   @State isWideScreen: boolean = false;
   private wideQueryListener: mediaquery.MediaQueryListener | null = null;
   private wideQueryCallback: Callback<mediaquery.MediaQueryResult> | null = null;
-  /** 滚动到边缘继续同向拖动时的翻周回调（+1 下周 / -1 上周），父组件负责钳制范围 */
-  onWeekOverflow: (delta: number) => void = (delta: number): void => {
-  };
-  /** 网格横向滚控器：边缘判定（isAtEnd / currentOffset）与翻周复位用 */
-  private boardScroller: Scroller = new Scroller();
-  /** 翻周平移手势追踪：上次偏移、边缘累计位移、本次手势是否已翻周 */
-  private lastPanOffsetX: number = 0;
-  private edgeOverflowX: number = 0;
-  private weekFlipped: boolean = false;
   /** 前台跨天轮询定时器句柄（-1 = 未启动） */
   private rolloverTimerId: number = -1;
+  /** 定时器回调复用取时实例：每次 tick setTime 重设，避免回调内重复 new Date */
+  private readonly dateScratch: Date = new Date();
 
   aboutToAppear(): void {
-    this.refreshToday();
+    this.refreshToday(new Date());
     const listener: mediaquery.MediaQueryListener =
       this.getUIContext().getMediaQuery().matchMediaSync('(min-width: 600vp)');
     this.isWideScreen = listener.matches;
@@ -69,26 +57,27 @@ export struct ScheduleBoard {
     listener.on('change', this.wideQueryCallback);
     this.wideQueryListener = listener;
     this.rolloverTimerId = setInterval((): void => {
-      this.checkDayRollover();
+      this.dateScratch.setTime(Date.now());
+      this.checkDayRollover(this.dateScratch);
     }, DAY_ROLLOVER_CHECK_INTERVAL_MS);
   }
 
   /** 应用回前台：跨天挂起后重算"今天"高亮 */
   onForegroundTick(): void {
-    this.refreshToday();
+    this.refreshToday(new Date());
   }
 
-  private refreshToday(): void {
-    const day: number = new Date().getDay();
+  private refreshToday(now: Date): void {
+    const day: number = now.getDay();
     this.todayDay = day === 0 ? 7 : day;
   }
 
   /** 前台跨天检查：星期变化时刷新"今天"高亮（周次推进由 HomeView 统一负责） */
-  private checkDayRollover(): void {
-    const day: number = new Date().getDay();
+  private checkDayRollover(now: Date): void {
+    const day: number = now.getDay();
     const todayNum: number = day === 0 ? 7 : day;
     if (todayNum !== this.todayDay) {
-      this.refreshToday();
+      this.refreshToday(now);
     }
   }
 
@@ -106,46 +95,6 @@ export struct ScheduleBoard {
 
   private displayedWeek(): number {
     return this.termStatus.currentWeek + this.weekOffset;
-  }
-
-  /** 边缘翻周：交父组件钳制并更新 weekOffset（每次手势至多触发一次） */
-  private flipToWeek(delta: number): void {
-    this.weekFlipped = true;
-    this.onWeekOverflow(delta);
-  }
-
-  /** 平移手势开始：以识别点偏移为基准，重置追踪状态 */
-  private onPanActionStart(event: GestureEvent): void {
-    this.lastPanOffsetX = event.offsetX;
-    this.edgeOverflowX = 0;
-    this.weekFlipped = false;
-  }
-
-  /**
-   * 平移手势更新：仅在滚动边缘同向累计位移，达到阈值翻周。
-   * 内容不超宽（平板/电脑）时两端判定恒真，任意横向拖动即可翻周。
-   */
-  private onPanActionUpdate(event: GestureEvent): void {
-    if (this.weekFlipped) {
-      return;
-    }
-    const deltaX: number = event.offsetX - this.lastPanOffsetX;
-    this.lastPanOffsetX = event.offsetX;
-    const atStart: boolean = this.boardScroller.currentOffset().xOffset <= 0.5;
-    const atEnd: boolean = this.boardScroller.isAtEnd();
-    if (deltaX < 0 && atEnd) {
-      this.edgeOverflowX += -deltaX;
-    } else if (deltaX > 0 && atStart) {
-      this.edgeOverflowX -= deltaX;
-    } else {
-      this.edgeOverflowX = 0;
-      return;
-    }
-    if (this.edgeOverflowX >= WEEK_FLIP_DISTANCE_VP) {
-      this.flipToWeek(1);
-    } else if (this.edgeOverflowX <= -WEEK_FLIP_DISTANCE_VP) {
-      this.flipToWeek(-1);
-    }
   }
 
   /**
@@ -364,7 +313,7 @@ export struct ScheduleBoard {
   }
 
   build() {
-    Scroll(this.boardScroller) {
+    Scroll() {
       Column() {
         if (this.showHeader) {
           Row({ space: CELL_GAP }) {
@@ -412,19 +361,6 @@ export struct ScheduleBoard {
     .scrollable(ScrollDirection.Horizontal)
     .scrollBar(BarState.Auto)
     .edgeEffect(EdgeEffect.Spring)
-    .parallelGesture(
-      PanGesture({ fingers: 1, direction: PanDirection.Horizontal, distance: WEEK_FLIP_PAN_DISTANCE_VP })
-        .onActionStart((event: GestureEvent): void => {
-          this.onPanActionStart(event);
-        })
-        .onActionUpdate((event: GestureEvent): void => {
-          this.onPanActionUpdate(event);
-        })
-        .onActionEnd((): void => {
-          this.lastPanOffsetX = 0;
-          this.edgeOverflowX = 0;
-          this.weekFlipped = false;
-        }), GestureMask.Normal)
     .width('100%')
     .bindSheet($$this.showDetail, this.courseDetailSheet(), {
       height: this.isWideScreen ? SheetSize.FIT_CONTENT : SheetSize.MEDIUM,

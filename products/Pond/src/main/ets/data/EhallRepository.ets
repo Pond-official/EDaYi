@@ -91,7 +91,7 @@ interface EhallStatsCacheRaw {
  * 数据保留在内存（AppStorage jwEcardBalance / jwLoanCount）；
  * 标准隐私模式下另写 filesDir 本地缓存（离线回放），
  * 限制/严格隐私模式收紧与退出登录时连同本地缓存一并清除；
- * 标准隐私模式退出登录仅失效会话标记，缓存与页面数据保留。
+ * 标准隐私模式退出登录时失效会话标记并清除本地缓存（防跨账号回放），内存数据保留供页面继续显示。
  */
 export class EhallRepository {
   /** ehall 门户会话是否已建立（隐藏 Web 换票完成） */
@@ -117,9 +117,9 @@ export class EhallRepository {
   }
 
   /**
-   * 仅失效会话标记与本地 Cookie（标准隐私模式退出登录时调用）：
+   * 仅失效会话标记与本地 Cookie（标准隐私模式退出登录时与 clearCache 一并调用）：
    * Cookie 已随教务登出清空，ehall 会话必然失效；
-   * 内存数据与 filesDir 本地缓存保留，页面继续显示离线数据。
+   * 内存数据保留，页面继续显示离线数据。
    */
   static invalidateSession(): void {
     EhallRepository.sessionReady = false;

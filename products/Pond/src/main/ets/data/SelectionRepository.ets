@@ -393,6 +393,7 @@ export class SelectionRepository {
     const keyGen: cryptoFramework.SymKeyGenerator = cryptoFramework.createSymKeyGenerator('AES128');
     const keyBlob: cryptoFramework.DataBlob = { data: encoder.encodeInto(XK_AES_KEY) };
     const symKey: cryptoFramework.SymKey = await keyGen.convertKey(keyBlob);
+    // eslint-disable-next-line @security/no-unsafe-aes -- 选课系统服务端登录协议强制 AES-128-ECB-PKCS7（CryptoJS 兼容实现，密钥为其登录页 HTML 公开硬编码值），算法由校方服务端决定，客户端无法改用 CBC/GCM 等安全模式
     const cipher: cryptoFramework.Cipher = cryptoFramework.createCipher('AES128|ECB|PKCS7');
     // ECB 模式无 IV/附加参数，params 传 null
     await cipher.init(cryptoFramework.CryptoMode.ENCRYPT_MODE, symKey, null);

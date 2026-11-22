@@ -658,6 +658,10 @@ export class CardDataStore {
     }
   }
 
+  /** buildBindingData 复用取时实例：系统周期触发（约每小时）串行调用，进入时 setTime 重设；
+   *  仅在同一线程同步窗口内读取，无并发共享风险 */
+  private static readonly nowScratch: Date = new Date();
+
   /**
    * 构建卡片绑定数据：解析持久化的整学期课表，按周一锚点自推算当前周次
    * （卡片更新不依赖打开应用，跨周时与主应用同规则推进），
@@ -707,13 +711,14 @@ export class CardDataStore {
     }
     // 跨周自推进：卡片更新由系统周期触发（约每小时），不依赖打开应用；
     // 以最近同步的周一锚点推算经过的整周数，与应用内 advanceTermWeek 同规则
+    const now: Date = CardDataStore.nowScratch;
+    now.setTime(Date.now());
     if (anchor.length > 0) {
-      const advanced: number | null = TermWeekUtils.weeksBetween(anchor, new Date());
+      const advanced: number | null = TermWeekUtils.weeksBetween(anchor, now);
       if (advanced !== null && advanced > 0) {
         week += advanced;
       }
     }
-    const now: Date = new Date();
     const day: number = now.getDay();
     const today: number = day === 0 ? 7 : day;
     const tomorrow: number = today === 7 ? 1 : today + 1;

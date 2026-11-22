@@ -13,6 +13,7 @@ const NET_ERR_ABORTED: number = -3;
  * 必须用 opacity(0.01) 隐藏（Visibility.None 可能导致 Web 不真正加载、onPageEnd 不触发）。
  */
 @Component
+// eslint-disable-next-line @performance/avoid-overusing-custom-component-check -- 依赖 Index 懒加载按需条件渲染（lazy import + crossHostNeeded），改 @Builder 会破坏冷启动懒挂载设计
 export struct HiddenWeb {
   private readonly controller: webview.WebviewController = new webview.WebviewController();
   /** 初始 about:blank 是否已加载完（首个 onPageEnd）：完成前 loadUrl 会被吞，必须等本信号 */

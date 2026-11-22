@@ -88,6 +88,8 @@ export class ReminderScheduler {
     let agentCount: number = 0;
     let inAppCount: number = 0;
     let agentAvailable: boolean = true;
+    // 循环内复用的提醒时间解析实例：逐条 setTime 重设，避免每条提醒新建 Date
+    const fireTime: Date = new Date();
     for (const occurrence of occurrences) {
       const delay: number = occurrence.fireAt - Date.now();
       if (delay <= 0) {
@@ -95,7 +97,7 @@ export class ReminderScheduler {
       }
       if (agentEnabled && agentAvailable && agentCount < MAX_AGENT_REMINDERS) {
         try {
-          await ReminderScheduler.publishAgentReminder(occurrence, advance);
+          await ReminderScheduler.publishAgentReminder(occurrence, advance, fireTime);
           agentCount++;
           continue;
         } catch (error) {
@@ -185,13 +187,15 @@ export class ReminderScheduler {
     await ReminderScheduler.cancelAgentReminders();
   }
 
-  /** 发布单条后台代理提醒（日历类型，指定绝对时间点，到点由系统服务代理弹出通知） */
-  private static async publishAgentReminder(occurrence: ClassOccurrence, advance: number): Promise<number> {
+  /** 发布单条后台代理提醒（日历类型，指定绝对时间点，到点由系统服务代理弹出通知）；
+   *  fireTime 为调用方传入的复用实例，进入时重设为本次提醒时间 */
+  private static async publishAgentReminder(occurrence: ClassOccurrence, advance: number,
+    fireTime: Date): Promise<number> {
     let content: string = occurrence.startTimeText + ' ' + occurrence.courseName;
     if (occurrence.location.length > 0) {
       content += '，地点：' + occurrence.location;
     }
-    const fireTime: Date = new Date(occurrence.fireAt);
+    fireTime.setTime(occurrence.fireAt);
     const request: reminderAgentManager.ReminderRequestCalendar = {
       reminderType: reminderAgentManager.ReminderType.REMINDER_TYPE_CALENDAR,
       dateTime: {
@@ -268,7 +272,10 @@ export class ReminderScheduler {
         AppLog.error(DOMAIN, TAG, 'notification disabled and no UIAbilityContext, skip request');
         return;
       }
-      await notificationManager.requestEnableNotification(context);
+      // SDK 为回调+Promise 双重载，eslint 命中 void 重载误判 await-thenable；
+      // 先收敛到显式 Promise 类型再 await，规避误报且语义不变
+      const enableRequest: Promise<void> = notificationManager.requestEnableNotification(context);
+      await enableRequest;
       AppLog.info(DOMAIN, TAG, 'requestEnableNotification done');
     } catch (error) {
       AppLog.error(DOMAIN, TAG, 'ensureNotificationEnabled failed: %{public}s', `${error}`);

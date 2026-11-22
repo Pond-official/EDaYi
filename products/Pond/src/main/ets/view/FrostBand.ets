@@ -27,6 +27,7 @@ function emptyBandContent() {
  * 触摸测试透传，不阻挡下层滚动手势；带内子内容（文字/按钮）仍可正常响应。
  */
 @Component
+// eslint-disable-next-line @performance/avoid-overusing-custom-component-check -- 10 处页面/视图跨文件复用，@Builder 无法跨文件导入，组件化为有意设计
 export struct FrostBand {
   @BuilderParam content: () => void = emptyBandContent;
   /** 状态栏避让区高度（px），由 PondAbility 在 onWindowStageCreate 测量写入 */

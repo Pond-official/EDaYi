@@ -1,9 +1,9 @@
 import { display, window } from '@kit.ArkUI';
-import { ZcpDetailItem, ZcpIndicator, ZcpResult } from '../model/ZcpModels';
+import { ZcpIndicator, ZcpResult } from '../model/ZcpModels';
 import { ZcpRepository, ZCP_SESSION_INVALID_ERROR } from '../data/ZcpRepository';
 import { FrostBand, FROST_BAND_HEIGHT, frostTopInsetVp } from './FrostBand';
 import { plainError, ZcpCtxCard, ZcpErrorCard, ZcpIdleCard, ZcpLoadingCard, ZcpOfflineBanner, ZcpRadarCard } from './ZcpCards';
-import { ZcpIndicatorCard, ZcpWideContent } from './ZcpIndicatorCards';
+import { ZcpIndicatorCard } from './ZcpIndicatorCards';
 import { CrossDomainSession } from '../net/CrossDomainSession';
 import { DOMAIN_XGFW } from '../net/DomainSpec';
 
@@ -17,13 +17,13 @@ import { DOMAIN_XGFW } from '../net/DomainSpec';
  * 落在 CAS 登录页说明教务会话已过期，引导用户先去「首页」登录；
  * 会话建立后由原生 HTTP（ZcpRepository）完成两步角色切换与只读业务查询。
  * 数据保留内存态，标准隐私模式下另做 filesDir 本地缓存（登录失效时回放，成功后自动替换），
- * 限制/严格隐私模式收紧与退出登录时连同临时缓存立即清除；标准模式退出登录仅失效会话，离线数据继续显示。
+ * 限制/严格隐私模式收紧与退出登录时连同临时缓存立即清除；标准模式退出登录清除 filesDir 临时缓存，内存数据保留至进程结束。
  */
 @Component
 export struct ZcpView {
   @StorageLink('mainBreakpoint') currentBreakpoint: string = 'md';
-  /** 教务数据模式：offlineCache（标准模式退出登录）时综评页同样置顶离线提示 */
-  @StorageProp('jwDataMode') dataMode: string = 'preview';
+  /** 教务数据模式：offlineCache（标准模式退出登录）时综评页同样置顶离线提示；变为 online（登录成功）时自动补拉 */
+  @StorageProp('jwDataMode') @Watch('onDataModeChanged') dataMode: string = 'preview';
   /** 综评页签是否处于激活（可见）状态：首次激活自动开始加载 */
   @StorageProp('jwZcpTabActive') @Watch('onTabActive') zcpTabActive: boolean = false;
   /** 综评查询结果（仅内存态，隐私清理/退出登录时置空） */
@@ -34,10 +34,6 @@ export struct ZcpView {
   @State isRefreshing: boolean = false;
   /** 状态栏避让区高度（px）：沉浸式全屏下内容顶部让位计算用 */
   @StorageProp('jwSafeTopPx') safeTopPx: number = 0;
-  /** 展开附加分明细的指标代码（空串 = 无展开） */
-  @State detailZbdm: string = '';
-  @State detailItems: ZcpDetailItem[] = [];
-  @State detailLoading: boolean = false;
   /** Refresh 布局高度：初始取屏幕高度，旋转后由窗口尺寸事件刷新（display 快照在旋转瞬间滞后） */
   @State refreshHeight: Length = '100%';
   /** 窗口宽高（px）：横竖屏方向判定；启动时取 display 快照，旋转后由窗口尺寸事件刷新 */
@@ -69,6 +65,11 @@ export struct ZcpView {
     this.loadIfNeeded();
   }
 
+  /** 登录成功（dataMode 变为 online）：页签可见且数据待更新时自动补拉综评 */
+  onDataModeChanged(): void {
+    this.loadIfNeeded();
+  }
+
   /** 内存结果被隐私清理/退出登录清除：回到未加载态，等下次页签激活或手动获取 */
   onResultChanged(): void {
     if (this.result === null && this.phase === 'loaded') { this.phase = 'idle'; }
@@ -87,6 +88,9 @@ export struct ZcpView {
       }
     }
     if (this.result !== null && !this.result.fromCache) { return; }
+    // 未登录（preview/offline/offlineCache）不自动发起跨域换票与业务请求，登录成功后经 dataMode 监听自动补拉；
+    // 手动获取/重试与下拉刷新不受此限（失败由页面内错误卡片/提示反馈）
+    if (this.dataMode !== 'online') { return; }
     this.start();
   }
 
@@ -167,26 +171,6 @@ export struct ZcpView {
         '登录状态已失效，请重新获取' : plainError(message);
       this.phase = 'error';
     }
-  }
-
-  /** 附加项指标点击展开/收起明细（getZbFjfDetail，仅读接口） */
-  private async toggleDetail(item: ZcpIndicator): Promise<void> {
-    if (item.category !== '附加项') { return; }
-    if (this.detailZbdm === item.zbdm) {
-      this.detailZbdm = '';
-      this.detailItems = [];
-      return;
-    }
-    this.detailZbdm = item.zbdm;
-    this.detailItems = [];
-    this.detailLoading = true;
-    try {
-      this.detailItems = await ZcpRepository.fetchDetail(item.zbdm);
-    } catch (error) {
-      // 明细加载失败按空明细展示，不中断页面
-      this.detailItems = [];
-    }
-    this.detailLoading = false;
   }
 
   private contentMaxWidth(): number {
@@ -291,6 +275,73 @@ export struct ZcpView {
     return loaded.hasContext ? loaded.process.statusDisplay() : '当前无参评批次';
   }
 
+  /**
+   * 平板横屏双列布局（自 ZcpIndicatorCards 并回）：左列（批次上下文卡 + 雷达图）固定不随滚动，
+   * 右列（一级指标明细卡）独立滚动；左右宽度比与首页横屏一致。
+   * 离线横幅不在此处渲染，由外层内容顶部横跨双列全宽展示。
+   * 双列行高按外层滚动视口与横幅块高精确计算，使外层 Scroll 恰好不滚（左列保持不动），
+   * 内层滚动经 SELF_FIRST 延伸到外层，下拉刷新仍然可用。
+   */
+  @Builder
+  wideContent() {
+    if (this.result !== null) {
+      Row() {
+        Scroll() {
+          Column() {
+            ZcpCtxCard({ result: this.result })
+            ZcpRadarCard({ result: this.result })
+          }
+          .width('100%')
+          .alignItems(HorizontalAlign.Start)
+          .padding({ bottom: 16 })
+        }
+        .width(360)
+        .height('100%')
+        .align(Alignment.Top)
+        .scrollBar(BarState.Off)
+        .edgeEffect(EdgeEffect.Spring)
+        .nestedScroll({ scrollForward: NestedScrollMode.SELF_FIRST, scrollBackward: NestedScrollMode.SELF_FIRST })
+
+        Scroll() {
+          Column() {
+            ForEach(this.result.indicators, (root: ZcpIndicator) => {
+              ZcpIndicatorCard({ root: root })
+            }, (root: ZcpIndicator) => root.zbdm + root.name + root.scoreText)
+            if (this.result.indicators.length === 0) {
+              Text('暂无测评指标数据')
+                .fontSize(13)
+                .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+                .padding({ top: 16, bottom: 16 })
+                .geometryTransition('zcp-empty')
+                .transition(TransitionEffect.OPACITY)
+            }
+            Text('以上为当前批次数据，最终成绩以学校系统为准')
+              .fontSize(12)
+              .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+              .padding({ top: 12, bottom: 12 })
+              .geometryTransition('zcp-footer')
+              .transition(TransitionEffect.OPACITY)
+          }
+          .width('100%')
+          .alignItems(HorizontalAlign.Start)
+          .padding({ bottom: this.bottomInset() })
+        }
+        .layoutWeight(1)
+        .height('100%')
+        .align(Alignment.Top)
+        .padding({ left: 16 })
+        .scrollBar(BarState.Off)
+        .edgeEffect(EdgeEffect.Spring)
+        .nestedScroll({ scrollForward: NestedScrollMode.SELF_FIRST, scrollBackward: NestedScrollMode.SELF_FIRST })
+      }
+      .width('100%')
+      .height(this.wideRowHeight())
+      .alignItems(VerticalAlign.Top)
+      .constraintSize({ maxWidth: 1200 })
+      .alignSelf(ItemAlign.Center)
+    }
+  }
+
   build() {
     Stack({ alignContent: Alignment.Top }) {
       Refresh({ refreshing: $$this.isRefreshing }) {
@@ -306,10 +357,7 @@ export struct ZcpView {
                 } })
             }
             if (this.isWide() && this.result.hasContext) {
-              ZcpWideContent({ result: this.result, wideRowHeight: this.wideRowHeight(),
-                bottomInset: this.bottomInset(), detailZbdm: this.detailZbdm, detailItems: this.detailItems,
-                detailLoading: this.detailLoading,
-                onToggle: (item: ZcpIndicator): Promise<void> => this.toggleDetail(item) })
+              this.wideContent()
             } else {
               ZcpCtxCard({ result: this.result })
               if (!this.result.hasContext) {
@@ -320,11 +368,8 @@ export struct ZcpView {
               } else {
                 ZcpRadarCard({ result: this.result })
                 ForEach(this.result.indicators, (root: ZcpIndicator) => {
-                  ZcpIndicatorCard(root, this.detailZbdm, this.detailItems, this.detailLoading,
-                    (item: ZcpIndicator): Promise<void> => this.toggleDetail(item))
-                }, (root: ZcpIndicator) => root.zbdm + root.name + root.scoreText
-                  // 明细状态并入 key：@Builder 按值传参不随状态刷新，经 key 变化驱动卡片重建（与成绩页同方案）
-                  + ':' + this.detailZbdm + (this.detailLoading ? ':L' : '') + ':' + this.detailItems.length)
+                  ZcpIndicatorCard({ root: root })
+                }, (root: ZcpIndicator) => root.zbdm + root.name + root.scoreText)
                 if (this.result.indicators.length === 0) {
                   Text('暂无测评指标数据')
                     .fontSize(13)
@@ -346,7 +391,8 @@ export struct ZcpView {
           } else if (this.phase === 'error') {
             ZcpErrorCard(this.errorText, (): void => this.retry())
           } else {
-            ZcpIdleCard((): void => this.retry())
+            ZcpIdleCard({ loggedIn: this.dataMode === 'online', onRetry: (): void => this.retry(),
+              onGoLogin: (): void => this.goLogin() })
           }
         }
         .padding({

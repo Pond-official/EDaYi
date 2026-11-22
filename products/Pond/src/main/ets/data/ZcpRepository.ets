@@ -156,8 +156,8 @@ interface ZcpFjfItemRaw {
  * 否则 getPageInitParams 返回 403 框架权限页。
  * 数据保留在内存（AppStorage）；标准隐私模式下另写 filesDir 本地缓存（登录失效时回放），
  * 文件置于 filesDir 持久保存（cacheDir 可能被系统回收导致回放数据丢失）；
- * 限制/严格隐私模式退出登录、隐私模式收紧与清理缓存时连同本地缓存一并清除，
- * 标准隐私模式退出登录仅失效会话标记，缓存与页面数据保留。
+ * 限制/严格隐私模式退出登录、隐私模式收紧与清理缓存时连同本地缓存一并清除；
+ * 标准隐私模式退出登录时失效会话标记并清除本地缓存（防跨账号回放），内存数据保留供页面继续显示。
  * 仅调用只读 get* 接口，不调用任何测评写入接口。
  */
 export class ZcpRepository {
@@ -219,9 +219,9 @@ export class ZcpRepository {
   }
 
   /**
-   * 仅失效会话标记与本地 Cookie（标准隐私模式退出登录时调用）：
+   * 仅失效会话标记与本地 Cookie（标准隐私模式退出登录时与 clearCache 一并调用）：
    * Cookie 已随教务登出清空，xgfw 会话必然失效；
-   * 内存数据与 filesDir 本地缓存保留，页面继续显示离线数据。
+   * 内存数据保留，页面继续显示离线数据。
    */
   static invalidateSession(): void {
     ZcpRepository.sessionReady = false;

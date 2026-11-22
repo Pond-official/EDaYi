@@ -57,6 +57,8 @@ export struct HomeView {
   };
   /** 前台跨天轮询定时器句柄（-1 = 未启动） */
   private rolloverTimerId: number = -1;
+  /** 定时器回调复用取时实例：每次 tick setTime 重设，避免回调内重复 new Date */
+  private readonly dateScratch: Date = new Date();
   /** 已结束考试检查重入保护：updateFinalExam 写 jwFinalExams 会经 @Watch 同步重入 */
   private checkingFinishedExams: boolean = false;
 
@@ -66,7 +68,7 @@ export struct HomeView {
     this.bindWindowHeight();
     JwxtRepository.ensureLoaded();
     EhallRepository.ensureStatsLoaded();
-    this.refreshToday();
+    this.refreshToday(new Date());
     this.rebuildTodayCells();
     this.startRolloverTimer();
   }
@@ -90,8 +92,9 @@ export struct HomeView {
   /** 应用回前台：跨天挂起后重算"今天"，刷新今日课程，检查已结束考试；
    *  跨周时本地推进学期周次，在线状态下再整包重取补全新开课程 */
   onForegroundTick(): void {
-    this.checkDayRollover();
-    this.refreshToday();
+    const now: Date = new Date();
+    this.checkDayRollover(now);
+    this.refreshToday(now);
     this.rebuildTodayCells();
     this.checkFinishedExams();
   }
@@ -99,7 +102,8 @@ export struct HomeView {
   /** 前台跨天轮询：挂起跨天/跨周（周日→周一）无系统事件，靠定时检查发现 */
   private startRolloverTimer(): void {
     this.rolloverTimerId = setInterval((): void => {
-      this.checkDayRollover();
+      this.dateScratch.setTime(Date.now());
+      this.checkDayRollover(this.dateScratch);
     }, DAY_ROLLOVER_CHECK_INTERVAL_MS);
   }
 
@@ -111,8 +115,8 @@ export struct HomeView {
   }
 
   /** 跨天检查：星期变化时本地推进周次（跨周才实际推进，在线时整包重取补全新开课程），并刷新"今天"/今日课程/已结束考试 */
-  private checkDayRollover(): void {
-    const day: number = new Date().getDay();
+  private checkDayRollover(now: Date): void {
+    const day: number = now.getDay();
     const todayNum: number = day === 0 ? 7 : day;
     if (todayNum === this.todayDay) {
       return;
@@ -120,7 +124,7 @@ export struct HomeView {
     if (JwxtRepository.advanceTermWeek() && this.dataMode === 'online') {
       JwxtRepository.reload();
     }
-    this.refreshToday();
+    this.refreshToday(now);
     this.rebuildTodayCells();
     this.checkFinishedExams();
   }
@@ -138,8 +142,8 @@ export struct HomeView {
     this.checkFinishedExams();
   }
 
-  private refreshToday(): void {
-    const day: number = new Date().getDay();
+  private refreshToday(now: Date): void {
+    const day: number = now.getDay();
     this.todayDay = day === 0 ? 7 : day;
   }
 
@@ -305,17 +309,6 @@ export struct HomeView {
     return Math.max(this.selectedWeek() - 1, 0);
   }
 
-  /** 课表边缘滑动翻周：钳制在第 1 周 .. 学期最后一周内（周次未知时忽略） */
-  private applyWeekOverflow(delta: number): void {
-    if (this.termStatus.currentWeek <= 0) {
-      return;
-    }
-    const total: number = this.semesterWeeks();
-    const target: number = this.selectedWeek() + delta;
-    this.scheduleWeekOffset =
-      Math.min(Math.max(target, 1), total) - this.termStatus.currentWeek;
-  }
-
   /** 下拉刷新：已连接教务系统时在线刷新；未登录时提示先登录并立即收起刷新动画 */
   private doRefresh(): void {
     if (this.dataMode !== 'online') {
@@ -408,10 +401,7 @@ export struct HomeView {
         dayCellWidth: this.dayWidth(),
         sectionRowHeight: this.rowHeight(),
         showHeader: true,
-        weekOffset: this.scheduleWeekOffset,
-        onWeekOverflow: (delta: number): void => {
-          this.applyWeekOverflow(delta);
-        }
+        weekOffset: this.scheduleWeekOffset
       })
     }
     .width('100%')

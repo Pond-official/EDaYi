@@ -124,14 +124,24 @@ export function ZcpErrorCard(errorText: string, onRetry: () => void) {
   .backgroundColor($r('app.color.card_background'))
 }
 
-/** 未加载卡片（自 ZcpView 拆出；onRetry 获取综评成绩） */
+/** 未加载卡片参数（单参对象按引用传递，避免 @Builder 按值传参冻结） */
+export interface ZcpIdleCardParams {
+  /** 是否已登录教务（未登录时按钮变为「去登录」） */
+  loggedIn: boolean;
+  /** 已登录：获取综评成绩 */
+  onRetry: () => void;
+  /** 未登录：去登录 */
+  onGoLogin: () => void;
+}
+
+/** 未加载卡片（自 ZcpView 拆出；已登录按钮「获取综评成绩」，未登录按钮「去登录」跳登录页） */
 @Builder
-export function ZcpIdleCard(onRetry: () => void) {
+export function ZcpIdleCard(params: ZcpIdleCardParams) {
   Column({ space: 12 }) {
     Text('综评数据未加载')
       .fontSize(15)
       .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-    Text('获取综评成绩')
+    Text(params.loggedIn ? '获取综评成绩' : '去登录')
       .fontSize(15)
       .fontWeight(FontWeight.Medium)
       .fontColor(Color.White)
@@ -139,7 +149,11 @@ export function ZcpIdleCard(onRetry: () => void) {
       .borderRadius(20)
       .backgroundColor($r('sys.color.ohos_id_color_text_primary_activated'))
       .onClick(() => {
-        onRetry();
+        if (params.loggedIn) {
+          params.onRetry();
+        } else {
+          params.onGoLogin();
+        }
       })
   }
   .width('100%')
