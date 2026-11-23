@@ -173,6 +173,7 @@ export function SettingsOpenSourceCard(onOpen: () => void, onCopy: () => void) {
       .fontWeight(FontWeight.Medium)
       .fontColor($r('sys.color.ohos_id_color_text_primary_activated'))
       .width('100%')
+      .responseRegion({ y: -12, height: 40 })
       .onClick(() => {
         onOpen();
       })

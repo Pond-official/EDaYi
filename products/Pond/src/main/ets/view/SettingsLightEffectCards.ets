@@ -60,6 +60,7 @@ export function SettingsLightEffectCard(params: SettingsLightEffectCardParams) {
           .stroke(params.color.toUpperCase() === preset.toUpperCase()
             ? $r('sys.color.ohos_id_color_text_primary_activated') : Color.Transparent)
           .strokeWidth(2.5)
+          .responseRegion({ x: -6, y: -6, width: 40, height: 40 })
           .onClick(() => {
             params.onColorPick(preset);
           })
@@ -75,6 +76,7 @@ export function SettingsLightEffectCard(params: SettingsLightEffectCardParams) {
           .borderRadius(16)
           .fontColor(params.level === level ? GRADE_GOOD_TEXT : $r('sys.color.ohos_id_color_text_secondary'))
           .backgroundColor(params.level === level ? GRADE_GOOD_BG : TAG_DEFAULT_BG)
+          .responseRegion({ y: -5, height: 40 })
           .onClick(() => {
             params.onLevelPick(level);
           })
