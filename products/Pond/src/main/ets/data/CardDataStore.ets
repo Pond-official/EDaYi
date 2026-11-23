@@ -7,6 +7,7 @@ import { SecureStore } from './SecureStore';
 import { FinalExamEntry } from '../model/JwModels';
 import { ExamDateUtils } from '../utils/ExamDateUtils';
 import { TermWeekUtils } from '../utils/TermWeekUtils';
+import { NightSwitchUtils } from '../utils/NightSwitchUtils';
 
 const TAG: string = 'CardDataStore';
 const DOMAIN: number = 0x0000;
@@ -678,6 +679,9 @@ export class CardDataStore {
    *  仅在同一线程同步窗口内读取，无并发共享风险 */
   private static readonly nowScratch: Date = new Date();
 
+  /** scheduleNightRefresh 复用取时实例：refreshAllCards 循环内逐小卡同步调用，进入时 setTime 重设 */
+  private static readonly scheduleScratch: Date = new Date();
+
   /**
    * 构建卡片绑定数据：解析持久化的整学期课表，按周一锚点自推算当前周次
    * （卡片更新不依赖打开应用，跨周时与主应用同规则推进），
@@ -814,6 +818,32 @@ export class CardDataStore {
   }
 
   /**
+   * 为 2*4 课表小卡预约"晚间显示明日课程"到点时刻的下一次卡片刷新
+   * （formProvider.setFormNextRefreshTime，仅对开启该设置的小卡生效）：
+   * 到点由系统触发 ScheduleFormAbility.onUpdateForm -> refreshAllCards 重建数据
+   * （此时已过设定时刻，tomorrowDefault=true 即默认展示明日）并再次预约明日同刻；
+   * 设置变更经 updateCardNightSetting -> refreshAllCards 重新预约，旧预约被覆盖。
+   */
+  static scheduleNightRefresh(context: common.Context, formId: string): void {
+    if (formId.length === 0) {
+      return;
+    }
+    const night: CardNightSetting = CardDataStore.loadCardNightSetting(context);
+    if (!night.enabled) {
+      return;
+    }
+    const now: Date = CardDataStore.scheduleScratch;
+    now.setTime(Date.now());
+    const deltaMs: number = NightSwitchUtils.nextSwitchDelayMs(now, night.minutes);
+    const minutes: number = NightSwitchUtils.toScheduleMinutes(deltaMs);
+    formProvider.setFormNextRefreshTime(formId, minutes).then(() => {
+      AppLog.info(DOMAIN, TAG, 'night switch refresh %{public}s scheduled in %{public}d min', formId, minutes);
+    }).catch((error: Error) => {
+      AppLog.error(DOMAIN, TAG, 'setFormNextRefreshTime %{public}s failed: %{public}s', formId, `${error}`);
+    });
+  }
+
+  /**
    * 刷新所有已添加的卡片（数据变更后由主应用调用）。
    * @param payloadJson 调用方已持有的课表原文（C1：批量刷新时传入避免逐卡重复读取），未传则各卡自行读取
    */
@@ -833,6 +863,10 @@ export class CardDataStore {
             CardDataStore.removeFormEntry(context, entry.id);
           }
         });
+        // 2*4 小卡预约"晚间显示明日课程"到点即切，不再依赖最长约一小时的周期更新
+        if (entry.max === CardDataStore.MAX_SMALL) {
+          CardDataStore.scheduleNightRefresh(context, entry.id);
+        }
       }
       AppLog.info(DOMAIN, TAG, 'refresh cards: %{public}s', `${entries.length}`);
     } catch (error) {

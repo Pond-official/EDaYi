@@ -6,7 +6,7 @@ import { CardDataStore } from '../data/CardDataStore';
 /**
  * 课表服务卡片生命周期：
  * onAddForm 读取持久化的整学期课表，按周一锚点自推算当前周次并计算今日课程下发（按卡片尺寸决定展示门数）；
- * onUpdateForm 由系统周期触发（约每小时）刷新"今日课程"，跨周时自推进周次；
+ * onUpdateForm 由系统周期触发（约每小时）或小卡"晚间显示明日课程"到点预约触发，刷新"今日课程"，跨周时自推进周次；
  * onRemoveForm 清理已删除卡片的登记记录。
  */
 export default class ScheduleFormAbility extends FormExtensionAbility {
@@ -26,6 +26,10 @@ export default class ScheduleFormAbility extends FormExtensionAbility {
     }
     AppLog.info(0x0000, 'ScheduleForm', 'onAddForm formId:%{public}s max:%{public}d', formId, maxCourses);
     CardDataStore.addFormEntry(this.context, formId, maxCourses);
+    // 2*4 小卡加卡即预约"晚间显示明日课程"到点刷新，不等首次周期刷新
+    if (maxCourses === CardDataStore.MAX_SMALL) {
+      CardDataStore.scheduleNightRefresh(this.context, formId);
+    }
     return CardDataStore.buildBindingData(this.context, maxCourses);
   }
 

@@ -214,7 +214,7 @@ export function SettingsCardNightCard(params: SettingsCardNightParams) {
       })
     }
 
-    Text('到点后随卡片周期更新生效（最长约一小时），生效期间仍可点小卡上的"今天"手动切回。')
+    Text('到点后卡片自动切换显示明日课程，生效期间仍可点小卡上的"今天"手动切回。')
       .fontSize(11)
       .fontColor($r('sys.color.ohos_id_color_text_secondary'))
       .width('100%')

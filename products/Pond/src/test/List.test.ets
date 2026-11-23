@@ -5,6 +5,7 @@ import gradeParserTest from './GradeParser.test';
 import trainingPlanParserTest from './TrainingPlanParser.test';
 import studentParserTest from './StudentParser.test';
 import examDateUtilsTest from './ExamDateUtils.test';
+import nightSwitchUtilsTest from './NightSwitchUtils.test';
 import libraryRepositoryTest from './LibraryRepository.test';
 import ehallRepositoryTest from './EhallRepository.test';
 import examShareTextTest from './ExamShareText.test';
@@ -19,6 +20,7 @@ export default function testsuite() {
   trainingPlanParserTest();
   studentParserTest();
   examDateUtilsTest();
+  nightSwitchUtilsTest();
   libraryRepositoryTest();
   ehallRepositoryTest();
   examShareTextTest();
