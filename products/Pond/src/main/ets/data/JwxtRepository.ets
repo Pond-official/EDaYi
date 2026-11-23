@@ -137,10 +137,12 @@ export class JwxtRepository {
    * 驱动视图跨天刷新"今日课程"与课表"今天"高亮。
    */
   static notifyForeground(): void {
-    // 回前台重读期末倒计时：分享导入在扩展进程写偏好，主应用 AppStorage 可能滞后
+    // 回前台重读期末倒计时：分享导入在分享面板进程写偏好并 flush，
+    // 但主进程已加载的 preferences 实例不感知跨进程写入（AppStorage 与实例缓存均滞后），
+    // 须先逐出缓存实例再从磁盘重读，否则导入结果要等重启应用才可见
     const context: common.UIAbilityContext | null = getContext();
     if (context !== null && JwxtRepository.privacyMode() === 'standard') {
-      AppStorage.setOrCreate('jwFinalExams', CardDataStore.loadFinalExams(context));
+      AppStorage.setOrCreate('jwFinalExams', CardDataStore.reloadFinalExams(context));
     }
     PrivacyController.notifyForeground();
   }

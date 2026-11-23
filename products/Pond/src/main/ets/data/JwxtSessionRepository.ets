@@ -67,7 +67,9 @@ export class JwxtSessionRepository {
     AppStorage.setOrCreate('jwReminderAdvance', settings.advanceMinutes);
     AppStorage.setOrCreate('jwReminderAgentEnabled', settings.agentEnabled);
     AppStorage.setOrCreate('jwReminderDisabledSessions', CardDataStore.loadDisabledSessions(context));
-    AppStorage.setOrCreate('jwFinalExams', CardDataStore.loadFinalExams(context));
+    // 进程存活而主 Ability 被销毁（如从最近任务划掉）期间可能发生分享导入，
+    // 重新挂载时逐出 preferences 缓存实例再从磁盘重读，防读到旧值
+    AppStorage.setOrCreate('jwFinalExams', CardDataStore.reloadFinalExams(context));
     const night: CardNightSetting = CardDataStore.loadCardNightSetting(context);
     AppStorage.setOrCreate('jwCardNightEnabled', night.enabled);
     AppStorage.setOrCreate('jwCardNightMinutes', night.minutes);

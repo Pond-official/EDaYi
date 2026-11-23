@@ -345,6 +345,22 @@ export class CardDataStore {
     return result;
   }
 
+  /**
+   * 逐出 preferences 缓存实例后从磁盘重读期末倒计时（主应用回前台/重新挂载时调用）：
+   * 分享导入在分享面板进程写偏好并 flush 落盘，但 preferences 实例按进程缓存、
+   * 已加载实例不感知跨进程写入，直接读仍是旧值（表现为导入后须重启应用才可见）；
+   * 先 removePreferencesFromCacheSync 逐出缓存实例，后续 getPreferencesSync 重新从磁盘加载。
+   */
+  static reloadFinalExams(context: common.Context): FinalExamEntry[] {
+    try {
+      preferences.removePreferencesFromCacheSync(
+        context.getApplicationContext(), { name: PREF_NAME });
+    } catch (error) {
+      AppLog.error(DOMAIN, TAG, 'evict pref cache failed: %{public}s', `${error}`);
+    }
+    return CardDataStore.loadFinalExams(context);
+  }
+
   /** 保存各课程期末考试日期设置 */
   static saveFinalExams(context: common.Context, exams: FinalExamEntry[]): void {
     try {
