@@ -2,13 +2,14 @@ import { JwxtRepository } from '../data/JwxtRepository';
 import { CacheManager } from '../data/CacheManager';
 import { AppLog } from '../data/AppLog';
 import { ReminderScheduler } from '../data/ReminderScheduler';
+import { CardDataStore } from '../data/CardDataStore';
 import { getContext } from '../net/JwTransport';
 import { CloseButton } from './BackButton';
 import { AppLogCard } from './AppLogCard';
 import { FROST_BAND_HEIGHT, frostTopInsetVp } from './FrostBand';
 import { SettingsCacheCard, SettingsBackgroundCard, SettingsCardNightCard, SettingsPrivacyCard, SettingsReminderCard, SettingsSectionTitle } from './SettingsCards';
 import { ExamAddCandidate, ExamCourseItem, SettingsExamAddEntry, SettingsExamAddList,
-  SettingsExamEntry, SettingsExamListCard, SettingsExamShareEntry } from './SettingsExamCards';
+  SettingsExamEntry, SettingsExamImportEntry, SettingsExamListCard, SettingsExamShareEntry } from './SettingsExamCards';
 import { FinalExamEntry, PlanCategory, PlanCourse, TermStatus } from '../model/JwModels';
 import { ExamDateUtils } from '../utils/ExamDateUtils';
 import { ExamShareText } from '../utils/ExamShareText';
@@ -18,7 +19,7 @@ import { SettingsLightEffectCard } from './SettingsLightEffectCards';
 import { bundleManager, common } from '@kit.AbilityKit';
 import { pasteboard, BusinessError } from '@kit.BasicServicesKit';
 import { photoAccessHelper } from '@kit.MediaLibraryKit';
-import { systemShare } from '@kit.ShareKit';
+import { systemShare, harmonyShare } from '@kit.ShareKit';
 import { uniformTypeDescriptor as utd } from '@kit.ArkData';
 
 const SETTING_DOMAIN: number = 0x0000;
@@ -45,8 +46,8 @@ export struct SettingsView {
   @StorageLink('jwReminderAdvance') reminderAdvance: number = 10;
   @StorageLink('jwReminderAgentEnabled') reminderAgentEnabled: boolean = true;
   @StorageProp('jwNextReminder') nextReminder: string = '';
-  /** 当前二级页（经 AppStorage 与 Index 共享，Index onBackPress 处理设备侧滑/返回键时据此弹回主页） */
-  @StorageLink('jwSettingsSubPage') subPage: SettingsSubPage = SettingsSubPage.Main;
+  /** 当前二级页（经 AppStorage 与 Index 共享，Index onBackPress 处理设备侧滑/返回键时据此弹回主页；@Watch 联动碰一碰注册） */
+  @StorageLink('jwSettingsSubPage') @Watch('onSubPageChanged') subPage: SettingsSubPage = SettingsSubPage.Main;
   /** 当前本地缓存大小文本 */
   @State cacheSizeText: string = '计算中…';
   /** 应用版本号 */
@@ -83,8 +84,19 @@ export struct SettingsView {
   @State advanceInputText: string = '';
   /** 添加科目弹层显隐（候选列表来自培养计划非考试课） */
   @State showExamAddSheet: boolean = false;
+  /** 导入期末倒计时弹层显隐（长按粘贴分享文本，实时解析预览） */
+  @State showExamImportSheet: boolean = false;
+  /** 导入弹层输入内容（弹层内 TextArea，与「分享期末倒计时」发出的文本同格式） */
+  @State examImportText: string = '';
   /** 上次点击版本号的时间戳（毫秒），超过 3 秒视为不连续 */
   private lastVersionTapMs: number = 0;
+  /** 碰一碰/隔空传送是否已注册（期末倒计时页可见期间注册，防重复注册） */
+  private deviceShareRegistered: boolean = false;
+  /** 碰一碰/隔空传送事件回调（注册/注销复用同一引用） */
+  private readonly deviceShareCallback: Callback<harmonyShare.SharableTarget> =
+    (target: harmonyShare.SharableTarget): void => {
+      this.onDeviceShare(target);
+    };
   /** 解锁开发者选项需连续点击版本号的次数 */
   private static readonly DEVELOPER_UNLOCK_TAPS: number = 5;
 
@@ -93,10 +105,23 @@ export struct SettingsView {
     JwxtRepository.ensureLoaded();
     this.loadVersionName();
     this.refreshCacheSize();
+    if (this.subPage === SettingsSubPage.ExamSchedule) {
+      this.registerDeviceShare();
+    }
   }
 
   aboutToDisappear(): void {
     AppLog.info(SETTING_DOMAIN, SETTING_TAG, 'aboutToDisappear');
+    this.unregisterDeviceShare();
+  }
+
+  /** 二级页切换：进入期末倒计时页注册碰一碰/隔空传送分享，离开时注销 */
+  private onSubPageChanged(): void {
+    if (this.subPage === SettingsSubPage.ExamSchedule) {
+      this.registerDeviceShare();
+    } else {
+      this.unregisterDeviceShare();
+    }
   }
 
   private applySettings(enabled: boolean, advanceMinutes: number, agentEnabled: boolean): void {
@@ -414,15 +439,49 @@ export struct SettingsView {
     JwxtRepository.updateFinalExam(item.courseName, '');
   }
 
+  /** 导入弹层：当前输入文本解析出的待导入条目（与分享文本共用同一解析） */
+  private parsedImportEntries(): FinalExamEntry[] {
+    return ExamShareText.parse(this.examImportText);
+  }
+
+  /** 导入弹层单条倒计时文本（时间非法显示"时间无效"） */
+  private importCountdownOf(entry: FinalExamEntry): string {
+    const parsed: Date | null = ExamDateUtils.parseExamDate(entry.examDate);
+    return parsed !== null ? ExamDateUtils.countdownTextOf(parsed) : '时间无效';
+  }
+
+  /** 确认导入：解析输入文本，按课程名合并到本机期末倒计时（与分享面板导入同一链路） */
+  private confirmExamImport(): void {
+    const entries: FinalExamEntry[] = this.parsedImportEntries();
+    if (entries.length === 0) {
+      this.getUIContext().getPromptAction().showToast({ message: '没有可导入的考试时间' });
+      return;
+    }
+    const context: common.UIAbilityContext | null = getContext();
+    if (context === null) {
+      this.getUIContext().getPromptAction().showToast({ message: '导入失败，请重试' });
+      return;
+    }
+    const changed: number = CardDataStore.importFinalExams(context, entries);
+    AppLog.info(SETTING_DOMAIN, SETTING_TAG, 'exam import done, changed: %{public}d', `${changed}`);
+    this.showExamImportSheet = false;
+    this.getUIContext().getPromptAction().showToast({ message: '已导入 ' + changed + ' 门考试时间' });
+  }
+
+  /** 已设考试时间的条目（按考试时间升序），供分享/碰一碰发送共用 */
+  private sortedExamEntries(): FinalExamEntry[] {
+    return this.finalExams
+      .filter((entry: FinalExamEntry): boolean => entry.examDate.length > 0)
+      .sort((a: FinalExamEntry, b: FinalExamEntry): number =>
+        a.examDate < b.examDate ? -1 : (a.examDate > b.examDate ? 1 : 0));
+  }
+
   /**
    * 分享期末倒计时：已设考试时间按时间升序拼为可读文本（ExamShareText，与导入解析共用格式），
    * 经系统分享面板（Share Kit）发送到其他设备或应用（华为分享/信息等渠道）。
    */
   private shareExamSchedule(): void {
-    const entries: FinalExamEntry[] = this.finalExams
-      .filter((entry: FinalExamEntry): boolean => entry.examDate.length > 0)
-      .sort((a: FinalExamEntry, b: FinalExamEntry): number =>
-        a.examDate < b.examDate ? -1 : (a.examDate > b.examDate ? 1 : 0));
+    const entries: FinalExamEntry[] = this.sortedExamEntries();
     if (entries.length === 0) {
       this.getUIContext().getPromptAction().showToast({ message: '暂无可分享的考试时间' });
       return;
@@ -449,6 +508,79 @@ export struct SettingsView {
     } catch (error) {
       AppLog.info(SETTING_DOMAIN, SETTING_TAG, 'share exam schedule threw: %{public}s', `${error}`);
       this.getUIContext().getPromptAction().showToast({ message: '分享失败' });
+    }
+  }
+
+  /** 注册碰一碰与隔空传送分享（设备支持且尚未注册时）：期末倒计时页可见期间可经华为分享发送已设考试时间 */
+  private registerDeviceShare(): void {
+    if (this.deviceShareRegistered || !canIUse('SystemCapability.Collaboration.HarmonyShare')) {
+      return;
+    }
+    let registered: boolean = false;
+    try {
+      harmonyShare.on('knockShare', this.deviceShareCallback);
+      registered = true;
+      AppLog.info(SETTING_DOMAIN, SETTING_TAG, 'knockShare registered');
+    } catch (error) {
+      AppLog.info(SETTING_DOMAIN, SETTING_TAG, 'knockShare register failed: %{public}s', `${error}`);
+    }
+    try {
+      harmonyShare.on('gesturesShare', this.deviceShareCallback);
+      registered = true;
+      AppLog.info(SETTING_DOMAIN, SETTING_TAG, 'gesturesShare registered');
+    } catch (error) {
+      AppLog.info(SETTING_DOMAIN, SETTING_TAG, 'gesturesShare register failed: %{public}s', `${error}`);
+    }
+    this.deviceShareRegistered = registered;
+  }
+
+  /** 注销碰一碰与隔空传送分享 */
+  private unregisterDeviceShare(): void {
+    if (!this.deviceShareRegistered) {
+      return;
+    }
+    this.deviceShareRegistered = false;
+    try {
+      harmonyShare.off('knockShare', this.deviceShareCallback);
+      AppLog.info(SETTING_DOMAIN, SETTING_TAG, 'knockShare unregistered');
+    } catch (error) {
+      AppLog.info(SETTING_DOMAIN, SETTING_TAG, 'knockShare off failed: %{public}s', `${error}`);
+    }
+    try {
+      harmonyShare.off('gesturesShare', this.deviceShareCallback);
+      AppLog.info(SETTING_DOMAIN, SETTING_TAG, 'gesturesShare unregistered');
+    } catch (error) {
+      AppLog.info(SETTING_DOMAIN, SETTING_TAG, 'gesturesShare off failed: %{public}s', `${error}`);
+    }
+  }
+
+  /**
+   * 碰一碰/隔空传送触发（harmonyShare knockShare/gesturesShare 回调）：
+   * 按「分享期末倒计时」同一格式经华为分享发送，对端设备接收后经导入页自动合并到本机期末倒计时；
+   * 无已设考试时间时以 NO_CONTENT_ERROR 拒绝。
+   */
+  private onDeviceShare(target: harmonyShare.SharableTarget): void {
+    const entries: FinalExamEntry[] = this.sortedExamEntries();
+    if (entries.length === 0) {
+      target.reject(harmonyShare.SharableErrorCode.NO_CONTENT_ERROR)
+        .catch((error: BusinessError) => {
+          AppLog.info(SETTING_DOMAIN, SETTING_TAG, 'deviceShare reject failed: %{public}s', JSON.stringify(error));
+        });
+      return;
+    }
+    try {
+      const data: systemShare.SharedData = new systemShare.SharedData({
+        utd: utd.UniformDataType.PLAIN_TEXT,
+        title: '期末倒计时',
+        content: ExamShareText.buildShareText(entries)
+      });
+      target.share(data)
+        .catch((error: BusinessError) => {
+          AppLog.info(SETTING_DOMAIN, SETTING_TAG, 'deviceShare send failed: %{public}s', JSON.stringify(error));
+        });
+      AppLog.info(SETTING_DOMAIN, SETTING_TAG, 'deviceShare sent, entries: %{public}d', `${entries.length}`);
+    } catch (error) {
+      AppLog.info(SETTING_DOMAIN, SETTING_TAG, 'deviceShare build data threw: %{public}s', `${error}`);
     }
   }
 
@@ -595,6 +727,96 @@ export struct SettingsView {
     .padding({ left: 28, right: 28, top: 12, bottom: 24 })
   }
 
+  /** 导入期末倒计时弹层内容：长按粘贴分享文本，实时解析预览，确认后按课程名合并导入 */
+  @Builder
+  examImportSheetContent() {
+    Column({ space: 16 }) {
+      Text('导入期末倒计时')
+        .fontSize(18)
+        .fontWeight(FontWeight.Medium)
+        .fontColor($r('sys.color.ohos_id_color_text_primary'))
+        .width('100%')
+      Text('长按下方输入框粘贴分享文本，识别「课程名：YYYY-MM-DD HH:mm」格式的考试时间')
+        .fontSize(12)
+        .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+        .width('100%')
+      TextArea({ text: this.examImportText, placeholder: '长按粘贴「分享期末倒计时」发出的文本' })
+        .fontSize(14)
+        .height(110)
+        .width('100%')
+        .onChange((value: string) => {
+          this.examImportText = value;
+        })
+      if (this.parsedImportEntries().length > 0) {
+        Text('识别到 ' + this.parsedImportEntries().length + ' 门考试时间，导入后按课程名合并到本机设置')
+          .fontSize(12)
+          .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+          .width('100%')
+        Scroll() {
+          Column() {
+            ForEach(this.parsedImportEntries(), (entry: FinalExamEntry) => {
+              Row() {
+                Column({ space: 2 }) {
+                  Text(entry.courseName)
+                    .fontSize(15)
+                    .fontWeight(FontWeight.Medium)
+                    .fontColor($r('sys.color.ohos_id_color_text_primary'))
+                    .maxLines(1)
+                    .textOverflow({ overflow: TextOverflow.Ellipsis })
+                  Text(ExamDateUtils.formatDisplay(entry.examDate))
+                    .fontSize(11)
+                    .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+                    .maxLines(1)
+                }
+                .layoutWeight(1)
+                .alignItems(HorizontalAlign.Start)
+
+                Text(this.importCountdownOf(entry))
+                  .fontSize(12)
+                  .fontColor($r('sys.color.ohos_id_color_text_primary_activated'))
+              }
+              .width('100%')
+              .alignItems(VerticalAlign.Center)
+              .padding({ top: 8, bottom: 8 })
+            }, (entry: FinalExamEntry) => 'examImport' + entry.courseName + ':' + entry.examDate)
+          }
+          .width('100%')
+          .alignItems(HorizontalAlign.Start)
+        }
+        .width('100%')
+        .align(Alignment.Start)
+        .constraintSize({ maxHeight: 220 })
+        .scrollBar(BarState.Auto)
+        .edgeEffect(EdgeEffect.Spring)
+      }
+      if (this.privacyMode === 'strict') {
+        Text('当前隐私模式不缓存教务数据，导入结果不会保留到本地')
+          .fontSize(11)
+          .fontColor($r('sys.color.ohos_id_color_warning'))
+          .width('100%')
+      }
+      Row({ space: 12 }) {
+        Button('取消')
+          .layoutWeight(1)
+          .backgroundColor($r('sys.color.ohos_id_color_button_normal'))
+          .fontColor($r('sys.color.ohos_id_color_text_primary'))
+          .onClick(() => {
+            this.showExamImportSheet = false;
+          })
+        Button('导入')
+          .layoutWeight(1)
+          .enabled(this.parsedImportEntries().length > 0)
+          .onClick(() => {
+            this.confirmExamImport();
+          })
+      }
+      .width('100%')
+    }
+    .width('100%')
+    .alignItems(HorizontalAlign.Start)
+    .padding({ left: 28, right: 28, top: 12, bottom: 36 })
+  }
+
   build() {
     Column() {
       if (this.subPage === SettingsSubPage.ExamSchedule) {
@@ -617,6 +839,17 @@ export struct SettingsView {
             SettingsExamShareEntry((): void => {
               this.shareExamSchedule();
             })
+            SettingsExamImportEntry((): void => {
+              AppLog.info(SETTING_DOMAIN, SETTING_TAG, 'open exam import sheet');
+              this.showExamImportSheet = true;
+            })
+            if (canIUse('SystemCapability.Collaboration.HarmonyShare')) {
+              Text('支持碰一碰与隔空传送：两部手机亮屏解锁并开启华为分享，在本页顶部轻碰（或握拳抓握隔空传送）即可发送已设考试时间，对端接收后自动导入。')
+                .fontSize(11)
+                .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+                .width('100%')
+                .padding({ left: 4, right: 4, top: 8 })
+            }
             Text('考试课来自本学期培养计划（考核方式为"考试"）；点击科目设置考试日期与时间，到点后自动移除；考查课等非考试科目可点"添加科目"从培养计划中选择。')
               .fontSize(11)
               .fontColor($r('sys.color.ohos_id_color_text_secondary'))
@@ -808,6 +1041,11 @@ export struct SettingsView {
       shouldDismiss: (sheetDismiss: SheetDismiss): void => {
         sheetDismiss.dismiss();
       }
+    })
+    .bindSheet($$this.showExamImportSheet, this.examImportSheetContent(), {
+      height: SheetSize.FIT_CONTENT,
+      dragBar: true,
+      showClose: true
     })
   }
 

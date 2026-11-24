@@ -381,11 +381,12 @@ export class CardDataStore {
    * 合并导入期末考试时间（分享目标页确认导入时调用）：按课程名 upsert，返回发生变化的条目数。
    * 基线取本机持久化数据（主应用可能未运行，AppStorage 基线可能为空，不能以之为准覆盖落盘）；
    * 始终同步 AppStorage（主应用在运行则页面/卡片即时刷新）；
-   * 标准隐私模式才持久化并刷新期末倒计时卡片，限制/严格模式与主应用「设置考试时间」行为一致（不落盘）。
+   * 标准/限制隐私模式持久化并刷新期末倒计时卡片，严格模式与主应用「设置考试时间」行为一致（不落盘）。
    */
   static importFinalExams(context: common.Context, incoming: FinalExamEntry[]): number {
     const mode: string = CardDataStore.loadPrivacyMode(context);
-    const merged: FinalExamEntry[] = mode === 'standard'
+    const persisted: boolean = mode !== 'strict';
+    const merged: FinalExamEntry[] = persisted
       ? CardDataStore.loadFinalExams(context)
       : (AppStorage.get<FinalExamEntry[]>('jwFinalExams') ?? []).slice();
     let changed: number = 0;
@@ -402,7 +403,7 @@ export class CardDataStore {
       }
     }
     AppStorage.setOrCreate('jwFinalExams', merged);
-    if (mode === 'standard') {
+    if (persisted) {
       CardDataStore.saveFinalExams(context, merged);
       CardDataStore.refreshExamCards(context);
     }
@@ -907,20 +908,19 @@ export class CardDataStore {
 
   /**
    * 构建期末倒计时卡片绑定数据：
-   * 严格/限制隐私模式下返回不可用提示（期末日期仅标准模式缓存）；
+   * 严格隐私模式下返回不可用提示（期末日期不落盘，限制模式与课表一致保留）；
    * 否则读取持久化的期末日期，过滤已结束科目，按考试时间从近到远
    * 取最近 10 条（含距考天数驱动的徽配色信息），卡片按自身高度自适应
    * 展示尽可能多的条目，无数据时返回空态文案。
    */
   static buildExamBindingData(context: common.Context): formBindingData.FormBindingData {
     const mode: string = CardDataStore.loadPrivacyMode(context);
-    if (mode === 'strict' || mode === 'restricted') {
+    if (mode === 'strict') {
       const disabled: Record<string, string> = {
         'examsJson': '[]',
         'totalText': '',
         'emptyText': '',
-        'privacyDisabledText': mode === 'strict' ?
-          '当前隐私设置无法使用卡片' : '限制隐私模式下无法使用该卡片'
+        'privacyDisabledText': '当前隐私设置无法使用卡片'
       };
       return formBindingData.createFormBindingData(disabled);
     }

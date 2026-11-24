@@ -342,7 +342,7 @@ export struct HomeView {
     if (this.privacyMode === 'strict') {
       return '退出后将清除教务登录状态与全部缓存数据（含桌面课表卡片），课表与成绩等不再显示，确定退出吗？';
     }
-    return '退出后将清除教务登录状态与课表以外的缓存数据，课表与成绩等不再显示；桌面课表卡片不受影响。确定退出吗？';
+    return '退出后将清除教务登录状态与课表以外的缓存数据，课表与成绩等不再显示；桌面课表与期末倒计时卡片不受影响。确定退出吗？';
   }
 
   private confirmLogout(): void {

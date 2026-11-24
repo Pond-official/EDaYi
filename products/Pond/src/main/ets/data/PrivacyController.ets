@@ -33,9 +33,9 @@ export class PrivacyController {
 
   /**
    * 切换隐私模式：写入 AppStorage 并持久化；
-   * 限制模式立即清除应用内离线缓存与期末日期、单课提醒名单、已保存选课凭据等课表以外的缓存
-   * （限制模式仅允许缓存课表供桌面卡片），并刷新期末倒计时卡片为不可用提示；
-   * 严格模式同时清除卡片课表等全部含课程信息的数据并刷新全部卡片。
+   * 限制模式立即清除应用内离线缓存、单课提醒名单、已保存选课凭据等课表以外的缓存
+   * （限制模式仅允许缓存课表与期末倒计时供桌面卡片），并刷新期末倒计时卡片；
+   * 严格模式同时清除期末倒计时、卡片课表等全部含课程信息的数据并刷新全部卡片。
    */
   static updatePrivacyMode(mode: string): void {
     AppStorage.setOrCreate('jwPrivacyMode', mode);
@@ -57,7 +57,6 @@ export class PrivacyController {
       LibraryRepository.clearToken();
       if (context !== null) {
         CardDataStore.clearAppCache(context);
-        CardDataStore.clearFinalExams(context);
         CardDataStore.clearDisabledSessions(context);
         CardDataStore.refreshExamCards(context);
       }

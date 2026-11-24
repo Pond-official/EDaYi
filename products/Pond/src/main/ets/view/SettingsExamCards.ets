@@ -100,6 +100,32 @@ export function SettingsExamShareEntry(onShare: () => void) {
   })
 }
 
+/** 导入期末倒计时入口（onImport 打开导入弹层，长按粘贴分享文本解析合并） */
+@Builder
+export function SettingsExamImportEntry(onImport: () => void) {
+  Row({ space: 8 }) {
+    SymbolGlyph($r('sys.symbol.square_and_arrow_down'))
+      .fontSize(16)
+      .fontColor([$r('sys.color.ohos_id_color_text_primary_activated')])
+    Text('导入期末倒计时')
+      .fontSize(14)
+      .fontWeight(FontWeight.Medium)
+      .fontColor($r('sys.color.ohos_id_color_text_primary'))
+    Blank()
+    Text('粘贴分享文本')
+      .fontSize(11)
+      .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+  }
+  .width('100%')
+  .padding(16)
+  .borderRadius(16)
+  .backgroundColor($r('app.color.card_background'))
+  .margin({ top: 12 })
+  .onClick(() => {
+    onImport();
+  })
+}
+
 /** 添加科目候选项（本学期培养计划中考核方式非"考试"的课程） */
 export class ExamAddCandidate {
   courseName: string = '';

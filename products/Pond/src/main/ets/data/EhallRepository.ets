@@ -25,9 +25,13 @@ const EHALL_UA: string =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36';
 const TAG: string = 'EhallRepository';
 const DOMAIN: number = 0x0000;
-/** needRetrieve 条目轮询次数/间隔：ehall 服务端聚合上游数据需数秒，data:null 时重试 */
-const EHALL_RETRIEVE_ATTEMPTS: number = 6;
+/** needRetrieve 条目轮询次数/间隔：ehall 服务端聚合上游数据需数秒，data:null 时重试；
+ *  提速后轮询与门户预热并行、窗口整体前移，次数放宽到 8 兜住慢聚合 */
+const EHALL_RETRIEVE_ATTEMPTS: number = 8;
 const EHALL_RETRIEVE_INTERVAL_MS: number = 1500;
+/** 换票落地探测：Cookie 轮询间隔与等待上限（对齐换票超时 20s 加余量） */
+const EHALL_COOKIE_POLL_MS: number = 500;
+const EHALL_COOKIE_WAIT_MS: number = 22000;
 
 /** ehall 会话失效标记：响应为 CAS 登录页 HTML 时抛出，据此重新走隐藏 Web 换票 */
 export const EHALL_SESSION_INVALID: string = 'EHALL_SESSION_INVALID';
@@ -86,6 +90,8 @@ interface EhallStatsCacheRaw {
  * （浏览器侧看不到一卡通/图书馆上游请求），一个端点按 method/wid 取值；
  * 会话为 ehall 门户 Cookie，由全 App 唯一的隐藏 Web（CrossDomainSession）
  * 加载 ehall 首页经 CAS 单点建立；
+ * 提速：换票落地（会话 Cookie 写入）即开始 detail 轮询，15s 门户预热停留转后台并行
+ * （聚合完成约 3-8s 即出值，感知耗时从约 15.5s 降到约 3-8s）；
  * mainInfo 是中文拼好的字符串，取值按前缀切；
  * ehall 侧有缓存，accessTime 为 UTC，不保证实时。
  * 数据保留在内存（AppStorage jwEcardBalance / jwLoanCount）；
@@ -161,12 +167,23 @@ export class EhallRepository {
 
   private static async runStatsLoad(retried: boolean): Promise<boolean> {
     if (!EhallRepository.sessionReady) {
-      const ok: boolean = await CrossDomainSession.ensure(DOMAIN_EHALL);
-      if (!ok) {
-        AppLog.warn(DOMAIN, TAG, 'ehall bootstrap failed, stats not loaded');
+      // ehall 提速：换票（隐藏 Web 写入门户会话 Cookie）与 detail 轮询并行。
+      // 原流程等 ensure 走完（含 15s 门户预热停留）才开始拉 detail，感知约 15.5s；
+      // 实际预热页 JS 触发服务端聚合，聚合完成（约 3-8s）后 detail 即出值，
+      // 故探测到会话 Cookie 落地（换票链落到 ehall 域即写入 Cookie 存储）就开始轮询，
+      // 预热停留转入后台继续，不阻塞统计返回。
+      const boot: Promise<boolean> = CrossDomainSession.ensure(DOMAIN_EHALL);
+      boot.then((ok: boolean) => {
+        if (!ok) {
+          AppLog.warn(DOMAIN, TAG, 'ehall bootstrap failed, stats not loaded');
+        }
+      });
+      if (!await EhallRepository.waitSessionCookie(boot)) {
+        AppLog.warn(DOMAIN, TAG, 'ehall session cookie not landed in time, stats not loaded');
         return false;
       }
       EhallRepository.sessionReady = true;
+      AppLog.info(DOMAIN, TAG, 'ehall session cookie landed, poll stats during warmup');
     }
     try {
       // wid 疑似按用户生成：先取本账号条目清单按标题解析 wid，失败回退内置常量
@@ -226,6 +243,37 @@ export class EhallRepository {
       AppLog.error(DOMAIN, TAG, 'stats load failed: %{public}s', message);
       return false;
     }
+  }
+
+  /**
+   * 换票落地探测：轮询 WebView Cookie 存储直到 ehall 会话 Cookie 出现（换票链落到 ehall 域即写入），
+   * 引导失败（boot 兑现 false）或超时返回 false；
+   * 快照起始 Cookie，仅在其发生变化（新会话）或引导整体完成时放行，
+   * 防会话失效重试路径把残留旧 Cookie 误判为新落地。
+   */
+  private static async waitSessionCookie(boot: Promise<boolean>): Promise<boolean> {
+    const snapshot: string = EhallRepository.syncCookie();
+    let bootFailed: boolean = false;
+    let bootDone: boolean = false;
+    boot.then((ok: boolean) => {
+      bootFailed = !ok;
+      bootDone = ok;
+    });
+    const deadline: number = Date.now() + EHALL_COOKIE_WAIT_MS;
+    while (Date.now() < deadline) {
+      if (bootFailed) {
+        return false;
+      }
+      if (bootDone) {
+        return true;
+      }
+      const cookie: string = EhallRepository.syncCookie();
+      if (cookie.length > 0 && cookie !== snapshot) {
+        return true;
+      }
+      await EhallRepository.delay(EHALL_COOKIE_POLL_MS);
+    }
+    return false;
   }
 
   /** 从 WebView Cookie 存储同步 ehall 会话 Cookie，失败时回退上次成功值 */

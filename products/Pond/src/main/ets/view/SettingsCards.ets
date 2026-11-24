@@ -390,7 +390,7 @@ export function SettingsPrivacyCard(params: SettingsPrivacyCardParams) {
           .fontSize(15)
           .fontWeight(FontWeight.Medium)
           .fontColor($r('sys.color.ohos_id_color_text_primary'))
-        Text('仅缓存课表供桌面卡片使用，其他数据都不会缓存')
+        Text('仅缓存课表与期末倒计时供桌面卡片使用，其他数据都不会缓存')
           .fontSize(11)
           .fontColor($r('sys.color.ohos_id_color_text_secondary'))
       }

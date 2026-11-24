@@ -141,7 +141,7 @@ export class JwxtRepository {
     // 但主进程已加载的 preferences 实例不感知跨进程写入（AppStorage 与实例缓存均滞后），
     // 须先逐出缓存实例再从磁盘重读，否则导入结果要等重启应用才可见
     const context: common.UIAbilityContext | null = getContext();
-    if (context !== null && JwxtRepository.privacyMode() === 'standard') {
+    if (context !== null && JwxtRepository.privacyMode() !== 'strict') {
       AppStorage.setOrCreate('jwFinalExams', CardDataStore.reloadFinalExams(context));
     }
     PrivacyController.notifyForeground();
@@ -166,8 +166,8 @@ export class JwxtRepository {
     const context: common.UIAbilityContext | null = getContext();
     const mode: string = JwxtRepository.privacyMode();
     // 合并基线取持久化数据：分享导入在扩展进程写偏好，主应用 AppStorage 可能滞后，
-    // 以 AppStorage 为基线覆盖会把导入的考试数据抹掉（标准模式数据以偏好为准）
-    const exams: FinalExamEntry[] = context !== null && mode === 'standard'
+    // 以 AppStorage 为基线覆盖会把导入的考试数据抹掉（标准/限制模式数据以偏好为准）
+    const exams: FinalExamEntry[] = context !== null && mode !== 'strict'
       ? CardDataStore.loadFinalExams(context)
       : (AppStorage.get<FinalExamEntry[]>('jwFinalExams') ?? []).slice();
     const index: number =
@@ -187,7 +187,7 @@ export class JwxtRepository {
       }
     }
     AppStorage.setOrCreate('jwFinalExams', exams);
-    if (context !== null && mode === 'standard') {
+    if (context !== null && mode !== 'strict') {
       CardDataStore.saveFinalExams(context, exams);
       CardDataStore.refreshExamCards(context);
     }

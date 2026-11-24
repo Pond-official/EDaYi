@@ -11,8 +11,9 @@ const DOMAIN: number = 0x0000;
 
 /**
  * 期末倒计时导入页（Share Kit 分享详情页内嵌页面，由 ExamShareAbility 加载）：
- * 展示分享文本中解析出的考试时间条目，确认后按课程名合并到本机设置
- * （写入与主应用「设置考试时间」同一存储，主应用在运行则即时刷新）。
+ * 接收到分享文本/文件后自动按课程名合并到本机设置并展示导入结果
+ * （写入与主应用「设置考试时间」同一存储，主应用在运行则即时刷新），无需手动确认；
+ * 自动导入失败（无上下文/存储异常）时回退为列表+按钮的手动导入。
  * 非标准隐私模式下不落盘（与主应用行为一致），页面给出提示；
  * 导入完成经 terminateSelfWithResult(CLOSE) 关闭分享面板。
  */
@@ -36,14 +37,17 @@ struct ExamShareImport {
     this.entries = stored ?? [];
     if (this.abilityContext !== undefined) {
       const mode: string = CardDataStore.loadPrivacyMode(this.abilityContext);
-      if (mode !== 'standard') {
+      if (mode === 'strict') {
         this.privacyHint = '当前设备隐私模式不缓存教务数据，导入结果不会保留到本地';
       }
     }
     AppLog.info(DOMAIN, TAG, 'import page appear, entries: %{public}d', `${this.entries.length}`);
+    if (this.entries.length > 0) {
+      this.confirmImport();
+    }
   }
 
-  /** 确认导入：按课程名合并到本机期末倒计时 */
+  /** 导入：按课程名合并到本机期末倒计时（页面打开自动调用一次，失败可经按钮重试） */
   private confirmImport(): void {
     if (this.abilityContext === undefined) {
       AppLog.error(DOMAIN, TAG, 'import without context');
@@ -101,6 +105,12 @@ struct ExamShareImport {
           .fontSize(12)
           .fontColor($r('sys.color.ohos_id_color_text_secondary'))
           .width('100%')
+        if (this.privacyHint.length > 0) {
+          Text(this.privacyHint)
+            .fontSize(11)
+            .fontColor($r('sys.color.ohos_id_color_warning'))
+            .width('100%')
+        }
         Button('完成')
           .width('100%')
           .onClick(() => {

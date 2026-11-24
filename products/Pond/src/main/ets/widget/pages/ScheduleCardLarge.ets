@@ -1,4 +1,5 @@
 ﻿import { COURSE_CELL_DEFAULT_BG, TEXT_DARK, TEXT_MEDIUM, WIDGET_SELECTED_COLOR } from '../../theme/AppColors';
+import { TermWeekUtils } from '../../utils/TermWeekUtils';
 
 let largeStorage = new LocalStorage();
 
@@ -171,6 +172,18 @@ struct ScheduleCardLarge {
     return this.startingSpan(startingCells);
   }
 
+  /** 表头日期取时实例：headerDateLabel 内 setTime 复用，避免重复 new Date */
+  private readonly dateScratch: Date = new Date();
+
+  /** 表头日期文本：所显周（本周/下周）第 day 天对应的 'M/d'（如 11/24） */
+  private headerDateLabel(day: number): string {
+    this.dateScratch.setTime(Date.now());
+    const monday: Date = TermWeekUtils.mondayOf(this.dateScratch);
+    const target: Date = new Date(monday.getFullYear(), monday.getMonth(),
+      monday.getDate() + (this.showNextWeek ? 7 : 0) + day - 1);
+    return (target.getMonth() + 1) + '/' + target.getDate();
+  }
+
   @Builder
   dayHeader(day: number) {
     Column({ space: 1 }) {
@@ -179,10 +192,10 @@ struct ScheduleCardLarge {
         .fontWeight(this.isToday(day) ? FontWeight.Bold : FontWeight.Normal)
         .fontColor(this.isToday(day) ?
           $r('sys.color.ohos_id_color_text_primary_activated') : $r('sys.color.ohos_id_color_text_primary'))
-      Text(this.isToday(day) ? '今天' : ' ')
+      Text(this.isToday(day) ? '今天' : this.headerDateLabel(day))
         .fontSize(7)
-        .fontColor($r('sys.color.ohos_id_color_text_primary_activated'))
-        .visibility(this.isToday(day) ? Visibility.Visible : Visibility.Hidden)
+        .fontColor(this.isToday(day) ?
+          $r('sys.color.ohos_id_color_text_primary_activated') : $r('sys.color.ohos_id_color_text_secondary'))
     }
     .layoutWeight(1)
     .justifyContent(FlexAlign.Center)

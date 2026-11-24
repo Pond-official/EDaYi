@@ -1,5 +1,6 @@
 import { ScheduleCellInfo, TermStatus } from '../model/JwModels';
 import { JwxtRepository } from '../data/JwxtRepository';
+import { TermWeekUtils } from '../utils/TermWeekUtils';
 import { TEXT_DARK, TEXT_MEDIUM } from '../theme/AppColors';
 import { mediaquery } from '@kit.ArkUI';
 
@@ -45,6 +46,8 @@ export struct ScheduleBoard {
   private rolloverTimerId: number = -1;
   /** 定时器回调复用取时实例：每次 tick setTime 重设，避免回调内重复 new Date */
   private readonly dateScratch: Date = new Date();
+  /** 表头日期取时实例：headerDateLabel 内 setTime 复用，避免重复 new Date */
+  private readonly headerDateScratch: Date = new Date();
 
   aboutToAppear(): void {
     this.refreshToday(new Date());
@@ -157,6 +160,15 @@ export struct ScheduleBoard {
     return content;
   }
 
+  /** 表头日期文本：所显周（weekOffset 偏移后）第 day 天对应的 'M/d'（如 11/24） */
+  private headerDateLabel(day: number): string {
+    this.headerDateScratch.setTime(Date.now());
+    const monday: Date = TermWeekUtils.mondayOf(this.headerDateScratch);
+    const target: Date = new Date(monday.getFullYear(), monday.getMonth(),
+      monday.getDate() + this.weekOffset * 7 + day - 1);
+    return (target.getMonth() + 1) + '/' + target.getDate();
+  }
+
   @Builder
   dayHeader(day: number) {
     Column({ space: 2 }) {
@@ -166,11 +178,10 @@ export struct ScheduleBoard {
           FontWeight.Bold : FontWeight.Normal)
         .fontColor(this.todayDay === day && this.weekOffset === 0 ?
           $r('sys.color.ohos_id_color_text_primary_activated') : $r('sys.color.ohos_id_color_text_primary'))
-      Text(this.todayDay === day ? '今天' : ' ')
+      Text(this.todayDay === day && this.weekOffset === 0 ? '今天' : this.headerDateLabel(day))
         .fontSize(9)
-        .fontColor($r('sys.color.ohos_id_color_text_primary_activated'))
-        .visibility(this.todayDay === day && this.weekOffset === 0 ?
-          Visibility.Visible : Visibility.Hidden)
+        .fontColor(this.todayDay === day && this.weekOffset === 0 ?
+          $r('sys.color.ohos_id_color_text_primary_activated') : $r('sys.color.ohos_id_color_text_secondary'))
     }
     .width(this.dayCellWidth)
     .justifyContent(FlexAlign.Center)
