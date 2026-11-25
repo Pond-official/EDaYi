@@ -4,9 +4,14 @@
 # For more details, see
 #   https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/source-obfuscation
 
-# S2：顶层混淆；系统按名调度的 5 个 Ability 必须保留原名
+# S3：文件名混淆；keep 依据（勿增删）：
+#   main_pages.json 6 条路由：Index/LoginIndex/SettingsIndex/TrainingPlanIndex/LibraryIndex/ExamShareImport
+#   module.json5 5 处 srcEntry：PondAbility/PondBackupAbility/ScheduleFormAbility/ExamFormAbility/ExamShareAbility
+#   schedule_card_config.json：ScheduleCard/ScheduleCardLarge
+#   exam_card_config.json：ExamCountdownCard
 -compact
 -enable-toplevel-obfuscation
+-enable-filename-obfuscation
 
 -keep-global-name
   PondAbility
@@ -14,3 +19,19 @@
   ScheduleFormAbility
   ExamFormAbility
   ExamShareAbility
+
+-keep-file-name
+  Index
+  LoginIndex
+  SettingsIndex
+  TrainingPlanIndex
+  LibraryIndex
+  ExamShareImport
+  PondAbility
+  PondBackupAbility
+  ScheduleFormAbility
+  ExamFormAbility
+  ExamShareAbility
+  ScheduleCard
+  ScheduleCardLarge
+  ExamCountdownCard
