@@ -315,11 +315,15 @@ export class SecureStore {
           continue;
         }
         const file: fileIo.File = fileIo.openSync(path, fileIo.OpenMode.READ_ONLY);
-        const buf: ArrayBuffer = new ArrayBuffer(stat.size);
-        fileIo.readSync(file.fd, buf);
-        fileIo.closeSync(file);
-        const decoder: util.TextDecoder = util.TextDecoder.create('utf-8');
-        const stored: string = decoder.decodeToString(new Uint8Array(buf));
+        let stored: string;
+        try {
+          const buf: ArrayBuffer = new ArrayBuffer(stat.size);
+          fileIo.readSync(file.fd, buf);
+          const decoder: util.TextDecoder = util.TextDecoder.create('utf-8');
+          stored = decoder.decodeToString(new Uint8Array(buf));
+        } finally {
+          fileIo.closeSync(file);
+        }
         if (stored.startsWith(ENVELOPE_PREFIX)) {
           continue;
         }

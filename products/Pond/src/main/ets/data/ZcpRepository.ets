@@ -187,8 +187,11 @@ export class ZcpRepository {
       const raw: string = fs.readTextSync(legacyPath);
       const file: fs.File = fs.openSync(newPath,
         fs.OpenMode.READ_WRITE | fs.OpenMode.CREATE | fs.OpenMode.TRUNC);
-      fs.writeSync(file.fd, raw);
-      fs.closeSync(file);
+      try {
+        fs.writeSync(file.fd, raw);
+      } finally {
+        fs.closeSync(file);
+      }
       fs.unlinkSync(legacyPath);
       AppLog.info(DOMAIN, TAG, 'zcp cache migrated from cacheDir to filesDir');
     } catch (error) {

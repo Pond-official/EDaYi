@@ -181,10 +181,12 @@ export class ReminderScheduler {
     }
   }
 
-  /** 取消全部上课提醒（后台代理提醒与应用内降级定时器），严格隐私模式清理时调用 */
+  /** 取消全部上课提醒（后台代理提醒与应用内降级定时器），严格隐私模式清理时调用；
+   *  复用 cancelCourseReminders 逐条取消以保留测试代理提醒（notificationId 999998），
+   *  避免清理误杀用户刚发起的 60 秒测试链路（该提醒不含课程数据，到期自行完成） */
   static async cancelAll(): Promise<void> {
     ReminderScheduler.clearTimers();
-    await ReminderScheduler.cancelAgentReminders();
+    await ReminderScheduler.cancelCourseReminders();
   }
 
   /** 发布单条后台代理提醒（日历类型，指定绝对时间点，到点由系统服务代理弹出通知）；
@@ -219,18 +221,9 @@ export class ReminderScheduler {
     return reminderAgentManager.publishReminder(request);
   }
 
-  /** 取消当前应用已发布的全部后台代理提醒 */
-  private static async cancelAgentReminders(): Promise<void> {
-    try {
-      await reminderAgentManager.cancelAllReminders();
-    } catch (error) {
-      AppLog.error(DOMAIN, TAG, 'cancelAgentReminders failed: %{public}s', `${error}`);
-    }
-  }
-
   /**
    * 仅取消课程类后台代理提醒，保留测试代理提醒（notificationId 999998）：
-   * 数据同步/设置变更重建提醒时不误杀 60 秒测试链路。
+   * 数据同步/设置变更重建提醒时不误杀 60 秒测试链路；严格隐私 cancelAll 清理同样复用本方法。
    * 逐条按 reminderId 取消，同时覆盖应用重启后无法追踪的历史课程提醒。
    */
   private static async cancelCourseReminders(): Promise<void> {

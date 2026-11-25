@@ -33,12 +33,18 @@ export class CacheManager {
     return total;
   }
 
-  /** 递归清空目录内容（保留目录本身），单个文件删除失败时跳过继续 */
+  /** 递归清空目录内容（保留目录本身），单个子项处理失败时跳过继续清其余项 */
   static clearDir(path: string): void {
+    let names: string[] = [];
     try {
-      const names: string[] = fs.listFileSync(path);
-      for (const name of names) {
-        const child: string = path + '/' + name;
+      names = fs.listFileSync(path);
+    } catch (error) {
+      AppLog.warn(DOMAIN, TAG, 'clearDir list skip: %{public}s %{public}s', path, `${error}`);
+      return;
+    }
+    for (const name of names) {
+      const child: string = path + '/' + name;
+      try {
         const childStat: fs.Stat = fs.statSync(child);
         if (childStat.isDirectory()) {
           CacheManager.clearDir(child);
@@ -46,9 +52,9 @@ export class CacheManager {
         } else {
           fs.unlinkSync(child);
         }
+      } catch (error) {
+        AppLog.warn(DOMAIN, TAG, 'clearDir skip: %{public}s %{public}s', child, `${error}`);
       }
-    } catch (error) {
-      AppLog.warn(DOMAIN, TAG, 'clearDir skip: %{public}s %{public}s', path, `${error}`);
     }
   }
 
@@ -72,8 +78,11 @@ export class CacheManager {
     const tmpPath: string = `${path}.tmp`;
     const file: fs.File = fs.openSync(tmpPath,
       fs.OpenMode.READ_WRITE | fs.OpenMode.CREATE | fs.OpenMode.TRUNC);
-    fs.writeSync(file.fd, text);
-    fs.closeSync(file);
+    try {
+      fs.writeSync(file.fd, text);
+    } finally {
+      fs.closeSync(file);
+    }
     fs.renameSync(tmpPath, path);
   }
 }
