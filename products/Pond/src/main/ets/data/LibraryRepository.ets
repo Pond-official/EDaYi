@@ -126,11 +126,10 @@ export class LibraryRepository {
   static parseLoanPage(text: string): LoanPage {
     const envelope: LibEnvelopeRaw<LoanPageRaw> = JSON.parse(text) as LibEnvelopeRaw<LoanPageRaw>;
     if (envelope.success !== true) {
-      const message: string = envelope.message ?? '接口返回失败';
-      if (message.indexOf('401') >= 0) {
+      if (envelope.errCode === 401) {
         throw new Error(LIBSP_SESSION_INVALID);
       }
-      throw new Error(message);
+      throw new Error(envelope.message ?? '接口返回失败');
     }
     const page: LoanPage = new LoanPage();
     const raw: LoanPageRaw | undefined | null = envelope.data;
@@ -152,11 +151,10 @@ export class LibraryRepository {
   static parseRenewResult(text: string): RenewResult {
     const envelope: LibEnvelopeRaw<RenewResultRaw> = JSON.parse(text) as LibEnvelopeRaw<RenewResultRaw>;
     if (envelope.success !== true) {
-      const message: string = envelope.message ?? '接口返回失败';
-      if (message.indexOf('401') >= 0) {
+      if (envelope.errCode === 401) {
         throw new Error(LIBSP_SESSION_INVALID);
       }
-      throw new Error(message);
+      throw new Error(envelope.message ?? '接口返回失败');
     }
     const result: RenewResult = new RenewResult();
     const raw: RenewResultRaw | undefined | null = envelope.data;

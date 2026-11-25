@@ -71,7 +71,7 @@ export class JwxtRepository {
 
   /**
    * 应用进入后台或退出（PondAbility 生命周期回调）：
-   * 严格隐私模式下清理全部含课程信息的数据并退出登录，下次使用需重新登录。
+   * 严格隐私模式下清理全部含课程信息的数据（期末倒计时为用户自建数据，保留）并退出登录，下次使用需重新登录。
    */
   static handleAppHide(): void {
     JwxtSessionRepository.handleAppHide();
@@ -141,7 +141,7 @@ export class JwxtRepository {
     // 但主进程已加载的 preferences 实例不感知跨进程写入（AppStorage 与实例缓存均滞后），
     // 须先逐出缓存实例再从磁盘重读，否则导入结果要等重启应用才可见
     const context: common.UIAbilityContext | null = getContext();
-    if (context !== null && JwxtRepository.privacyMode() !== 'strict') {
+    if (context !== null) {
       AppStorage.setOrCreate('jwFinalExams', CardDataStore.reloadFinalExams(context));
     }
     PrivacyController.notifyForeground();
@@ -161,13 +161,12 @@ export class JwxtRepository {
 
   // ---------- 期末考试 ----------
 
-  /** 设置/清除单门课程期末考试日期（examDate 为空表示清除），写入 AppStorage 并持久化 */
+  /** 设置/清除单门课程期末考试日期（examDate 为空表示清除），写入 AppStorage、持久化并刷新期末倒计时卡片（期末倒计时为用户自建数据，全部隐私模式均落盘） */
   static updateFinalExam(courseName: string, examDate: string): void {
     const context: common.UIAbilityContext | null = getContext();
-    const mode: string = JwxtRepository.privacyMode();
     // 合并基线取持久化数据：分享导入在扩展进程写偏好，主应用 AppStorage 可能滞后，
-    // 以 AppStorage 为基线覆盖会把导入的考试数据抹掉（标准/限制模式数据以偏好为准）
-    const exams: FinalExamEntry[] = context !== null && mode !== 'strict'
+    // 以 AppStorage 为基线覆盖会把导入的考试数据抹掉
+    const exams: FinalExamEntry[] = context !== null
       ? CardDataStore.loadFinalExams(context)
       : (AppStorage.get<FinalExamEntry[]>('jwFinalExams') ?? []).slice();
     const index: number =
@@ -187,7 +186,7 @@ export class JwxtRepository {
       }
     }
     AppStorage.setOrCreate('jwFinalExams', exams);
-    if (context !== null && mode !== 'strict') {
+    if (context !== null) {
       CardDataStore.saveFinalExams(context, exams);
       CardDataStore.refreshExamCards(context);
     }

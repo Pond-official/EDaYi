@@ -108,7 +108,8 @@ export function isLibTokenExpired(jwt: string): boolean {
 /**
  * 图书馆统一请求入口：
  * JWT 请求头（头名动态）+ groupCode 必传 + mappingPath 根路径传空串；
- * HTTP 401 或响应含 "401" 视为 JWT 过期抛 LIBSP_SESSION_INVALID。
+ * 仅 HTTP 401 视为 JWT 过期抛 LIBSP_SESSION_INVALID（信封 errCode 由各解析方按 401 判断，
+ * 响应体子串匹配 "401" 会误判——书名/索书号含 401 即触发，已移除）。
  */
 export async function libRequest(
   token: LibSpToken,
@@ -143,7 +144,7 @@ export async function libRequest(
     if (typeof response.result === 'string') {
       text = response.result;
     }
-    if (status === 401 || text.indexOf('"401"') >= 0) {
+    if (status === 401) {
       AppLog.warn(DOMAIN, TAG, 'lib jwt expired: %{public}s on %{public}s', `${status}`, path);
       throw new Error(LIBSP_SESSION_INVALID);
     }

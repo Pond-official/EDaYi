@@ -14,7 +14,7 @@ const DOMAIN: number = 0x0000;
  * 接收到分享文本/文件后自动按课程名合并到本机设置并展示导入结果
  * （写入与主应用「设置考试时间」同一存储，主应用在运行则即时刷新），无需手动确认；
  * 自动导入失败（无上下文/存储异常）时回退为列表+按钮的手动导入。
- * 非标准隐私模式下不落盘（与主应用行为一致），页面给出提示；
+ * 期末倒计时为用户自建数据，全部隐私模式均落盘导入；
  * 导入完成经 terminateSelfWithResult(CLOSE) 关闭分享面板。
  */
 @Entry
@@ -29,18 +29,10 @@ struct ExamShareImport {
   @State entries: FinalExamEntry[] = [];
   /** 已导入条目数（-1 表示尚未导入） */
   @State importedCount: number = -1;
-  /** 非标准隐私模式提示（空串 = 标准模式无提示） */
-  @State privacyHint: string = '';
 
   aboutToAppear(): void {
     const stored: FinalExamEntry[] | undefined = this.storage?.get<FinalExamEntry[]>('exams');
     this.entries = stored ?? [];
-    if (this.abilityContext !== undefined) {
-      const mode: string = CardDataStore.loadPrivacyMode(this.abilityContext);
-      if (mode === 'strict') {
-        this.privacyHint = '当前设备隐私模式不缓存教务数据，导入结果不会保留到本地';
-      }
-    }
     AppLog.info(DOMAIN, TAG, 'import page appear, entries: %{public}d', `${this.entries.length}`);
     if (this.entries.length > 0) {
       this.confirmImport();
@@ -105,12 +97,6 @@ struct ExamShareImport {
           .fontSize(12)
           .fontColor($r('sys.color.ohos_id_color_text_secondary'))
           .width('100%')
-        if (this.privacyHint.length > 0) {
-          Text(this.privacyHint)
-            .fontSize(11)
-            .fontColor($r('sys.color.ohos_id_color_warning'))
-            .width('100%')
-        }
         Button('完成')
           .width('100%')
           .onClick(() => {
@@ -178,12 +164,6 @@ struct ExamShareImport {
         .constraintSize({ maxHeight: 280 })
         .scrollBar(BarState.Auto)
         .edgeEffect(EdgeEffect.Spring)
-        if (this.privacyHint.length > 0) {
-          Text(this.privacyHint)
-            .fontSize(11)
-            .fontColor($r('sys.color.ohos_id_color_warning'))
-            .width('100%')
-        }
         Row({ space: 12 }) {
           Button('取消')
             .layoutWeight(1)

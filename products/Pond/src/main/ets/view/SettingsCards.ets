@@ -417,7 +417,7 @@ export function SettingsPrivacyCard(params: SettingsPrivacyCardParams) {
           .fontSize(15)
           .fontWeight(FontWeight.Medium)
           .fontColor($r('sys.color.ohos_id_color_text_primary'))
-        Text('不缓存任何信息；进入后台或退出后清理缓存并退出登录，桌面卡片不可用')
+        Text('不缓存任何教务信息；进入后台或退出后清理缓存并退出登录，课表卡片不可用；期末倒计时为手动设置数据，保留')
           .fontSize(11)
           .fontColor($r('sys.color.ohos_id_color_text_secondary'))
       }

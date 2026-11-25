@@ -26,6 +26,10 @@ const ON_LOAN_SAMPLE: string = '{"success":true,"message":"操作成功","errCod
 
 const ERROR_SAMPLE: string = '{"success":false,"message":"读者证状态异常","errCode":500}';
 const UNAUTHORIZED_SAMPLE: string = '{"success":false,"message":"401 unauthorized","errCode":401}';
+/** 消息文案含 401 但信封 errCode 非 401：不得误判为会话失效（L9） */
+const MESSAGE_401_SUBSTRING_SAMPLE: string = '{"success":false,"message":"索书号 401-2 未找到","errCode":500}';
+/** 续借信封会话失效样本（L9：信封 errCode 判断） */
+const RENEW_UNAUTHORIZED_SAMPLE: string = '{"success":false,"message":"401 unauthorized","errCode":401}';
 
 const RENEW_SUCCESS_SAMPLE: string = '{"success":true,"message":"操作成功","errCode":200,"errorCode":null,'
   + '"data":{"success":2,"fail":0,"result":{}}}';
@@ -86,6 +90,15 @@ export default function libraryRepositoryTest() {
         expect(`${error}`.indexOf(LIBSP_SESSION_INVALID) >= 0).assertTrue();
       }
     });
+    it('parseLoanPage_message_containing_401_is_not_session_invalid', 0, () => {
+      try {
+        LibraryRepository.parseLoanPage(MESSAGE_401_SUBSTRING_SAMPLE);
+        expect(false).assertTrue();
+      } catch (error) {
+        expect(`${error}`.indexOf(LIBSP_SESSION_INVALID) < 0).assertTrue();
+        expect(`${error}`.indexOf('索书号 401-2 未找到') >= 0).assertTrue();
+      }
+    });
     it('parseRenewResult_success_sample', 0, () => {
       const result = LibraryRepository.parseRenewResult(RENEW_SUCCESS_SAMPLE);
       expect(result.successCount).assertEqual(2);
@@ -102,6 +115,14 @@ export default function libraryRepositoryTest() {
       const result = LibraryRepository.parseRenewResult(RENEW_NULL_DATA_SAMPLE);
       expect(result.successCount).assertEqual(0);
       expect(result.failCount).assertEqual(0);
+    });
+    it('parseRenewResult_401_throws_session_invalid', 0, () => {
+      try {
+        LibraryRepository.parseRenewResult(RENEW_UNAUTHORIZED_SAMPLE);
+        expect(false).assertTrue();
+      } catch (error) {
+        expect(`${error}`.indexOf(LIBSP_SESSION_INVALID) >= 0).assertTrue();
+      }
     });
   });
 }

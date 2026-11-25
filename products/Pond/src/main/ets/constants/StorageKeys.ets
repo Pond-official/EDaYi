@@ -25,7 +25,7 @@
 // [AppStorage] jwGrades | model/JwModels.GradeEntry[] | data/JwxtCacheStore、data/JwxtSessionRepository | view/GradeView
 // [AppStorage] jwGradeCategories | model/JwModels.GradeCategory[] | data/JwxtCacheStore、data/JwxtSessionRepository | view/GradeView
 // [AppStorage] jwTrainingPlan | model/JwModels.PlanCategory[] | data/JwxtCacheStore、data/JwxtSessionRepository | pages/TrainingPlanIndex、view/SettingsView
-// [AppStorage] jwFinalExams | model/JwModels.FinalExamEntry[] | data/JwxtRepository、data/JwxtSessionRepository、data/PrivacyController（严格模式清空） | view/HomeView、view/SettingsView
+// [AppStorage] jwFinalExams | model/JwModels.FinalExamEntry[] | data/JwxtRepository、data/JwxtSessionRepository、data/CardDataStore（用户自建数据，全部隐私模式均落盘） | view/HomeView、view/SettingsView
 // [AppStorage] jwForegroundTick | number | data/PrivacyController（隐私切换/清数据后通知回前台页刷新） | view/HomeView、view/ScheduleBoard、view/SelectionView
 // [AppStorage] jwPrivacyMode | string（standard/strict） | data/JwxtSessionRepository、data/PrivacyController | view/HomeView（读）；view/SettingsView（@StorageLink，双向）
 // [AppStorage] jwDeveloperMode | boolean | data/JwxtSessionRepository、data/PrivacyController | view/SettingsView（@StorageLink，双向）
@@ -66,6 +66,6 @@
 // [LocalStorage] nextWeekText | string | data/CardDataStore（课表大卡） | widget/pages/ScheduleCardLarge
 // [LocalStorage] todayD | string（今日星期 1-7） | data/CardDataStore（课表大卡） | widget/pages/ScheduleCardLarge
 // [LocalStorage] tomorrowDefault | string（'true'=到"晚间显示明日课程"设定时刻，小卡默认展示明日课程） | data/CardDataStore（课表卡片） | widget/pages/ScheduleCard
-// [LocalStorage] privacyDisabledText | string（严格隐私模式提示，非空即禁用卡片） | data/CardDataStore（全部卡片） | widget/pages/ScheduleCard、ScheduleCardLarge、ExamCountdownCard
+// [LocalStorage] privacyDisabledText | string（严格隐私模式课表卡片禁用提示，非空即禁用卡片；期末倒计时卡片始终为空） | data/CardDataStore（课表卡片） | widget/pages/ScheduleCard、ScheduleCardLarge、ExamCountdownCard
 // [LocalStorage] examsJson | string（考试列表 JSON） | data/CardDataStore（考试卡片） | widget/pages/ExamCountdownCard
 // [LocalStorage] totalText | string（"共N场考试"） | data/CardDataStore（考试卡片） | widget/pages/ExamCountdownCard

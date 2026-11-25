@@ -35,7 +35,7 @@ export class PrivacyController {
    * 切换隐私模式：写入 AppStorage 并持久化；
    * 限制模式立即清除应用内离线缓存、单课提醒名单、已保存选课凭据等课表以外的缓存
    * （限制模式仅允许缓存课表与期末倒计时供桌面卡片），并刷新期末倒计时卡片；
-   * 严格模式同时清除期末倒计时、卡片课表等全部含课程信息的数据并刷新全部卡片。
+   * 严格模式同时清除卡片课表等全部含课程信息的数据（期末倒计时为用户自建数据，保留）并刷新全部卡片。
    */
   static updatePrivacyMode(mode: string): void {
     AppStorage.setOrCreate('jwPrivacyMode', mode);
@@ -64,12 +64,12 @@ export class PrivacyController {
   }
 
   /**
-   * 严格隐私模式清理：清除所有含个人课程信息的持久化数据并刷新桌面卡片。
+   * 严格隐私模式清理：清除所有含个人课程信息的持久化数据并刷新桌面卡片
+   * （期末倒计时为用户自建数据，不在清理范围）。
    * 内存态（AppStorage）与提醒取消不依赖 context，先执行再清理磁盘；
    * 同时清除选课系统登录凭证（仅内存态）与已保存的学号/密码（系统关键资产存储）。
    */
   static clearStrictData(): void {
-    AppStorage.setOrCreate('jwFinalExams', []);
     AppStorage.setOrCreate('jwReminderDisabledSessions', []);
     AppStorage.setOrCreate('jwNextReminder', '');
     ReminderScheduler.cancelAll();
@@ -88,7 +88,6 @@ export class PrivacyController {
     }
     CardDataStore.clearAppCache(context);
     CardDataStore.clearCardPayload(context);
-    CardDataStore.clearFinalExams(context);
     CardDataStore.clearDisabledSessions(context);
     CardDataStore.refreshAllCards(context);
     CardDataStore.refreshExamCards(context);

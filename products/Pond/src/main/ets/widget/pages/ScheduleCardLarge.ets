@@ -5,9 +5,10 @@ let largeStorage = new LocalStorage();
 
 const CARD_DAY_NAMES: string[] = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
 const CARD_CELL_GAP: number = 4;
-const CARD_PERIOD_COUNT: number = 5;
-const CARD_PERIOD_LABELS: string[] = ['1-2节', '3-4节', '5-6节', '7-8节', '9-10节'];
-const CARD_PERIOD_TIMES: string[] = ['8:30-10:00', '10:20-11:50', '13:20-14:50', '15:00-16:30', '17:30-19:00'];
+const CARD_PERIOD_COUNT: number = 6;
+const CARD_PERIOD_LABELS: string[] = ['1-2节', '3-4节', '5-6节', '7-8节', '9-10节', '11-12节'];
+const CARD_PERIOD_TIMES: string[] =
+  ['8:30-10:00', '10:20-11:50', '13:20-14:50', '15:00-16:30', '17:30-19:00', '19:10-20:40'];
 const CARD_LABEL_WIDTH: number = 44;
 
 class WeekCourseCell {
@@ -36,8 +37,8 @@ interface WeekCourseRaw {
  * 每天按大节占位（被跨节课程覆盖的大节不渲染，包裹层高=内容高+尾随间距），
  * 课程块显示课名/地点/教师，空槽为浅灰占位。
  * 支持点击"下周"切换查看下周课表（再点"本周"切回），下周模式不渲染"今天"高亮。
- * 行高不固定：五大节槽位按 layoutWeight 权重均分卡片高度（课程槽权重=跨节数），
- * 卡片多高都完整显示 1-2 到 9-10 全部五大节，底部不再被裁剪。
+ * 行高不固定：六大节槽位按 layoutWeight 权重均分卡片高度（课程槽权重=跨节数），
+ * 卡片多高都完整显示 1-2 到 11-12 全部六大节（晚间课不丢），底部不再被裁剪。
  * 数据由 ScheduleFormAbility 通过 formBindingData 注入 LocalStorage，
  * 必须以 @Entry(largeStorage) 接收；数据来自最近一次成功同步的离线存储。
  * 点击卡片其他区域通过 postCardAction router 拉起 PondAbility 进入应用；
@@ -80,7 +81,7 @@ struct ScheduleCardLarge {
       for (const item of raw) {
         const day: number = typeof item.d === 'number' ? item.d : 0;
         const start: number = typeof item.s === 'number' ? item.s : 0;
-        if (day < 1 || day > 7 || start < 1 || start > 10) {
+        if (day < 1 || day > 7 || start < 1 || start > 12) {
           continue;
         }
         const cell: WeekCourseCell = new WeekCourseCell();
