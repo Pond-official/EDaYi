@@ -12,6 +12,7 @@
 -compact
 -enable-toplevel-obfuscation
 -enable-filename-obfuscation
+-print-namecache ./namecache.json
 
 -keep-global-name
   PondAbility

@@ -17,3 +17,7 @@ build-profile.json5
 
 # hvigor 构建时自动生成（BUILD_MODE_NAME / DEBUG 随构建模式变化），不入库
 **/BuildProfile.ets
+
+# 混淆 namecache（每次 release 构建重新生成，用于崩溃栈符号还原），不入库
+products/Pond/namecache.json
+common/namecache.json
