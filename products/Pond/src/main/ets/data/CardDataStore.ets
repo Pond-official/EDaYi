@@ -2,6 +2,7 @@ import { preferences } from '@kit.ArkData';
 import { formBindingData, formProvider } from '@kit.FormKit';
 import { common } from '@kit.AbilityKit';
 import { fileIo as fs } from '@kit.CoreFileKit';
+import { BusinessError } from '@kit.BasicServicesKit';
 import { AppLog } from './AppLog';
 import { SecureStore } from './SecureStore';
 import { FinalExamEntry } from '../model/JwModels';
@@ -31,6 +32,12 @@ const KEY_MATERIAL_LEVEL: string = 'materialLevel';
 const KEY_CARD_NIGHT: string = 'cardNightTomorrow';
 const KEY_BACKGROUND_URI: string = 'appBackgroundUri';
 const KEY_BACKGROUND_MODE: string = 'appBackgroundMode';
+/** 课表卡片连续同步失败轮数计数表（L2：formId → 连续失败次数） */
+const KEY_SYNC_FAIL_ROUNDS: string = 'formSyncFailRounds';
+/** 期末倒计时卡片连续同步失败轮数计数表（L2：formId → 连续失败次数） */
+const KEY_EXAM_SYNC_FAIL_ROUNDS: string = 'examFormSyncFailRounds';
+/** 连续同步失败 N 轮即判定死卡移除登记（卡片不存在 16501001 立即移除，不经计数） */
+const MAX_SYNC_FAIL_ROUNDS: number = 5;
 
 /** 持久化的课表单元格（紧凑字段，整学期数据，按周位图过滤展示） */
 export class CardCellItem {
@@ -98,6 +105,17 @@ class ExamUpcomingItem {
   /** 已解析的考试时刻（精确到分钟） */
   date: Date = new Date();
   days: number = 0;
+}
+
+/** 卡片连续同步失败计数项（L2：N 轮失败判定死卡移除登记） */
+class SyncFailRound {
+  id: string = '';
+  n: number = 0;
+}
+
+interface SyncFailRoundRaw {
+  id?: string;
+  n?: number;
 }
 
 interface CardPayloadRaw {
@@ -381,14 +399,10 @@ export class CardDataStore {
    * 合并导入期末考试时间（分享目标页确认导入时调用）：按课程名 upsert，返回发生变化的条目数。
    * 基线取本机持久化数据（主应用可能未运行，AppStorage 基线可能为空，不能以之为准覆盖落盘）；
    * 始终同步 AppStorage（主应用在运行则页面/卡片即时刷新）；
-   * 标准/限制隐私模式持久化并刷新期末倒计时卡片，严格模式与主应用「设置考试时间」行为一致（不落盘）。
+   * 期末倒计时为用户自建数据，全部隐私模式均持久化并刷新期末倒计时卡片。
    */
   static importFinalExams(context: common.Context, incoming: FinalExamEntry[]): number {
-    const mode: string = CardDataStore.loadPrivacyMode(context);
-    const persisted: boolean = mode !== 'strict';
-    const merged: FinalExamEntry[] = persisted
-      ? CardDataStore.loadFinalExams(context)
-      : (AppStorage.get<FinalExamEntry[]>('jwFinalExams') ?? []).slice();
+    const merged: FinalExamEntry[] = CardDataStore.loadFinalExams(context);
     let changed: number = 0;
     for (const entry of incoming) {
       const index: number = merged.findIndex((e: FinalExamEntry): boolean => e.courseName === entry.courseName);
@@ -403,10 +417,8 @@ export class CardDataStore {
       }
     }
     AppStorage.setOrCreate('jwFinalExams', merged);
-    if (persisted) {
-      CardDataStore.saveFinalExams(context, merged);
-      CardDataStore.refreshExamCards(context);
-    }
+    CardDataStore.saveFinalExams(context, merged);
+    CardDataStore.refreshExamCards(context);
     return changed;
   }
 
@@ -623,17 +635,6 @@ export class CardDataStore {
     }
   }
 
-  /** 清除期末考试日期设置（严格隐私模式清理时调用） */
-  static clearFinalExams(context: common.Context): void {
-    try {
-      const pref: preferences.Preferences = CardDataStore.store(context);
-      pref.deleteSync(KEY_FINAL_EXAMS);
-      pref.flushSync();
-    } catch (error) {
-      AppLog.error(DOMAIN, TAG, 'clearFinalExams failed: %{public}s', `${error}`);
-    }
-  }
-
   /** 清除单课提醒关闭名单（严格隐私模式清理时调用） */
   static clearDisabledSessions(context: common.Context): void {
     try {
@@ -659,6 +660,7 @@ export class CardDataStore {
       kept.push(entry);
       pref.putSync(KEY_FORM_ENTRIES, JSON.stringify(kept));
       pref.flushSync();
+      CardDataStore.resetSyncFailRounds(context, KEY_SYNC_FAIL_ROUNDS, formId);
     } catch (error) {
       AppLog.error(DOMAIN, TAG, 'addFormEntry failed: %{public}s', `${error}`);
     }
@@ -671,6 +673,7 @@ export class CardDataStore {
       const kept: FormEntry[] = entries.filter((e: FormEntry): boolean => e.id !== formId);
       pref.putSync(KEY_FORM_ENTRIES, JSON.stringify(kept));
       pref.flushSync();
+      CardDataStore.resetSyncFailRounds(context, KEY_SYNC_FAIL_ROUNDS, formId);
     } catch (error) {
       AppLog.error(DOMAIN, TAG, 'removeFormEntry failed: %{public}s', `${error}`);
     }
@@ -858,9 +861,17 @@ export class CardDataStore {
       for (const entry of entries) {
         const binding: formBindingData.FormBindingData =
           CardDataStore.buildBindingData(context, entry.max, payloadJson);
-        formProvider.updateForm(entry.id, binding).catch((error: Error) => {
+        formProvider.updateForm(entry.id, binding).then(() => {
+          CardDataStore.resetSyncFailRounds(context, KEY_SYNC_FAIL_ROUNDS, entry.id);
+        }).catch((error: BusinessError) => {
           AppLog.error(DOMAIN, TAG, 'updateForm %{public}s failed: %{public}s', entry.id, `${error}`);
-          if (`${error}`.includes('does not exist')) {
+          if (CardDataStore.isFormNotExistError(error)) {
+            CardDataStore.removeFormEntry(context, entry.id);
+            return;
+          }
+          if (CardDataStore.bumpSyncFailRounds(context, KEY_SYNC_FAIL_ROUNDS, entry.id)) {
+            AppLog.info(DOMAIN, TAG, 'drop dead form %{public}s after %{public}d failed rounds',
+              entry.id, `${MAX_SYNC_FAIL_ROUNDS}`);
             CardDataStore.removeFormEntry(context, entry.id);
           }
         });
@@ -887,6 +898,7 @@ export class CardDataStore {
         ids.push(formId);
         pref.putSync(KEY_EXAM_FORM_IDS, JSON.stringify(ids));
         pref.flushSync();
+        CardDataStore.resetSyncFailRounds(context, KEY_EXAM_SYNC_FAIL_ROUNDS, formId);
       }
     } catch (error) {
       AppLog.error(DOMAIN, TAG, 'addExamFormEntry failed: %{public}s', `${error}`);
@@ -901,6 +913,7 @@ export class CardDataStore {
       const kept: string[] = ids.filter((id: string): boolean => id !== formId);
       pref.putSync(KEY_EXAM_FORM_IDS, JSON.stringify(kept));
       pref.flushSync();
+      CardDataStore.resetSyncFailRounds(context, KEY_EXAM_SYNC_FAIL_ROUNDS, formId);
     } catch (error) {
       AppLog.error(DOMAIN, TAG, 'removeExamFormEntry failed: %{public}s', `${error}`);
     }
@@ -908,22 +921,12 @@ export class CardDataStore {
 
   /**
    * 构建期末倒计时卡片绑定数据：
-   * 严格隐私模式下返回不可用提示（期末日期不落盘，限制模式与课表一致保留）；
-   * 否则读取持久化的期末日期，过滤已结束科目，按考试时间从近到远
+   * 读取持久化的期末日期（用户自建数据，全部隐私模式均落盘可用），
+   * 过滤已结束科目，按考试时间从近到远
    * 取最近 10 条（含距考天数驱动的徽配色信息），卡片按自身高度自适应
    * 展示尽可能多的条目，无数据时返回空态文案。
    */
   static buildExamBindingData(context: common.Context): formBindingData.FormBindingData {
-    const mode: string = CardDataStore.loadPrivacyMode(context);
-    if (mode === 'strict') {
-      const disabled: Record<string, string> = {
-        'examsJson': '[]',
-        'totalText': '',
-        'emptyText': '',
-        'privacyDisabledText': '当前隐私设置无法使用卡片'
-      };
-      return formBindingData.createFormBindingData(disabled);
-    }
     const exams: FinalExamEntry[] = CardDataStore.loadFinalExams(context);
     const upcoming: ExamUpcomingItem[] = [];
     for (const entry of exams) {
@@ -976,9 +979,17 @@ export class CardDataStore {
       }
       const binding: formBindingData.FormBindingData = CardDataStore.buildExamBindingData(context);
       for (const id of ids) {
-        formProvider.updateForm(id, binding).catch((error: Error) => {
+        formProvider.updateForm(id, binding).then(() => {
+          CardDataStore.resetSyncFailRounds(context, KEY_EXAM_SYNC_FAIL_ROUNDS, id);
+        }).catch((error: BusinessError) => {
           AppLog.error(DOMAIN, TAG, 'exam updateForm %{public}s failed: %{public}s', id, `${error}`);
-          if (`${error}`.includes('does not exist')) {
+          if (CardDataStore.isFormNotExistError(error)) {
+            CardDataStore.removeExamFormEntry(context, id);
+            return;
+          }
+          if (CardDataStore.bumpSyncFailRounds(context, KEY_EXAM_SYNC_FAIL_ROUNDS, id)) {
+            AppLog.info(DOMAIN, TAG, 'drop dead exam form %{public}s after %{public}d failed rounds',
+              id, `${MAX_SYNC_FAIL_ROUNDS}`);
             CardDataStore.removeExamFormEntry(context, id);
           }
         });
@@ -986,6 +997,84 @@ export class CardDataStore {
       AppLog.info(DOMAIN, TAG, 'refresh exam cards: %{public}s', `${ids.length}`);
     } catch (error) {
       AppLog.error(DOMAIN, TAG, 'refreshExamCards failed: %{public}s', `${error}`);
+    }
+  }
+
+  /** 判断卡片操作失败是否因卡片不存在（16501001）：错误码数值判断为准，'does not exist' 子串仅兜底兼容旧系统消息（L8） */
+  private static isFormNotExistError(error: BusinessError): boolean {
+    const code: number = typeof error.code === 'number' ? error.code : -1;
+    if (code === 16501001) {
+      return true;
+    }
+    return `${error}`.includes('does not exist');
+  }
+
+  private static readSyncFailRounds(pref: preferences.Preferences, key: string): SyncFailRound[] {
+    const json: string = CardDataStore.readString(pref, key);
+    if (json.length === 0) {
+      return [];
+    }
+    try {
+      const raw: SyncFailRoundRaw[] = JSON.parse(json) as SyncFailRoundRaw[];
+      const rounds: SyncFailRound[] = [];
+      for (const item of raw) {
+        if (typeof item.id === 'string' && item.id.length > 0) {
+          const round: SyncFailRound = new SyncFailRound();
+          round.id = item.id;
+          round.n = typeof item.n === 'number' && item.n > 0 ? item.n : 1;
+          rounds.push(round);
+        }
+      }
+      return rounds;
+    } catch (error) {
+      return [];
+    }
+  }
+
+  /** 卡片同步成功：清除其连续失败计数（仅实际存在时才写盘，避免每轮刷新空写） */
+  private static resetSyncFailRounds(context: common.Context, key: string, formId: string): void {
+    try {
+      const pref: preferences.Preferences = CardDataStore.store(context);
+      const rounds: SyncFailRound[] = CardDataStore.readSyncFailRounds(pref, key);
+      const kept: SyncFailRound[] = rounds.filter((r: SyncFailRound): boolean => r.id !== formId);
+      if (kept.length !== rounds.length) {
+        pref.putSync(key, JSON.stringify(kept));
+        pref.flushSync();
+      }
+    } catch (error) {
+      AppLog.error(DOMAIN, TAG, 'resetSyncFailRounds failed: %{public}s', `${error}`);
+    }
+  }
+
+  /**
+   * 卡片同步失败（卡片不存在以外的错误）：累计连续失败轮数，达到 N 轮返回 true（判定死卡，调用方移除登记）。
+   * 新加卡片计数从 0 起步，仅连续失败 N 轮才移除，不会因「尚无成功记录」被误删。
+   */
+  private static bumpSyncFailRounds(context: common.Context, key: string, formId: string): boolean {
+    try {
+      const pref: preferences.Preferences = CardDataStore.store(context);
+      const rounds: SyncFailRound[] = CardDataStore.readSyncFailRounds(pref, key);
+      let count: number = 1;
+      const kept: SyncFailRound[] = [];
+      for (const round of rounds) {
+        if (round.id === formId) {
+          count = round.n + 1;
+        } else {
+          kept.push(round);
+        }
+      }
+      if (count < MAX_SYNC_FAIL_ROUNDS) {
+        const next: SyncFailRound = new SyncFailRound();
+        next.id = formId;
+        next.n = count;
+        kept.push(next);
+      }
+      pref.putSync(key, JSON.stringify(kept));
+      pref.flushSync();
+      return count >= MAX_SYNC_FAIL_ROUNDS;
+    } catch (error) {
+      AppLog.error(DOMAIN, TAG, 'bumpSyncFailRounds failed: %{public}s', `${error}`);
+      return false;
     }
   }
 
@@ -1039,6 +1128,17 @@ export class CardDataStore {
       entry.id = id;
       entry.max = CardDataStore.MAX_SMALL;
       entries.push(entry);
+    }
+    if (entries.length > 0) {
+      // L2：旧 formIds 仅消费一次——物化到 formEntries 并删除旧键，
+      // 防止 formEntries 清空后死卡 id 每次同步重复回灌重试
+      try {
+        pref.putSync(KEY_FORM_ENTRIES, JSON.stringify(entries));
+        pref.deleteSync(KEY_FORM_IDS);
+        pref.flushSync();
+      } catch (error) {
+        AppLog.error(DOMAIN, TAG, 'migrate legacy formIds failed: %{public}s', `${error}`);
+      }
     }
     return entries;
   }
