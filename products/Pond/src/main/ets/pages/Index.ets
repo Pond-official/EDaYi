@@ -111,9 +111,15 @@ struct Index {
   }
 
   /** 页面重新可见（从设置/登录等路由页返回）：更新前台时刻戳，
-   * 驱动首页刷新"今日课程"并检查已结束的期末倒计时 */
+   * 驱动首页刷新"今日课程"并检查已结束的期末倒计时；
+   * 深链接导入期末倒计时后（冷启动/回前台），弹出结果提示并清除标记 */
   onPageShow(): void {
     JwxtRepository.notifyForeground();
+    const importHint: string = AppStorage.get<string>('examShareImportHint') ?? '';
+    if (importHint.length > 0) {
+      AppStorage.setOrCreate('examShareImportHint', '');
+      this.getUIContext().getPromptAction().showToast({ message: importHint, duration: 3000 });
+    }
   }
 
   /**

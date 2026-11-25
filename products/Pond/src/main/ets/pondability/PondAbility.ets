@@ -1,14 +1,18 @@
-import { ConfigurationConstant, UIAbility } from '@kit.AbilityKit';
+import { AbilityConstant, ConfigurationConstant, UIAbility, Want } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { AppLog } from '../data/AppLog';
 import { window } from '@kit.ArkUI';
 import { JwxtRepository } from '../data/JwxtRepository';
 import { ZcpRepository } from '../data/ZcpRepository';
+import { CardDataStore } from '../data/CardDataStore';
+import { FinalExamEntry } from '../model/JwModels';
+import { ExamShareLink } from '../utils/ExamShareLink';
+import { ExamShareText } from '../utils/ExamShareText';
 
 const DOMAIN = 0x0000;
 
 export default class PondAbility extends UIAbility {
-  onCreate(): void {
+  onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
     JwxtRepository.attachContext(this.context);
     ZcpRepository.attachContext(this.context);
     try {
@@ -17,6 +21,40 @@ export default class PondAbility extends UIAbility {
       AppLog.error(DOMAIN, 'testTag', 'Failed to set colorMode. Cause: %{public}s', JSON.stringify(err));
     }
     AppLog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onCreate');
+    this.handleExamShareLink(want);
+  }
+
+  onNewWant(want: Want, launchParam: AbilityConstant.LaunchParam): void {
+    AppLog.info(DOMAIN, 'testTag', '%{public}s', 'Ability onNewWant');
+    this.handleExamShareLink(want);
+  }
+
+  /**
+   * 深链接导入期末倒计时（华为分享碰一碰/隔空传送链接直达拉起）：
+   * edaiyi://examshare 载荷解码解析后按课程名合并导入（与分享面板导入同一链路），
+   * 结果经 AppStorage 提示文案交由主页面 onPageShow 弹 toast（冷启动/回前台均覆盖）。
+   */
+  private handleExamShareLink(want: Want): void {
+    const link: string = want.uri ?? '';
+    if (!ExamShareLink.isExamShareLink(link)) {
+      return;
+    }
+    const text: string = ExamShareLink.payloadOf(link);
+    const entries: FinalExamEntry[] = ExamShareText.parse(text);
+    if (entries.length === 0) {
+      AppLog.error(DOMAIN, 'testTag', 'exam share link has no valid entries');
+      AppStorage.setOrCreate('examShareImportHint', '分享内容中没有可导入的考试时间');
+      return;
+    }
+    try {
+      const changed: number = CardDataStore.importFinalExams(this.context, entries);
+      AppStorage.setOrCreate('examShareImportHint',
+        changed > 0 ? `已导入 ${changed} 门考试时间` : '期末倒计时已同步');
+      AppLog.info(DOMAIN, 'testTag', 'exam share link imported, changed: %{public}d', `${changed}`);
+    } catch (error) {
+      AppLog.error(DOMAIN, 'testTag', 'exam share link import failed: %{public}s', `${error}`);
+      AppStorage.setOrCreate('examShareImportHint', '导入失败，请重试');
+    }
   }
 
   onDestroy(): void {

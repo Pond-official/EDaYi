@@ -9,6 +9,7 @@ import nightSwitchUtilsTest from './NightSwitchUtils.test';
 import libraryRepositoryTest from './LibraryRepository.test';
 import ehallRepositoryTest from './EhallRepository.test';
 import examShareTextTest from './ExamShareText.test';
+import examShareLinkTest from './ExamShareLink.test';
 import termWeekUtilsTest from './TermWeekUtils.test';
 import aesGcmTest from './AesGcm.test';
 
@@ -24,6 +25,7 @@ export default function testsuite() {
   libraryRepositoryTest();
   ehallRepositoryTest();
   examShareTextTest();
+  examShareLinkTest();
   termWeekUtilsTest();
   aesGcmTest();
 }

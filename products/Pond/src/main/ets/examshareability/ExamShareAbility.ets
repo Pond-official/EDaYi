@@ -5,6 +5,7 @@ import { fileIo } from '@kit.CoreFileKit';
 import { util } from '@kit.ArkTS';
 import { AppLog } from '../data/AppLog';
 import { ExamShareText } from '../utils/ExamShareText';
+import { ExamShareLink } from '../utils/ExamShareLink';
 
 const TAG: string = 'ExamShareAbility';
 const DOMAIN: number = 0x0000;
@@ -23,7 +24,10 @@ export default class ExamShareAbility extends ShareExtensionAbility {
     systemShare.getSharedData(want)
       .then((data: systemShare.SharedData) => {
         const records: Array<systemShare.SharedRecord> = data.getRecords();
-        const text: string = ExamShareAbility.inlineTextOf(records);
+        let text: string = ExamShareAbility.inlineTextOf(records);
+        if (ExamShareLink.isExamShareLink(text)) {
+          text = ExamShareLink.payloadOf(text);
+        }
         if (text.length > 0) {
           this.loadImportPage(session, text);
           return;

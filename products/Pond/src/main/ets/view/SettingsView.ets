@@ -13,6 +13,7 @@ import { ExamAddCandidate, ExamCourseItem, SettingsExamAddEntry, SettingsExamAdd
 import { FinalExamEntry, PlanCategory, PlanCourse, TermStatus } from '../model/JwModels';
 import { ExamDateUtils } from '../utils/ExamDateUtils';
 import { ExamShareText } from '../utils/ExamShareText';
+import { ExamShareLink } from '../utils/ExamShareLink';
 import { GITHUB_URL, SettingsAboutEntry, SettingsAcknowledgementCard, SettingsDeveloperCard,
   SettingsDeveloperEntry, SettingsDeveloperModeCard, SettingsOpenSourceCard, SettingsVersionCard } from './SettingsAboutCards';
 import { SettingsLightEffectCard } from './SettingsLightEffectCards';
@@ -317,7 +318,7 @@ export struct SettingsView {
     if (mode === 'strict') {
       this.getUIContext().showAlertDialog({
         title: '严格隐私模式',
-        message: '开启后将不会缓存任何教务信息，桌面卡片将无法使用；应用进入后台运行或退出后，将自动清理缓存并退出登录，下次使用需重新登录。确定开启吗？',
+        message: '开启后将不会缓存任何教务信息，课表卡片将无法使用（期末倒计时为你手动设置的数据，将保留）；应用进入后台运行或退出后，将自动清理缓存并退出登录，下次使用需重新登录。确定开启吗？',
         primaryButton: {
           value: '取消',
           action: () => {
@@ -569,10 +570,13 @@ export struct SettingsView {
       return;
     }
     try {
+      // 链接类型（HYPERLINK）+ 深链接：接收端系统按 Deep Linking 直达拉起本应用自动导入；
+      // 纯文本经碰一碰/隔空传送投递时接收端无打开方式（一步直达规则仅落 txt 文件），故改走链接
       const data: systemShare.SharedData = new systemShare.SharedData({
-        utd: utd.UniformDataType.PLAIN_TEXT,
+        utd: utd.UniformDataType.HYPERLINK,
+        content: ExamShareLink.build(entries),
         title: '期末倒计时',
-        content: ExamShareText.buildShareText(entries)
+        description: `共 ${entries.length} 门考试时间`
       });
       target.share(data)
         .catch((error: BusinessError) => {
@@ -788,12 +792,6 @@ export struct SettingsView {
         .constraintSize({ maxHeight: 220 })
         .scrollBar(BarState.Auto)
         .edgeEffect(EdgeEffect.Spring)
-      }
-      if (this.privacyMode === 'strict') {
-        Text('当前隐私模式不缓存教务数据，导入结果不会保留到本地')
-          .fontSize(11)
-          .fontColor($r('sys.color.ohos_id_color_warning'))
-          .width('100%')
       }
       Row({ space: 12 }) {
         Button('取消')
