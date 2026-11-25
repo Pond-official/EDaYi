@@ -477,7 +477,7 @@ export class JwxtSessionRepository {
           // 成绩综合查询不可用：回退培养方案报告的方案外成绩
           grades = parseGrades(report?.fawbxMap ?? report?.fawbx);
         }
-        trainingPlan = parseTrainingPlan(report?.fanbx);
+        trainingPlan = parseTrainingPlan(report?.fanbx, grades);
       } else {
         AppLog.error(DOMAIN, TAG, 'faArr empty, skip grades query');
       }

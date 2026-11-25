@@ -165,6 +165,8 @@ export interface GradeItemRaw {
   XKXNXQDM?: string;
   CJXNXQDM?: string;
   JHXNXQDM?: string;
+  /** 修读状态（fanbx 行）：03 已修、04 未修；教务升级后已修行 CJ 恒为 null */
+  ZT?: string;
   courseName?: string;
   scoreView?: string;
   gpa?: number;
