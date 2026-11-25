@@ -1,5 +1,5 @@
 import { GradeCategory, GradeEntry } from '../../model/JwModels';
-import { FanCategoryRaw, FanTreeRaw, GradeItemRaw } from '../../model/JwRawModels';
+import { FanCategoryRaw, FanTreeRaw, GradeItemRaw, ScoreRowRaw } from '../../model/JwRawModels';
 
 /** 库视图数值字段（XF/JD 可能是字符串或数字）转数字，非法返回 0 */
 export function rawNumber(value: string | number | undefined): number {
@@ -105,6 +105,46 @@ export function parseGrades(items?: GradeItemRaw[] | null): GradeEntry[] {
     if (grade !== null) {
       list.push(grade);
     }
+  }
+  return list;
+}
+
+/**
+ * 成绩综合查询（cjzhcxapp「我的成绩」）行解析：
+ * XSZCJ 为分数或等级文字（"80"/"中等"/"不及格"），KCM 为空时回退 TDKCM（替代课程名）；
+ * 无课程名或成绩为空的行丢弃；不及格成绩（含重修前）按原样保留，与教务网页展示一致。
+ */
+export function parseScoreRows(rows?: ScoreRowRaw[] | null): GradeEntry[] {
+  const list: GradeEntry[] = [];
+  if (rows === undefined || rows === null) {
+    return list;
+  }
+  for (const row of rows) {
+    let name: string = row.KCM ?? '';
+    if (name.length === 0) {
+      name = stripCourseCodeSuffix(row.TDKCM ?? '');
+    }
+    if (name.length === 0) {
+      continue;
+    }
+    const scoreView: string = row.XSZCJ ?? '';
+    if (scoreView.length === 0 || scoreView === '0') {
+      continue;
+    }
+    const grade: GradeEntry = new GradeEntry();
+    grade.courseName = name;
+    grade.scoreView = scoreView;
+    grade.gpaPoint = rawNumber(row.JD);
+    grade.credit = rawNumber(row.XF);
+    grade.termCode = row.XNXQDM ?? '';
+    let nature: string = row.KCXZDM_DISPLAY ?? '';
+    if (nature.length === 0) {
+      nature = row.KCLBDM_DISPLAY ?? '';
+    }
+    grade.natureText = nature;
+    grade.examTypeText = row.KSLXDM_DISPLAY ?? '';
+    grade.passed = isPassedScore(scoreView);
+    list.push(grade);
   }
   return list;
 }

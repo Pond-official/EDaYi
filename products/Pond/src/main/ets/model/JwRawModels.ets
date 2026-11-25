@@ -106,6 +106,44 @@ export interface FanCategoryRaw {
 }
 
 /**
+ * 成绩综合查询（cjzhcxapp 我的成绩）响应：
+ * 教务升级后培养方案报告（queryXyzhbx）不再返回方案内课程成绩，
+ * 学期成绩全量以「成绩综合查询」模块为准（含培养方案内 + 方案外全部成绩）。
+ */
+export interface ScoreEnvelopeRaw {
+  code?: string;
+  datas?: ScoreDatasRaw;
+}
+
+export interface ScoreDatasRaw {
+  cxwdcj?: ScoreQueryRaw;
+}
+
+export interface ScoreQueryRaw {
+  totalSize?: number;
+  pageSize?: number;
+  rows?: ScoreRowRaw[] | null;
+}
+
+/** 成绩综合查询单行（S_WDCJ 模型，40 字段库视图） */
+export interface ScoreRowRaw {
+  WID?: string;
+  KCH?: string;
+  KCM?: string;
+  /** 成绩替代行的替代课程名（形如「课程名[课程号]」，KCM 为空时回退使用） */
+  TDKCM?: string;
+  /** 学生总成绩（分数或等级文字，如 "80" / "中等" / "不及格"） */
+  XSZCJ?: string;
+  XF?: string | number;
+  JD?: string | number;
+  XNXQDM?: string;
+  KCXZDM_DISPLAY?: string;
+  KCLBDM_DISPLAY?: string;
+  KSLXDM_DISPLAY?: string;
+  SFJG_DISPLAY?: string;
+}
+
+/**
  * 成绩/培养计划课程行，兼容两套视图：
  * - 40 字段库视图（fanbx.children[].data[] / fawbxMap[]）：KCM/XF/CJ/JD/XKXNXQDM 等，权威数据源；
  * - 驼峰视图（fawbx / checkCourseVOS）：courseName/scoreView 等，兼容旧结构兜底。

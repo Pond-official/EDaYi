@@ -1,7 +1,7 @@
 import { describe, it, expect } from '@ohos/hypium';
-import { parseGrades, parseGradeRow, parseGradeCategories, isPassedScore, rawNumber, stripCourseCodeSuffix } from '../main/ets/jwxt/parsers/GradeParser';
+import { parseGrades, parseGradeRow, parseGradeCategories, parseScoreRows, isPassedScore, rawNumber, stripCourseCodeSuffix } from '../main/ets/jwxt/parsers/GradeParser';
 import { GradeEntry } from '../main/ets/model/JwModels';
-import { FanTreeRaw, GradeItemRaw } from '../main/ets/model/JwRawModels';
+import { FanTreeRaw, GradeItemRaw, ScoreRowRaw } from '../main/ets/model/JwRawModels';
 
 export default function gradeParserTest() {
   describe('GradeParser', () => {
@@ -180,6 +180,62 @@ export default function gradeParserTest() {
       expect(result[0].grades.length).assertEqual(1);
       expect(result[1].name).assertEqual('驼峰分组');
       expect(result[1].grades[0].courseName).assertEqual('体育');
+    });
+    it('parseScoreRows_empty_for_null_or_undefined', 0, () => {
+      expect(parseScoreRows(undefined).length).assertEqual(0);
+      expect(parseScoreRows(null).length).assertEqual(0);
+    });
+    it('parseScoreRows_numeric_and_level_scores', 0, () => {
+      const rows: ScoreRowRaw[] = [
+        {
+          KCM: '大学英语Ⅰ', XSZCJ: '80', JD: '3', XF: '3',
+          XNXQDM: '2025-2026-1', KCXZDM_DISPLAY: '必修课', KSLXDM_DISPLAY: '考试'
+        },
+        {
+          KCM: '党史', XSZCJ: '中等', JD: '2.5', XF: 1,
+          XNXQDM: '2025-2026-1', KCXZDM_DISPLAY: '选修课', KCLBDM_DISPLAY: '专业选修'
+        }
+      ];
+      const result: GradeEntry[] = parseScoreRows(rows);
+      expect(result.length).assertEqual(2);
+      expect(result[0].courseName).assertEqual('大学英语Ⅰ');
+      expect(result[0].scoreView).assertEqual('80');
+      expect(result[0].gpaPoint).assertEqual(3);
+      expect(result[0].credit).assertEqual(3);
+      expect(result[0].termCode).assertEqual('2025-2026-1');
+      expect(result[0].natureText).assertEqual('必修课');
+      expect(result[0].passed).assertTrue();
+      expect(result[1].courseName).assertEqual('党史');
+      expect(result[1].scoreView).assertEqual('中等');
+      expect(result[1].credit).assertEqual(1);
+      expect(result[1].natureText).assertEqual('选修课');
+      expect(result[1].passed).assertTrue();
+    });
+    it('parseScoreRows_keeps_failed_and_drops_invalid', 0, () => {
+      const rows: ScoreRowRaw[] = [
+        { KCM: '医用高等数学', XSZCJ: '不及格', JD: 0, XF: 2, XNXQDM: '2025-2026-1', SFJG_DISPLAY: '否' },
+        { KCM: '安全教育', XSZCJ: '' },
+        { XSZCJ: '88' },
+        { KCM: '零分课', XSZCJ: '0' }
+      ];
+      const result: GradeEntry[] = parseScoreRows(rows);
+      expect(result.length).assertEqual(1);
+      expect(result[0].courseName).assertEqual('医用高等数学');
+      expect(result[0].passed).assertFalse();
+      expect(result[0].gpaPoint).assertEqual(0);
+    });
+    it('parseScoreRows_tdkcm_fallback_and_nature_fallback', 0, () => {
+      const rows: ScoreRowRaw[] = [
+        {
+          TDKCM: '人体系统解剖学[w1100051]', XSZCJ: '61.6', JD: 1.16, XF: 4,
+          XNXQDM: '2025-2026-1', KCLBDM_DISPLAY: '必修'
+        }
+      ];
+      const result: GradeEntry[] = parseScoreRows(rows);
+      expect(result.length).assertEqual(1);
+      expect(result[0].courseName).assertEqual('人体系统解剖学');
+      expect(result[0].natureText).assertEqual('必修');
+      expect(result[0].passed).assertTrue();
     });
   });
 }

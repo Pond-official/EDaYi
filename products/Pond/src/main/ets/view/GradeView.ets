@@ -106,7 +106,9 @@ export struct GradeView {
     }
     const others: GradeEntry[] = this.filteredGrades(this.grades);
     if (others.length > 0) {
-      sections.push({ title: '其他成绩', grades: others });
+      // 有分类时 grades 为方案外课程（其他成绩）；教务升级后分类为空、grades 为全部成绩
+      const othersTitle: string = this.gradeCategories.length > 0 ? '其他成绩' : '全部成绩';
+      sections.push({ title: othersTitle, grades: others });
     }
     this.visibleSections = sections;
   }

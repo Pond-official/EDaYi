@@ -7,9 +7,9 @@ import { CardDataStore, CardNightSetting, ReminderSettings } from './CardDataSto
 import { SecureStore } from './SecureStore';
 import { ReminderScheduler } from './ReminderScheduler';
 import { GradeCategory, GradeEntry, PlanCategory, ScheduleCellInfo, SectionTimeInfo, StudentProfile, TermStatus } from '../model/JwModels';
-import { CurrentUserRaw, GradeEnvelopeRaw, GradeReportRaw, ScheduleEnvelopeRaw, StudentEnvelopeRaw, TermQueryRaw, TermRowRaw } from '../model/JwRawModels';
+import { CurrentUserRaw, GradeEnvelopeRaw, GradeReportRaw, ScheduleEnvelopeRaw, ScoreEnvelopeRaw, StudentEnvelopeRaw, TermQueryRaw, TermRowRaw } from '../model/JwRawModels';
 import { parseScheduleCells, parseSections } from '../jwxt/parsers/ScheduleParser';
-import { parseGrades, parseGradeCategories } from '../jwxt/parsers/GradeParser';
+import { parseGrades, parseGradeCategories, parseScoreRows } from '../jwxt/parsers/GradeParser';
 import { parseTrainingPlan, extractPyfadm } from '../jwxt/parsers/TrainingPlanParser';
 import { parseStudent } from '../jwxt/parsers/StudentParser';
 import { TermWeekUtils } from '../utils/TermWeekUtils';
@@ -29,6 +29,7 @@ const JW_SET_APP_ROLE: string = '/sys/jwpubapp/pub/setJwCommonAppRole.do';
 const JW_SCHEDULE_DETAIL: string = '/sys/kbapp/api/wdkbcx/getMyScheduleDetail.do';
 const JW_SCHEDULE_SECTIONS: string = '/sys/kbapp/api/wdkbcx/getMySectionList.do';
 const JW_QUERY_GRADES: string = '/sys/byshapp/api/grbg/queryXyzhbx.do';
+const JW_QUERY_SCORES_ALL: string = '/sys/cjzhcxapp/modules/wdcj/cxwdcj.do';
 const JW_QUERY_STUDENT: string = '/sys/byshapp/api/grbg/queryXsjbxx.do';
 const JW_QUERY_CURRENT_TERM: string = '/sys/jwpubapp/modules/gg/cxmrxnxq.do';
 const TAG: string = 'JwxtRepository';
@@ -452,13 +453,30 @@ export class JwxtSessionRepository {
       let grades: GradeEntry[] = [];
       let gradeCategories: GradeCategory[] = [];
       let trainingPlan: PlanCategory[] = [];
+      // 成绩综合查询（cjzhcxapp「我的成绩」，不依赖培养方案 id）：
+      // 教务升级后培养方案报告不再返回方案内课程成绩，学期成绩全量以此接口为准
+      try {
+        const scoresText: string = await postForm(JW_QUERY_SCORES_ALL, '');
+        const scoreEnvelope: ScoreEnvelopeRaw = JSON.parse(scoresText) as ScoreEnvelopeRaw;
+        grades = parseScoreRows(scoreEnvelope.datas?.cxwdcj?.rows);
+        AppLog.info(DOMAIN, TAG, 'step: scores %{public}s', `${grades.length}`);
+      } catch (scoresError) {
+        AppLog.error(DOMAIN, TAG, 'cjzhcxapp scores query failed: %{public}s',
+          `${(scoresError as BusinessError).message}`);
+      }
       if (pyfadm.length > 0) {
         const gradesText: string = await postForm(JW_QUERY_GRADES,
           'fromPage=grxyjcbg&PYFADM=' + pyfadm + '&SCLX=04&XDLX=01');
         const gradeEnvelope: GradeEnvelopeRaw = JSON.parse(gradesText) as GradeEnvelopeRaw;
         const report: GradeReportRaw | null | undefined = gradeEnvelope.datas?.queryXyzhbx;
-        grades = parseGrades(report?.fawbxMap ?? report?.fawbx);
         gradeCategories = parseGradeCategories(report?.fanbx);
+        if (gradeCategories.length > 0) {
+          // 分类成绩可用（教务返回方案内成绩）：维持原数据形态，其他成绩取方案外课程
+          grades = parseGrades(report?.fawbxMap ?? report?.fawbx);
+        } else if (grades.length === 0) {
+          // 成绩综合查询不可用：回退培养方案报告的方案外成绩
+          grades = parseGrades(report?.fawbxMap ?? report?.fawbx);
+        }
         trainingPlan = parseTrainingPlan(report?.fanbx);
       } else {
         AppLog.error(DOMAIN, TAG, 'faArr empty, skip grades query');
