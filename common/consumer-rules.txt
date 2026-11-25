@@ -1,0 +1,3 @@
+# common 对外导出符号在消费方（products/Pond）混淆时保留原名
+-keep-global-name
+  BreakpointSystem

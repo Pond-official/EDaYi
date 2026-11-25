@@ -4,5 +4,7 @@
 # For more details, see
 #   https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/source-obfuscation
 
-# S1：仅开启压缩；S2/S3 按混淆工单逐步开启
+# S2：顶层混淆 + 导出名混淆；对外导出符号经 consumer-rules 保留
 -compact
+-enable-toplevel-obfuscation
+-enable-export-obfuscation

@@ -4,5 +4,13 @@
 # For more details, see
 #   https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/source-obfuscation
 
-# S1：仅开启压缩；S2/S3 按混淆工单逐步开启
+# S2：顶层混淆；系统按名调度的 5 个 Ability 必须保留原名
 -compact
+-enable-toplevel-obfuscation
+
+-keep-global-name
+  PondAbility
+  PondBackupAbility
+  ScheduleFormAbility
+  ExamFormAbility
+  ExamShareAbility
