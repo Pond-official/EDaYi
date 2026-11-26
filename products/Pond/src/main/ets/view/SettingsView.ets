@@ -839,7 +839,6 @@ export struct SettingsView {
             }
             .bindSheet($$this.showExamAddSheet, this.examAddSheetContent(), {
               height: '80%',
-              width: '55%',
               dragBar: true,
               showClose: false,
               enableOutsideInteractive: false,
