@@ -640,7 +640,7 @@ export struct SettingsView {
     return '本学期培养计划中已没有其他可添加的科目';
   }
 
-  /** 自定义提前提醒时间输入弹层内容（体内直读状态，随输入刷新；弹层经页面根节点 bindSheet 挂载） */
+  /** 自定义提前提醒时间输入弹层内容（体内直读状态，随输入刷新；弹层绑在设置主页提醒卡片宿主上） */
   @Builder
   advanceSheetContent() {
     Column({ space: 16 }) {
@@ -831,15 +831,36 @@ export struct SettingsView {
                 this.clearExamTime(item);
               }
             })
-            SettingsExamAddEntry((): void => {
-              this.showExamAddSheet = true;
+            // 弹层须各绑各的宿主节点：同节点链式多个 bindSheet 会错位/失效（builder 与状态配对错乱）
+            Column() {
+              SettingsExamAddEntry((): void => {
+                this.showExamAddSheet = true;
+              })
+            }
+            .bindSheet($$this.showExamAddSheet, this.examAddSheetContent(), {
+              height: '80%',
+              width: '55%',
+              dragBar: true,
+              showClose: false,
+              enableOutsideInteractive: false,
+              shouldDismiss: (sheetDismiss: SheetDismiss): void => {
+                sheetDismiss.dismiss();
+              }
             })
             SettingsExamShareEntry((): void => {
               this.shareExamSchedule();
             })
-            SettingsExamImportEntry((): void => {
-              AppLog.info(SETTING_DOMAIN, SETTING_TAG, 'open exam import sheet');
-              this.showExamImportSheet = true;
+            // 弹层须各绑各的宿主节点：同节点链式多个 bindSheet 会错位/失效（builder 与状态配对错乱）
+            Column() {
+              SettingsExamImportEntry((): void => {
+                AppLog.info(SETTING_DOMAIN, SETTING_TAG, 'open exam import sheet');
+                this.showExamImportSheet = true;
+              })
+            }
+            .bindSheet($$this.showExamImportSheet, this.examImportSheetContent(), {
+              height: SheetSize.FIT_CONTENT,
+              dragBar: true,
+              showClose: true
             })
             if (canIUse('SystemCapability.Collaboration.HarmonyShare')) {
               Text('支持碰一碰与隔空传送：两部手机亮屏解锁并开启华为分享，在本页顶部轻碰（或握拳抓握隔空传送）即可发送已设考试时间，对端接收后自动导入。')
@@ -933,25 +954,33 @@ export struct SettingsView {
         Scroll() {
           Column() {
             // 「设置」标题悬浮于顶带返回键旁（由 SettingsIndex 渲染），此处不重复
-            SettingsReminderCard({
-              reminderEnabled: this.reminderEnabled,
-              nextReminder: this.nextReminder,
-              reminderAdvance: this.reminderAdvance,
-              reminderAgentEnabled: this.reminderAgentEnabled,
-              onToggleReminder: (isOn: boolean): void => {
-                this.applySettings(isOn, this.reminderAdvance, this.reminderAgentEnabled);
-              },
-              onSelectAdvance: (minutes: number): void => {
-                if (this.reminderAdvance !== minutes) {
-                  this.applySettings(this.reminderEnabled, minutes, this.reminderAgentEnabled);
+            // 弹层须各绑各的宿主节点：同节点链式多个 bindSheet 会错位/失效（builder 与状态配对错乱）
+            Column() {
+              SettingsReminderCard({
+                reminderEnabled: this.reminderEnabled,
+                nextReminder: this.nextReminder,
+                reminderAdvance: this.reminderAdvance,
+                reminderAgentEnabled: this.reminderAgentEnabled,
+                onToggleReminder: (isOn: boolean): void => {
+                  this.applySettings(isOn, this.reminderAdvance, this.reminderAgentEnabled);
+                },
+                onSelectAdvance: (minutes: number): void => {
+                  if (this.reminderAdvance !== minutes) {
+                    this.applySettings(this.reminderEnabled, minutes, this.reminderAgentEnabled);
+                  }
+                },
+                onOpenAdvanceSheet: (): void => {
+                  this.openAdvanceSheet();
+                },
+                onToggleAgent: (isOn: boolean): void => {
+                  this.applySettings(this.reminderEnabled, this.reminderAdvance, isOn);
                 }
-              },
-              onOpenAdvanceSheet: (): void => {
-                this.openAdvanceSheet();
-              },
-              onToggleAgent: (isOn: boolean): void => {
-                this.applySettings(this.reminderEnabled, this.reminderAdvance, isOn);
-              }
+              })
+            }
+            .bindSheet($$this.showAdvanceSheet, this.advanceSheetContent(), {
+              height: SheetSize.FIT_CONTENT,
+              dragBar: true,
+              showClose: true
             })
             SettingsExamEntry(() => {
               AppLog.info(SETTING_DOMAIN, SETTING_TAG, 'enterExamPage clicked');
@@ -1025,26 +1054,6 @@ export struct SettingsView {
     .width('100%')
     .height('100%')
     .backgroundColor($r('sys.color.ohos_id_color_sub_background'))
-    .bindSheet($$this.showAdvanceSheet, this.advanceSheetContent(), {
-      height: SheetSize.FIT_CONTENT,
-      dragBar: true,
-      showClose: true
-    })
-    .bindSheet($$this.showExamAddSheet, this.examAddSheetContent(), {
-      height: '80%',
-      width: '55%',
-      dragBar: true,
-      showClose: false,
-      enableOutsideInteractive: false,
-      shouldDismiss: (sheetDismiss: SheetDismiss): void => {
-        sheetDismiss.dismiss();
-      }
-    })
-    .bindSheet($$this.showExamImportSheet, this.examImportSheetContent(), {
-      height: SheetSize.FIT_CONTENT,
-      dragBar: true,
-      showClose: true
-    })
   }
 
   /** 二级页转场：从右侧滑入并淡入，退出时滑回右侧并淡出 */
