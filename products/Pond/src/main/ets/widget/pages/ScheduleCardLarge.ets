@@ -39,7 +39,9 @@ interface WeekCourseRaw {
  * 支持点击"下周"切换查看下周课表（再点"本周"切回），下周模式不渲染"今天"高亮。
  * 行高不固定：大节槽位按 layoutWeight 权重均分卡片高度（课程槽权重=跨节数），
  * 底部不被裁剪；大节行动态渲染——仅所显周内存在该大节起步课程时显示该行
- * （含 label 与时间），无课大节（如晚间 11-12 节）不渲染空占位行。
+ * （含 label 与时间），无课大节（如晚间 11-12 节）不渲染空占位行；
+ * 星期列动态渲染——工作日恒显，周六/周日仅所显周有课时显示
+ * （仅卡片规则，应用内课表恒显周一~周日）。
  * 数据由 ScheduleFormAbility 通过 formBindingData 注入 LocalStorage，
  * 必须以 @Entry(largeStorage) 接收；数据来自最近一次成功同步的离线存储。
  * 点击卡片其他区域通过 postCardAction router 拉起 PondAbility 进入应用；
@@ -187,6 +189,22 @@ struct ScheduleCardLarge {
       }
     }
     return periods;
+  }
+
+  /** 渲染的星期列：工作日恒显；周六/周日仅所显周内有课时显示（应用内课表不遵循此规则） */
+  private visibleDays(): number[] {
+    const days: number[] = [1, 2, 3, 4, 5];
+    const weekend: number[] = [6, 7];
+    const actives: WeekCourseCell[] = this.activeCells();
+    for (const day of weekend) {
+      for (const cell of actives) {
+        if (cell.d === day) {
+          days.push(day);
+          break;
+        }
+      }
+    }
+    return days;
   }
 
   /** 表头日期取时实例：headerDateLabel 内 setTime 复用，避免重复 new Date */
@@ -361,9 +379,9 @@ struct ScheduleCardLarge {
                 .fontColor($r('sys.color.ohos_id_color_text_primary'))
                 .width(CARD_LABEL_WIDTH)
                 .textAlign(TextAlign.Center)
-              ForEach(CARD_DAY_NAMES, (name: string, index: number) => {
-                this.dayHeader(index + 1)
-              }, (name: string, index: number) => 'header' + index)
+              ForEach(this.visibleDays(), (day: number) => {
+                this.dayHeader(day)
+              }, (day: number) => 'header' + day)
             }
             .width('100%')
             .margin({ bottom: 4 })
@@ -387,9 +405,9 @@ struct ScheduleCardLarge {
               }
               .width(CARD_LABEL_WIDTH)
               .height('100%')
-              ForEach(CARD_DAY_NAMES, (name: string, index: number) => {
-                this.dayColumn(index + 1)
-              }, (name: string, index: number) => 'column' + index)
+              ForEach(this.visibleDays(), (day: number) => {
+                this.dayColumn(day)
+              }, (day: number) => 'column' + day)
             }
             .width('100%')
             .layoutWeight(1)
