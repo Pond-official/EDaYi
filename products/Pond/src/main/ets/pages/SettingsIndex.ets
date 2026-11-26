@@ -3,7 +3,6 @@ import { AppLog } from '../data/AppLog';
 import { SettingsView, SettingsSubPage, PAGE_PUSH_DURATION } from '../view/SettingsView';
 import { FrostBand, FROST_BAND_HEIGHT } from '../view/FrostBand';
 import { BackButton } from '../view/BackButton';
-import { BackgroundUtils } from '../utils/BackgroundUtils';
 
 const TAG: string = 'SettingsIndex';
 const DOMAIN: number = 0x0000;
@@ -21,10 +20,6 @@ const HEADER_HEIGHT: number = FROST_BAND_HEIGHT;
 struct SettingsIndex {
   /** 当前设置二级页（与 SettingsView 经 AppStorage 共享） */
   @StorageLink('jwSettingsSubPage') subPage: SettingsSubPage = SettingsSubPage.Main;
-  /** 自定义背景图片沙箱路径（'' = 未自定义；设置导入后作为页面背景铺满显示） */
-  @StorageProp('jwBackgroundUri') backgroundUri: string = '';
-  /** 背景模式：system=跟随系统 / white=纯白 / image=自定义图片 */
-  @StorageProp('jwBackgroundMode') backgroundMode: string = 'system';
 
   aboutToAppear(): void {
     AppLog.info(DOMAIN, TAG, 'aboutToAppear');
@@ -109,11 +104,7 @@ struct SettingsIndex {
     }
     .width('100%')
     .height('100%')
-    .backgroundImage(this.backgroundMode === 'image' ?
-      BackgroundUtils.imageSrcOf(this.backgroundUri) : '')
-    .backgroundImageSize(ImageSize.Cover)
-    .backgroundColor(this.backgroundMode === 'white' ? Color.White :
-      $r('sys.color.ohos_id_color_sub_background'))
+    .backgroundColor($r('sys.color.ohos_id_color_sub_background'))
     .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
   }
 }

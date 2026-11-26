@@ -18,7 +18,6 @@ import { getContext } from '../net/JwTransport';
 import { FinalExamEntry } from '../model/JwModels';
 import { ExamDateUtils } from '../utils/ExamDateUtils';
 import { MaterialUtils } from '../utils/MaterialUtils';
-import { BackgroundUtils } from '../utils/BackgroundUtils';
 import { CrossDomainSession } from '../net/CrossDomainSession';
 
 /** 悬浮页签栏最大宽度（宽屏基准），窄屏按屏宽收缩 */
@@ -74,10 +73,6 @@ struct Index {
   @StorageProp('jwLightEffectColor') @Watch('onLightEffectColorChanged') lightEffectColor: string = '#FFFFFF';
   /** 底栏材质档位（开发者选项自定义，ADAPTIVE/EXQUISITE/GENTLE/SMOOTH） */
   @StorageProp('jwMaterialLevel') materialLevel: string = 'ADAPTIVE';
-  /** 自定义背景图片沙箱路径（'' = 未自定义；设置导入后各页签背景铺满显示） */
-  @StorageProp('jwBackgroundUri') backgroundUri: string = '';
-  /** 背景模式：system=跟随系统 / white=纯白 / image=自定义图片 */
-  @StorageProp('jwBackgroundMode') backgroundMode: string = 'system';
   /** 设备是否具备 HDS 组件能力（UI Design Kit） */
   private hdsSupported: boolean = false;
   /** 当前设备是否支持普通 Tabs 悬浮页签栏 + 沉浸光感（API 26+），非 HDS 降级分支使用 */
@@ -489,11 +484,7 @@ struct Index {
     }
     .width('100%')
     .height('100%')
-    .backgroundImage(this.backgroundMode === 'image' ?
-      BackgroundUtils.imageSrcOf(this.backgroundUri) : '')
-    .backgroundImageSize(ImageSize.Cover)
-    .backgroundColor(this.backgroundMode === 'white' ? Color.White :
-      $r('sys.color.ohos_id_color_sub_background'))
+    .backgroundColor($r('sys.color.ohos_id_color_sub_background'))
     .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
     .onAreaChange((oldArea: Area, newArea: Area) => {
       if (typeof newArea.width === 'number') {

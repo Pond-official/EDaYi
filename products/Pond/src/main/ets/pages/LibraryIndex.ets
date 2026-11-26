@@ -8,7 +8,6 @@ import { FrostBand, FROST_BAND_HEIGHT, frostTopInsetVp } from '../view/FrostBand
 import { BackButton } from '../view/BackButton';
 import { plainError } from '../view/ZcpCards';
 import { LibraryErrorCard, LibraryHistoryCard, LibraryLoadingCard, LibraryLoansCard } from '../view/LibraryCards';
-import { BackgroundUtils } from '../utils/BackgroundUtils';
 
 /** 令牌重读间隔（ms）：SSO 落地后前端写 cookie 略滞后于 onPageEnd，轮询重试 */
 const TOKEN_RETRY_INTERVAL_MS: number = 500;
@@ -31,10 +30,6 @@ struct LibraryIndex {
   @StorageProp('jwDataMode') dataMode: string = 'preview';
   /** 状态栏避让区高度（px）：沉浸式全屏下内容顶部让位计算用 */
   @StorageProp('jwSafeTopPx') safeTopPx: number = 0;
-  /** 自定义背景图片沙箱路径（'' = 未自定义；设置导入后作为页面背景铺满显示） */
-  @StorageProp('jwBackgroundUri') backgroundUri: string = '';
-  /** 背景模式：system=跟随系统 / white=纯白 / image=自定义图片 */
-  @StorageProp('jwBackgroundMode') backgroundMode: string = 'system';
   /** idle=未加载 bootstrap=跨域换票中 loading=业务拉取中 error=失败 */
   @State phase: string = 'idle';
   @State errorText: string = '';
@@ -300,11 +295,7 @@ struct LibraryIndex {
     }
     .width('100%')
     .height('100%')
-    .backgroundImage(this.backgroundMode === 'image' ?
-      BackgroundUtils.imageSrcOf(this.backgroundUri) : '')
-    .backgroundImageSize(ImageSize.Cover)
-    .backgroundColor(this.backgroundMode === 'white' ? Color.White :
-      $r('sys.color.ohos_id_color_sub_background'))
+    .backgroundColor($r('sys.color.ohos_id_color_sub_background'))
     .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
   }
 }

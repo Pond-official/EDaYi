@@ -46,8 +46,6 @@
 // [AppStorage] jwLoanCount | number（在借图书数，-1 = 未获取） | data/EhallRepository（ehall 聚合接口写入/缓存回放/详情页回写）、pages/LibraryIndex（间接经 EhallRepository.updateLoanCount） | view/HomeView（首页统计小卡）
 // [AppStorage] jwCardNightEnabled | boolean（2*4 小卡"晚间显示明日课程"开关） | data/JwxtSessionRepository | view/SettingsView（@StorageLink，双向）
 // [AppStorage] jwCardNightMinutes | number（当日分钟数，开始默认展示明日课程的时刻） | data/JwxtSessionRepository | view/SettingsView（@StorageLink，双向）
-// [AppStorage] jwBackgroundUri | string（自定义背景图片沙箱路径，'' = 未自定义） | data/JwxtSessionRepository（attachContext 载入/导入） | pages/Index、pages/SettingsIndex、pages/TrainingPlanIndex、pages/LibraryIndex（背景渲染）、view/SettingsView（@StorageLink 双向）
-// [AppStorage] jwBackgroundMode | string（背景模式：system/white/image） | data/JwxtSessionRepository（attachContext 载入/导入/切换） | pages/Index、pages/SettingsIndex、pages/TrainingPlanIndex、pages/LibraryIndex（背景渲染）、view/SettingsView（@StorageLink 双向）
 // [AppStorage] examSharePendingImport | model/JwModels.FinalExamEntry[]（深链接收到待确认导入的期末倒计时，确认后合并导入/取消丢弃） | pondability/PondAbility（深链接解析写入） | pages/Index（确认弹窗，@StorageLink 双向 + onPageShow 兜底）
 
 // ============================ 卡片 LocalStorage 键（16 个） ============================

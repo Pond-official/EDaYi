@@ -7,7 +7,7 @@ import { getContext } from '../net/JwTransport';
 import { CloseButton } from './BackButton';
 import { AppLogCard } from './AppLogCard';
 import { FROST_BAND_HEIGHT, frostTopInsetVp } from './FrostBand';
-import { SettingsCacheCard, SettingsBackgroundCard, SettingsCardNightCard, SettingsPrivacyCard, SettingsReminderCard, SettingsSectionTitle } from './SettingsCards';
+import { SettingsCacheCard, SettingsCardNightCard, SettingsPrivacyCard, SettingsReminderCard, SettingsSectionTitle } from './SettingsCards';
 import { ExamAddCandidate, ExamCourseItem, SettingsExamAddEntry, SettingsExamAddList,
   SettingsExamEntry, SettingsExamImportEntry, SettingsExamListCard, SettingsExamShareEntry } from './SettingsExamCards';
 import { FinalExamEntry, PlanCategory, PlanCourse, TermStatus } from '../model/JwModels';
@@ -19,7 +19,6 @@ import { GITHUB_URL, SettingsAboutEntry, SettingsAcknowledgementCard, SettingsDe
 import { SettingsLightEffectCard } from './SettingsLightEffectCards';
 import { bundleManager, common } from '@kit.AbilityKit';
 import { pasteboard, BusinessError } from '@kit.BasicServicesKit';
-import { photoAccessHelper } from '@kit.MediaLibraryKit';
 import { systemShare, harmonyShare } from '@kit.ShareKit';
 import { uniformTypeDescriptor as utd } from '@kit.ArkData';
 
@@ -73,10 +72,6 @@ export struct SettingsView {
   @StorageLink('jwCardNightEnabled') cardNightEnabled: boolean = false;
   /** 每天开始默认展示明日课程的时刻（当日分钟数，默认 1200=20:00） */
   @StorageLink('jwCardNightMinutes') cardNightMinutes: number = 1200;
-  /** 自定义背景图片沙箱路径（'' = 未导入） */
-  @StorageLink('jwBackgroundUri') backgroundUri: string = '';
-  /** 背景模式：system=跟随系统 / white=纯白 / image=自定义图片 */
-  @StorageLink('jwBackgroundMode') backgroundMode: string = 'system';
   /** 版本号连续点击计数（开发者选项解锁用） */
   @State versionTapCount: number = 0;
   /** 自定义提前提醒时间输入弹层显隐 */
@@ -166,36 +161,6 @@ export struct SettingsView {
         JwxtRepository.updateCardNightSetting(this.cardNightEnabled, time.hour * 60 + time.minute);
       }
     });
-  }
-
-  /** 从系统图库选择自定义背景图片并导入应用沙箱（导入失败弹提示） */
-  private async pickBackgroundImage(): Promise<void> {
-    try {
-      const picker: photoAccessHelper.PhotoViewPicker = new photoAccessHelper.PhotoViewPicker();
-      const options: photoAccessHelper.PhotoSelectOptions = new photoAccessHelper.PhotoSelectOptions();
-      options.MIMEType = photoAccessHelper.PhotoViewMIMETypes.IMAGE_TYPE;
-      options.maxSelectNumber = 1;
-      const result: photoAccessHelper.PhotoSelectResult = await picker.select(options);
-      if (result.photoUris.length === 0) {
-        return;
-      }
-      const imported: string = JwxtRepository.applyBackgroundImage(result.photoUris[0]);
-      if (imported === '') {
-        this.getUIContext().getPromptAction().showToast({ message: '导入背景图片失败，请换一张试试' });
-      }
-    } catch (error) {
-      AppLog.error(SETTING_DOMAIN, SETTING_TAG, 'pickBackgroundImage failed: %{public}s', `${error}`);
-      this.getUIContext().getPromptAction().showToast({ message: '打开图库失败' });
-    }
-  }
-
-  /** 切换背景模式：选中"自定义图片"且尚未导入过图片时仅拉起图库，导入成功后才切入 image 模式（取消/失败则模式不变） */
-  private selectBackgroundMode(mode: string): void {
-    if (mode === 'image' && this.backgroundUri === '') {
-      this.pickBackgroundImage();
-      return;
-    }
-    JwxtRepository.updateBackgroundMode(mode);
   }
 
   /** 重新统计本地缓存大小并刷新显示 */
@@ -1012,19 +977,8 @@ export struct SettingsView {
               onPickTime: (): void => {
                 this.openCardNightTimePicker();
               }
-            })
-            SettingsSectionTitle('个性化')
-            SettingsBackgroundCard({
-              backgroundMode: this.backgroundMode,
-              backgroundUri: this.backgroundUri,
-              onSelectMode: (mode: string): void => {
-                this.selectBackgroundMode(mode);
-              },
-              onPick: (): void => {
-                this.pickBackgroundImage();
-              }
-            })
-            SettingsSectionTitle('隐私')
+             })
+             SettingsSectionTitle('隐私')
             SettingsPrivacyCard({
               privacyMode: this.privacyMode,
               onSelect: (value: string): void => {
