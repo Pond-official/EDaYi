@@ -1,4 +1,5 @@
 import { BreakpointSystem } from '@ohos/common';
+import { common } from '@kit.AbilityKit';
 import { display, SymbolGlyphModifier, uiMaterial } from '@kit.ArkUI';
 import { deviceInfo } from '@kit.BasicServicesKit';
 import { HdsNavigation, HdsTabs, HdsTabsController, hdsMaterial, SystemMaterialParams } from '@kit.UIDesignKit';
@@ -12,6 +13,10 @@ import lazy { SelectionView } from '../view/SelectionView';
 import lazy { HiddenWeb } from '../view/HiddenWeb';
 import { SettingsEntryButton } from '../view/SettingsEntryButton';
 import { JwxtRepository } from '../data/JwxtRepository';
+import { CardDataStore } from '../data/CardDataStore';
+import { getContext } from '../net/JwTransport';
+import { FinalExamEntry } from '../model/JwModels';
+import { ExamDateUtils } from '../utils/ExamDateUtils';
 import { MaterialUtils } from '../utils/MaterialUtils';
 import { BackgroundUtils } from '../utils/BackgroundUtils';
 import { CrossDomainSession } from '../net/CrossDomainSession';
@@ -40,6 +45,8 @@ const TAB_INDEX_SELECTION: number = 3;
 const SETTINGS_TOP_MARGIN: number = 10;
 /** 右上角设置入口与屏幕右侧边距（vp） */
 const SETTINGS_SIDE_MARGIN: number = 16;
+/** 深链接待导入期末倒计时明细弹窗最多展示条目数，超出以「等 N 门」收尾 */
+const PENDING_IMPORT_MAX_LINES: number = 6;
 
 /**
  * 应用主框架：首页、成绩、综评、选课四个页签 + 右上角设置入口（所有页面可见）。
@@ -91,6 +98,9 @@ struct Index {
    * CrossDomainSession 首次换票时经回调置 true（条件渲染 HiddenWeb），
    * 只置 true 不复位 —— 宿主一旦挂载常驻主框架生命周期，不随换票结束卸载 */
   @State crossHostNeeded: boolean = false;
+  /** 深链接收到的待确认导入期末倒计时（PondAbility 深链接解析后写入 AppStorage；
+   * 应用前台运行时经 @Watch 立即弹确认框，冷启动初始化不触发 @Watch 由 onPageShow 兜底） */
+  @StorageLink('examSharePendingImport') @Watch('onPendingImportChanged') pendingImport: FinalExamEntry[] = [];
 
   aboutToAppear(): void {
     this.breakpointSystem.register(this.getUIContext());
@@ -112,14 +122,72 @@ struct Index {
 
   /** 页面重新可见（从设置/登录等路由页返回）：更新前台时刻戳，
    * 驱动首页刷新"今日课程"并检查已结束的期末倒计时；
-   * 深链接导入期末倒计时后（冷启动/回前台），弹出结果提示并清除标记 */
+   * 深链接收到的期末倒计时（PondAbility 存入 AppStorage，冷启动/回前台均覆盖）
+   * 弹确认框先展示明细、用户确认后才导入；导入异常提示文案同样经 AppStorage 交由本处弹 toast */
   onPageShow(): void {
     JwxtRepository.notifyForeground();
+    this.confirmPendingExamImport();
     const importHint: string = AppStorage.get<string>('examShareImportHint') ?? '';
     if (importHint.length > 0) {
       AppStorage.setOrCreate('examShareImportHint', '');
       this.getUIContext().getPromptAction().showToast({ message: importHint, duration: 3000 });
     }
+  }
+
+  /** 深链接待导入条目到达（应用前台运行时 onNewWant 写入 AppStorage 联动本回调）：弹确认框 */
+  private onPendingImportChanged(): void {
+    this.confirmPendingExamImport();
+  }
+
+  /**
+   * 深链接收到的期末倒计时导入确认（碰一碰/隔空传送链接拉起，条目由 PondAbility 存入
+   * AppStorage 'examSharePendingImport'，onPageShow 兜底冷启动/回前台、@Watch 覆盖前台运行）：
+   * 先弹窗展示收到的考试时间明细（最多 PENDING_IMPORT_MAX_LINES 条，超出以「等 N 门」收尾），
+   * 用户点「导入」才按课程名合并到本机设置；点「取消」丢弃不导入。
+   */
+  private confirmPendingExamImport(): void {
+    const pending: FinalExamEntry[] = this.pendingImport;
+    if (pending.length === 0) {
+      return;
+    }
+    this.pendingImport = [];
+    const lines: string[] = [];
+    const shown: number = Math.min(pending.length, PENDING_IMPORT_MAX_LINES);
+    for (let i = 0; i < shown; i++) {
+      lines.push(pending[i].courseName + '（' + ExamDateUtils.formatDisplay(pending[i].examDate) + '）');
+    }
+    let message: string = '收到来自分享的 ' + pending.length + ' 门考试时间：\n' + lines.join('\n');
+    if (pending.length > shown) {
+      message += '\n……等 ' + pending.length + ' 门';
+    }
+    message += '\n\n导入后按课程名合并到本机期末倒计时，是否导入？';
+    this.getUIContext().showAlertDialog({
+      title: '导入期末倒计时',
+      message: message,
+      primaryButton: {
+        value: '取消',
+        action: () => {
+        }
+      },
+      secondaryButton: {
+        value: '导入',
+        action: (): void => {
+          const context: common.UIAbilityContext | null = getContext();
+          if (context === null) {
+            this.getUIContext().getPromptAction().showToast({ message: '导入失败，请重试' });
+            return;
+          }
+          try {
+            const changed: number = CardDataStore.importFinalExams(context, pending);
+            this.getUIContext().getPromptAction().showToast({
+              message: changed > 0 ? '已导入 ' + changed + ' 门考试时间' : '期末倒计时已同步'
+            });
+          } catch (error) {
+            this.getUIContext().getPromptAction().showToast({ message: '导入失败，请重试' });
+          }
+        }
+      }
+    });
   }
 
   /**

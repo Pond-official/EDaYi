@@ -11,9 +11,9 @@ const DOMAIN: number = 0x0000;
 
 /**
  * 期末倒计时导入页（Share Kit 分享详情页内嵌页面，由 ExamShareAbility 加载）：
- * 接收到分享文本/文件后自动按课程名合并到本机设置并展示导入结果
- * （写入与主应用「设置考试时间」同一存储，主应用在运行则即时刷新），无需手动确认；
- * 自动导入失败（无上下文/存储异常）时回退为列表+按钮的手动导入。
+ * 接收到分享文本/文件后先展示待导入的考试时间明细，
+ * 用户点「导入」确认后才按课程名合并到本机设置（写入与主应用「设置考试时间」同一存储，
+ * 主应用在运行则即时刷新）；点「取消」返回分享面板，不导入。
  * 期末倒计时为用户自建数据，全部隐私模式均落盘导入；
  * 导入完成经 terminateSelfWithResult(CLOSE) 关闭分享面板。
  */
@@ -34,12 +34,9 @@ struct ExamShareImport {
     const stored: FinalExamEntry[] | undefined = this.storage?.get<FinalExamEntry[]>('exams');
     this.entries = stored ?? [];
     AppLog.info(DOMAIN, TAG, 'import page appear, entries: %{public}d', `${this.entries.length}`);
-    if (this.entries.length > 0) {
-      this.confirmImport();
-    }
   }
 
-  /** 导入：按课程名合并到本机期末倒计时（页面打开自动调用一次，失败可经按钮重试） */
+  /** 导入：按课程名合并到本机期末倒计时（用户点「导入」确认时调用，失败可再试点按重试） */
   private confirmImport(): void {
     if (this.abilityContext === undefined) {
       AppLog.error(DOMAIN, TAG, 'import without context');

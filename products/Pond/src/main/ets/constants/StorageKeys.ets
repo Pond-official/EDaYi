@@ -13,7 +13,7 @@
  * 校验命令（项目根目录）：node tools/check_storage_keys.mjs
  */
 
-// ================================ AppStorage 键（33 个） ================================
+// ================================ AppStorage 键（34 个） ================================
 
 // [AppStorage] jwSafeTopPx | number | pondability/PondAbility（窗口避让安全高度） | pages/LoginIndex、pages/Index、pages/TrainingPlanIndex、pages/LibraryIndex、view/FrostBand、view/GradeView、view/HomeView、view/SelectionView、view/SettingsView、view/ZcpView（10 处）
 // [AppStorage] jwSafeBottomPx | number | pondability/PondAbility（窗口底部导航条避让高度，三键导航与手势条取较大值） | pages/Index（API 23 以下常规底栏让位系统导航条）
@@ -48,6 +48,7 @@
 // [AppStorage] jwCardNightMinutes | number（当日分钟数，开始默认展示明日课程的时刻） | data/JwxtSessionRepository | view/SettingsView（@StorageLink，双向）
 // [AppStorage] jwBackgroundUri | string（自定义背景图片沙箱路径，'' = 未自定义） | data/JwxtSessionRepository（attachContext 载入/导入） | pages/Index、pages/SettingsIndex、pages/TrainingPlanIndex、pages/LibraryIndex（背景渲染）、view/SettingsView（@StorageLink 双向）
 // [AppStorage] jwBackgroundMode | string（背景模式：system/white/image） | data/JwxtSessionRepository（attachContext 载入/导入/切换） | pages/Index、pages/SettingsIndex、pages/TrainingPlanIndex、pages/LibraryIndex（背景渲染）、view/SettingsView（@StorageLink 双向）
+// [AppStorage] examSharePendingImport | model/JwModels.FinalExamEntry[]（深链接收到待确认导入的期末倒计时，确认后合并导入/取消丢弃） | pondability/PondAbility（深链接解析写入） | pages/Index（确认弹窗，@StorageLink 双向 + onPageShow 兜底）
 
 // ============================ 卡片 LocalStorage 键（16 个） ============================
 // 均由 data/CardDataStore 构造 formData，经 formBindingData 注入对应卡片 @Entry(LocalStorage)；

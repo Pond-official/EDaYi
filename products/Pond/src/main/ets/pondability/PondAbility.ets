@@ -4,7 +4,6 @@ import { AppLog } from '../data/AppLog';
 import { window } from '@kit.ArkUI';
 import { JwxtRepository } from '../data/JwxtRepository';
 import { ZcpRepository } from '../data/ZcpRepository';
-import { CardDataStore } from '../data/CardDataStore';
 import { FinalExamEntry } from '../model/JwModels';
 import { ExamShareLink } from '../utils/ExamShareLink';
 import { ExamShareText } from '../utils/ExamShareText';
@@ -31,8 +30,8 @@ export default class PondAbility extends UIAbility {
 
   /**
    * 深链接导入期末倒计时（华为分享碰一碰/隔空传送链接直达拉起）：
-   * edaiyi://examshare 载荷解码解析后按课程名合并导入（与分享面板导入同一链路），
-   * 结果经 AppStorage 提示文案交由主页面 onPageShow 弹 toast（冷启动/回前台均覆盖）。
+   * edaiyi://examshare 载荷解码解析后存入 AppStorage（examSharePendingImport），不直接导入——
+   * 由主页面 onPageShow 弹确认框先展示收到的考试时间明细，用户确认后才合并到本机设置。
    */
   private handleExamShareLink(want: Want): void {
     const link: string = want.uri ?? '';
@@ -46,15 +45,8 @@ export default class PondAbility extends UIAbility {
       AppStorage.setOrCreate('examShareImportHint', '分享内容中没有可导入的考试时间');
       return;
     }
-    try {
-      const changed: number = CardDataStore.importFinalExams(this.context, entries);
-      AppStorage.setOrCreate('examShareImportHint',
-        changed > 0 ? `已导入 ${changed} 门考试时间` : '期末倒计时已同步');
-      AppLog.info(DOMAIN, 'testTag', 'exam share link imported, changed: %{public}d', `${changed}`);
-    } catch (error) {
-      AppLog.error(DOMAIN, 'testTag', 'exam share link import failed: %{public}s', `${error}`);
-      AppStorage.setOrCreate('examShareImportHint', '导入失败，请重试');
-    }
+    AppStorage.setOrCreate('examSharePendingImport', entries);
+    AppLog.info(DOMAIN, 'testTag', 'exam share link pending, entries: %{public}d', `${entries.length}`);
   }
 
   onDestroy(): void {
