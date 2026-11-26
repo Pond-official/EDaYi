@@ -37,8 +37,9 @@ interface WeekCourseRaw {
  * 每天按大节占位（被跨节课程覆盖的大节不渲染，包裹层高=内容高+尾随间距），
  * 课程块显示课名/地点/教师，空槽为浅灰占位。
  * 支持点击"下周"切换查看下周课表（再点"本周"切回），下周模式不渲染"今天"高亮。
- * 行高不固定：六大节槽位按 layoutWeight 权重均分卡片高度（课程槽权重=跨节数），
- * 卡片多高都完整显示 1-2 到 11-12 全部六大节（晚间课不丢），底部不再被裁剪。
+ * 行高不固定：大节槽位按 layoutWeight 权重均分卡片高度（课程槽权重=跨节数），
+ * 底部不被裁剪；大节行动态渲染——仅所显周内存在该大节起步课程时显示该行
+ * （含 label 与时间），无课大节（如晚间 11-12 节）不渲染空占位行。
  * 数据由 ScheduleFormAbility 通过 formBindingData 注入 LocalStorage，
  * 必须以 @Entry(largeStorage) 接收；数据来自最近一次成功同步的离线存储。
  * 点击卡片其他区域通过 postCardAction router 拉起 PondAbility 进入应用；
@@ -173,6 +174,21 @@ struct ScheduleCardLarge {
     return this.startingSpan(startingCells);
   }
 
+  /** 渲染的大节序号列表：仅保留所显周内存在起步课程的大节（无课大节不渲染占位行） */
+  private visiblePeriods(): number[] {
+    const periods: number[] = [];
+    const actives: WeekCourseCell[] = this.activeCells();
+    for (let period: number = 1; period <= CARD_PERIOD_COUNT; period++) {
+      for (const cell of actives) {
+        if (this.periodOfSection(cell.s) === period) {
+          periods.push(period);
+          break;
+        }
+      }
+    }
+    return periods;
+  }
+
   /** 表头日期取时实例：headerDateLabel 内 setTime 复用，避免重复 new Date */
   private readonly dateScratch: Date = new Date();
 
@@ -286,11 +302,11 @@ struct ScheduleCardLarge {
   @Builder
   dayColumn(day: number) {
     Column({ space: CARD_CELL_GAP }) {
-      ForEach(CARD_PERIOD_LABELS, (label: string, index: number) => {
-        if (!this.coveredByEarlier(day, index + 1)) {
+      ForEach(this.visiblePeriods(), (period: number) => {
+        if (!this.coveredByEarlier(day, period)) {
           Column() {
-            if (this.cellsStartingAt(day, index + 1).length > 0) {
-              this.courseBlock(this.cellsStartingAt(day, index + 1))
+            if (this.cellsStartingAt(day, period).length > 0) {
+              this.courseBlock(this.cellsStartingAt(day, period))
             } else {
               Column()
                 .width('100%')
@@ -301,9 +317,9 @@ struct ScheduleCardLarge {
             }
           }
           .width('100%')
-          .layoutWeight(this.slotWeight(day, index + 1))
+          .layoutWeight(this.slotWeight(day, period))
         }
-      }, (label: string, index: number) => 'day' + day + '-period' + index)
+      }, (period: number) => 'day' + day + '-period' + period)
     }
     .width('100%')
     .height('100%')
@@ -354,20 +370,20 @@ struct ScheduleCardLarge {
             .alignItems(VerticalAlign.Center)
             Row({ space: CARD_CELL_GAP }) {
               Column({ space: CARD_CELL_GAP }) {
-                ForEach(CARD_PERIOD_LABELS, (label: string, index: number) => {
+                ForEach(this.visiblePeriods(), (period: number) => {
                   Column({ space: 1 }) {
-                    Text(label)
+                    Text(CARD_PERIOD_LABELS[period - 1])
                       .fontSize(9)
                       .fontWeight(FontWeight.Bold)
                       .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-                    Text(CARD_PERIOD_TIMES[index])
+                    Text(CARD_PERIOD_TIMES[period - 1])
                       .fontSize(7)
                       .fontColor($r('sys.color.ohos_id_color_text_secondary'))
                   }
                   .width(CARD_LABEL_WIDTH)
                   .layoutWeight(1)
                   .justifyContent(FlexAlign.Center)
-                }, (label: string, index: number) => 'label' + index)
+                }, (period: number) => 'label' + period)
               }
               .width(CARD_LABEL_WIDTH)
               .height('100%')
