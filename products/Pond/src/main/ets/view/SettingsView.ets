@@ -435,9 +435,24 @@ export struct SettingsView {
     });
   }
 
-  /** 清除单门课程的期末考试时间 */
+  /** 清除单门课程的期末考试时间：先弹窗确认，确认后才删除 */
   private clearExamTime(item: ExamCourseItem): void {
-    JwxtRepository.updateFinalExam(item.courseName, '');
+    this.getUIContext().showAlertDialog({
+      title: '删除期末倒计时',
+      message: '将删除「' + item.courseName + '」的考试时间（'
+        + ExamDateUtils.formatDisplay(item.examDate) + '），删除后该科目不再显示倒计时。是否删除？',
+      primaryButton: {
+        value: '取消',
+        action: () => {
+        }
+      },
+      secondaryButton: {
+        value: '删除',
+        action: () => {
+          JwxtRepository.updateFinalExam(item.courseName, '');
+        }
+      }
+    });
   }
 
   /** 导入弹层：当前输入文本解析出的待导入条目（与分享文本共用同一解析） */
