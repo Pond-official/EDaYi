@@ -235,13 +235,22 @@ function examCourseRow(params: SettingsExamListParams, item: ExamCourseItem) {
           .fontColor($r('sys.color.ohos_id_color_text_primary_activated'))
       }
       .alignItems(HorizontalAlign.End)
-      Text('清除')
-        .fontSize(12)
-        .fontColor($r('sys.color.ohos_id_color_text_secondary'))
-        .padding({ left: 10 })
-        .onClick(() => {
-          params.onClear(item);
-        })
+      Row({ space: 4 }) {
+        SymbolGlyph($r('sys.symbol.xmark'))
+          .fontSize(11)
+          .fontColor([$r('sys.color.ohos_id_color_text_secondary')])
+        Text('清除')
+          .fontSize(11)
+          .fontColor($r('sys.color.ohos_id_color_text_secondary'))
+      }
+      .alignItems(VerticalAlign.Center)
+      .padding({ left: 10, right: 10, top: 5, bottom: 5 })
+      .borderRadius(14)
+      .backgroundColor($r('sys.color.ohos_id_color_button_normal'))
+      .margin({ left: 8 })
+      .onClick(() => {
+        params.onClear(item);
+      })
     } else {
       Text('设置')
         .fontSize(13)
