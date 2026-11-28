@@ -43,3 +43,12 @@ export const DOMAIN_LIBSP: DomainSpec =
   new DomainSpec('libsp', 'finddmu.libsp.cn',
     'https://tyrzfw.chaoxing.com/auth3/dmu/cas/init?isLogout=0&refer='
     + encodeURIComponent('https://finddmu.libsp.cn/find/sso/login/dmu/0?pageType=5&navigation=1'), 25000);
+
+/** 教务系统（jwapp）域：JW 应用会话过期（探针 currentUser.do 应答未登录）时，
+ * 借隐藏 Web 静默重走 CAS 换票链恢复——CAS TGT 仍有效即无感续票（新会话 Cookie 落系统 Cookie 存储），
+ * CAS 也已过期时引导链落到 authserver 登录页，按失败返回回退离线；
+ * entryUrl 与登录页同源（/sys/homeapp/index.do，未登录 302 → CAS 换票 → 回跳 jwxt 建立新会话），
+ * 纯 API 域无需门户预热（warmupUrl 留空） */
+export const DOMAIN_JW: DomainSpec =
+  new DomainSpec('jw', 'jwxt.dmu.edu.cn',
+    'https://jwxt.dmu.edu.cn/jwapp/sys/homeapp/index.do', 20000);

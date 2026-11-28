@@ -21,6 +21,7 @@ import { LibraryRepository } from './LibraryRepository';
 import { AppPreloader } from './AppPreloader';
 import { JW_APP_ROOT, postForm, getForm, getContext, attachContext as transportAttachContext, clearLastCookie } from '../net/JwTransport';
 import { CrossDomainSession } from '../net/CrossDomainSession';
+import { DOMAIN_JW } from '../net/DomainSpec';
 
 const JW_LOGIN_URL: string = JW_APP_ROOT + '/sys/homeapp/index.do';
 const JW_CURRENT_USER: string = '/sys/homeapp/api/home/currentUser.do';
@@ -34,6 +35,13 @@ const JW_QUERY_STUDENT: string = '/sys/byshapp/api/grbg/queryXsjbxx.do';
 const JW_QUERY_CURRENT_TERM: string = '/sys/jwpubapp/modules/gg/cxmrxnxq.do';
 const TAG: string = 'JwxtRepository';
 const DOMAIN: number = 0x0000;
+
+/** 教务探针三态：会话有效 / 服务端应答但未登录（会话过期，可尝试 CAS 静默续票）/ 请求未达服务端（网络故障） */
+enum ProbeOutcome {
+  LOGGED_IN,
+  EXPIRED,
+  NETWORK
+}
 
 /**
  * 教务会话仓库（自 JwxtRepository 拆出）：
@@ -116,31 +124,66 @@ export class JwxtSessionRepository {
    * 记录返回码/长度/解析失败片段，用于诊断登录探测不生效的设备差异。
    */
   static async probeSession(): Promise<boolean> {
+    return (await JwxtSessionRepository.probeOutcome()) === ProbeOutcome.LOGGED_IN;
+  }
+
+  /**
+   * 单次探针并返回三态结果：
+   * 服务端应答且 code=="0" 为 LOGGED_IN（顺带记录 B1 探针标识，供离线缓存归属校验）；
+   * 服务端应答但未登录（code!="0"，或应答非 JSON——多为会话过期的登录重定向页）为 EXPIRED；
+   * 请求未达服务端（超时/连接失败）为 NETWORK。
+   */
+  private static async probeOutcome(): Promise<ProbeOutcome> {
     try {
       const text: string = await getForm(JW_CURRENT_USER);
-      let code: string = '';
-      let ok: boolean = false;
       try {
         const raw: CurrentUserRaw = JSON.parse(text) as CurrentUserRaw;
-        code = raw.code ?? '';
-        ok = raw.code === '0' && raw.datas !== undefined && raw.datas.userId !== undefined;
+        const code: string = raw.code ?? '';
+        const ok: boolean = raw.code === '0' && raw.datas !== undefined && raw.datas.userId !== undefined;
         if (ok) {
           // B1：记录当前会话用户标识，供离线缓存归属校验（回放防跨账号泄漏 / 同步成功记归属）
           JwxtSessionRepository.probeUserId = raw.datas?.userId ?? '';
         }
+        AppLog.info(DOMAIN, TAG, 'probe: code=%{public}s len=%{public}s ok=%{public}s',
+          code, `${text.length}`, `${ok}`);
+        return ok ? ProbeOutcome.LOGGED_IN : ProbeOutcome.EXPIRED;
       } catch (parseError) {
         AppLog.error(DOMAIN, TAG,
           'probe: json parse failed, len=%{public}s, head=%{public}s',
           `${text.length}`, text.length > 0 ? text.substring(0, 80) : '(empty)');
-        return false;
+        // 应答非 JSON：多为会话过期的登录重定向页，按未登录处理（可尝试静默续票）
+        return ProbeOutcome.EXPIRED;
       }
-      AppLog.info(DOMAIN, TAG, 'probe: code=%{public}s len=%{public}s ok=%{public}s',
-        code, `${text.length}`, `${ok}`);
-      return ok;
     } catch (error) {
       AppLog.error(DOMAIN, TAG, 'probeSession failed: %{public}s', `${error}`);
+      return ProbeOutcome.NETWORK;
+    }
+  }
+
+  /**
+   * JW 会话静默续票：借根页面隐藏 Web 重走 CAS 换票链（DOMAIN_JW），
+   * 成功后新会话 Cookie 已落系统 Cookie 存储，二次探针确认后恢复在线；
+   * CAS 会话也已过期（引导链落到 authserver 登录页）或引导超时则放弃，回退离线。
+   * 门槛：此前成功同步过（有缓存归属记录）才尝试——新装未登录用户直接回退，不空跑引导链。
+   */
+  private static async rebootstrapViaCas(): Promise<boolean> {
+    const context: common.UIAbilityContext | null = getContext();
+    if (context === null || CardDataStore.loadCacheOwnerSid(context).length === 0) {
+      AppLog.error(DOMAIN, TAG, 'probe expired but no cache owner, skip cas re-bootstrap');
       return false;
     }
+    CrossDomainSession.invalidate(DOMAIN_JW.key);
+    const rebound: boolean = await CrossDomainSession.ensure(DOMAIN_JW);
+    if (!rebound) {
+      AppLog.error(DOMAIN, TAG, 'cas re-bootstrap failed, jw session stays expired');
+      return false;
+    }
+    if ((await JwxtSessionRepository.probeOutcome()) !== ProbeOutcome.LOGGED_IN) {
+      AppLog.error(DOMAIN, TAG, 'probe still expired after cas re-bootstrap');
+      return false;
+    }
+    AppLog.info(DOMAIN, TAG, 'jw session re-bootstrapped via cas');
+    return true;
   }
 
   /**
@@ -357,8 +400,14 @@ export class JwxtSessionRepository {
   }
 
   private static async tryLoadOnline(): Promise<boolean> {
-    if (!await JwxtSessionRepository.probeSession()) {
-      AppLog.error(DOMAIN, TAG, 'tryLoadOnline stop: probe failed, not logged in');
+    const probe: ProbeOutcome = await JwxtSessionRepository.probeOutcome();
+    if (probe === ProbeOutcome.NETWORK) {
+      // 网络未达：隐藏 Web 换票同样会失败，直接回退离线，不空等引导链超时
+      AppLog.error(DOMAIN, TAG, 'tryLoadOnline stop: probe network failure');
+      return false;
+    }
+    if (probe === ProbeOutcome.EXPIRED && !await JwxtSessionRepository.rebootstrapViaCas()) {
+      AppLog.error(DOMAIN, TAG, 'tryLoadOnline stop: probe expired, re-bootstrap unavailable');
       return false;
     }
     try {
